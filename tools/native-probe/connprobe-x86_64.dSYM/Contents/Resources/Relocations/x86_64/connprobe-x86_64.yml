@@ -1,0 +1,5 @@
+---
+triple:          'x86_64-apple-darwin'
+binary-path:     connprobe-x86_64
+relocations:     []
+...
