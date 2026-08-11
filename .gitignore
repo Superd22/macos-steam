@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Agent scratch: throwaway git worktrees created by subagents
+.claude/worktrees/
+
+# Machine-local Claude Code settings
+.claude/settings.local.json
+
+# Debug symbol bundles
+*.dSYM/
+
+# Compiled tool output. Sources only — the build lines live in
+# tools/native-probe/FINDINGS.md and tools/compat-enabler/build.sh.
+tools/native-probe/*
+!tools/native-probe/*.cpp
+!tools/native-probe/*.h
+!tools/native-probe/*.md
+
+tools/compat-enabler/*
+!tools/compat-enabler/*.c
+!tools/compat-enabler/*.h
+!tools/compat-enabler/*.md
+!tools/compat-enabler/build.sh
