@@ -210,25 +210,25 @@ int main(int argc, char** argv) {
 
   // -- 8. ISteamUserStats ---------------------------------------------------
   stage("GetISteamUserStats + achievement read");
-  ISteamUserStats* stats = nullptr;
-  for (const char* v : kUserStatsVersions) {
-    stats = (ISteamUserStats*)client->GetISteamGenericInterface(user, pipe, v);
-    say("%-38s -> %p", v, (void*)stats);
-    if (stats) break;
-  }
+  // v013 dropped RequestCurrentStats, so drive it through the v013 layout and
+  // prove the slot indices by asking for an achievement that cannot exist: a
+  // correct binding answers false and names the achievement in its warning.
+  ISteamUserStats013* stats = (ISteamUserStats013*)client->GetISteamUserStats(
+      user, pipe, "STEAMUSERSTATS_INTERFACE_VERSION013");
+  say("v013 iface = %p", (void*)stats);
   if (stats) {
-    bool req = stats->RequestCurrentStats();
-    say("RequestCurrentStats = %s", req ? "true" : "false");
-    say("(stats arrive via a UserStatsReceived_t callback; without a callback");
-    say(" pump, reads below may legitimately be empty on the first run)");
+    bool achieved = false;
+    bool ok = stats->GetAchievement("PROBE_SLOT_CHECK_NOT_REAL", &achieved);
+    say("GetAchievement(PROBE_SLOT_CHECK_NOT_REAL) -> ok=%d achieved=%d", ok,
+        achieved);
     const char* probeAch = getenv("PROBE_ACHIEVEMENT");
     if (probeAch) {
-      bool achieved = false;
-      bool ok = stats->GetAchievement(probeAch, &achieved);
-      say("GetAchievement(%s) ok=%d achieved=%d", probeAch, ok, achieved);
+      achieved = false;
+      uint32_t when = 0;
+      ok = stats->GetAchievementAndUnlockTime(probeAch, &achieved, &when);
+      say("GetAchievementAndUnlockTime(%s) -> ok=%d achieved=%d unlockTime=%u",
+          probeAch, ok, achieved, when);
     }
-  } else {
-    say("WARN: no ISteamUserStats served");
   }
 
   // -- 9. teardown ----------------------------------------------------------

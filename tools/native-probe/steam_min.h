@@ -38,6 +38,28 @@ class ISteamFriends {
   // ... truncated
 };
 
+// STEAMUSERSTATS_INTERFACE_VERSION013 drops RequestCurrentStats — the whole
+// vtable shifts up by one relative to 012. Proved empirically: calling slot 0
+// with no arguments on a v013 pointer lands in GetStat and Steam itself prints
+// "[S_API WARN] GetStat() failed, stat (null) does not exist".
+class ISteamUserStats013 {
+ public:
+  virtual bool GetStatInt(const char* name, int32_t* data) = 0;
+  virtual bool GetStatFloat(const char* name, float* data) = 0;
+  virtual bool SetStatInt(const char* name, int32_t data) = 0;
+  virtual bool SetStatFloat(const char* name, float data) = 0;
+  virtual bool UpdateAvgRateStat(const char* name, float countThisSession,
+                                 double sessionLength) = 0;
+  virtual bool GetAchievement(const char* name, bool* achieved) = 0;
+  virtual bool SetAchievement(const char* name) = 0;
+  virtual bool ClearAchievement(const char* name) = 0;
+  virtual bool GetAchievementAndUnlockTime(const char* name, bool* achieved,
+                                           uint32_t* unlockTime) = 0;
+  virtual bool StoreStats() = 0;
+  // ... truncated
+};
+
+// VERSION012 and earlier still lead with RequestCurrentStats.
 class ISteamUserStats {
  public:
   virtual bool RequestCurrentStats() = 0;
