@@ -22,3 +22,10 @@ tools/compat-enabler/*
 !tools/compat-enabler/*.h
 !tools/compat-enabler/*.md
 !tools/compat-enabler/build.sh
+
+tools/seam-spike/*
+!tools/seam-spike/*.c
+!tools/seam-spike/*.py
+!tools/seam-spike/*.md
+!tools/seam-spike/build.sh
+!tools/seam-spike/run.sh
