@@ -1,0 +1,420 @@
+/*
+ * harness.exe — repeatable achievement test loop against Spacewar (appid 480).
+ *
+ * Runs the destination's exact call path against whatever Steam client the
+ * steam_api64.dll beside it can reach:
+ *
+ *   SteamAPI_Init -> RequestCurrentStats -> [UserStatsReceived_t 1101]
+ *     -> SetAchievement -> StoreStats -> [UserStatsStored_t 1102,
+ *        UserAchievementStored_t 1103] -> verify -> ResetAllStats(true)
+ *     -> RequestCurrentStats -> verify cleared
+ *
+ * Idempotent by construction: every "loop" run ends with ResetAllStats, so the
+ * achievement is never burned. steam_appid.txt (480) beside the exe makes it
+ * init as Spacewar with no game installed.
+ *
+ * Uses the manual-dispatch flat API (SteamAPI_ManualDispatch_*) so callbacks
+ * arrive as raw structs we hex-dump — the dump IS the reference trace the
+ * bridge shim must reproduce. Every export is resolved via GetProcAddress and
+ * missing ones are reported, never assumed.
+ *
+ * Modes:
+ *   harness.exe            full loop (set -> verify -> reset -> verify)
+ *   harness.exe status     init + list achievements, mutate nothing
+ *   harness.exe set [ACH]  set + store one achievement (default ACH_WIN_ONE_GAME)
+ *   harness.exe reset      ResetAllStats(true) only
+ */
+
+#include <windows.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+
+typedef int32_t HSteamPipe;
+typedef int32_t HSteamUser;
+
+/* CallbackMsg_t, Windows x64 layout (pack 8): 4+4+8+4(+4 pad) = 24 bytes */
+typedef struct {
+    HSteamUser m_hSteamUser;
+    int32_t    m_iCallback;
+    uint8_t   *m_pubParam;
+    int32_t    m_cubParam;
+} CallbackMsg_t;
+
+#define CBID_SteamAPICallCompleted   703
+#define CBID_UserStatsReceived      1101
+#define CBID_UserStatsStored        1102
+#define CBID_UserAchievementStored  1103
+
+/* ---- resolved exports ------------------------------------------------- */
+
+static int   (*p_Init)(void);
+static void  (*p_Shutdown)(void);
+static void  (*p_MD_Init)(void);
+static void  (*p_MD_RunFrame)(HSteamPipe);
+static int   (*p_MD_GetNextCallback)(HSteamPipe, CallbackMsg_t *);
+static void  (*p_MD_FreeLastCallback)(HSteamPipe);
+static HSteamPipe (*p_GetHSteamPipe)(void);
+static HSteamUser (*p_GetHSteamUser)(void);
+static void *(*p_FindOrCreateUserInterface)(HSteamUser, const char *);
+
+static int      (*p_User_BLoggedOn)(void *);
+static uint64_t (*p_User_GetSteamID)(void *);
+
+static int      (*p_Stats_RequestCurrentStats)(void *);
+static int      (*p_Stats_GetAchievement)(void *, const char *, int *);
+static int      (*p_Stats_GetAchievementAndUnlockTime)(void *, const char *, int *, uint32_t *);
+static int      (*p_Stats_SetAchievement)(void *, const char *);
+static int      (*p_Stats_ClearAchievement)(void *, const char *);
+static int      (*p_Stats_StoreStats)(void *);
+static int      (*p_Stats_ResetAllStats)(void *, int);
+static uint32_t (*p_Stats_GetNumAchievements)(void *);
+static const char *(*p_Stats_GetAchievementName)(void *, uint32_t);
+static const char *(*p_Stats_GetAchievementDisplayAttribute)(void *, const char *, const char *);
+
+static void  (*p_RunCallbacks)(void);
+static void  (*p_RegisterCallback)(void *, int);
+static void  (*p_UnregisterCallback)(void *);
+
+static void *g_user;   /* ISteamUser* */
+static void *g_stats;  /* ISteamUserStats* */
+static HSteamPipe g_pipe;
+static int g_use_md;   /* 1 = manual dispatch pump, 0 = classic RegisterCallback pump */
+
+#define RESOLVE(var, name, required)                                   \
+    do {                                                               \
+        *(FARPROC *)&(var) = GetProcAddress(dll, name);                \
+        printf("resolve %-52s %s\n", name, (var) ? "ok" : "MISSING"); \
+        if (!(var) && (required)) { fprintf(stderr, "FATAL: required export %s missing\n", name); return 0; } \
+    } while (0)
+
+static int resolve_all(HMODULE dll)
+{
+    RESOLVE(p_Init,                "SteamAPI_Init", 1);
+    RESOLVE(p_Shutdown,            "SteamAPI_Shutdown", 1);
+    RESOLVE(p_MD_Init,             "SteamAPI_ManualDispatch_Init", 1);
+    RESOLVE(p_MD_RunFrame,         "SteamAPI_ManualDispatch_RunFrame", 1);
+    RESOLVE(p_MD_GetNextCallback,  "SteamAPI_ManualDispatch_GetNextCallback", 1);
+    RESOLVE(p_MD_FreeLastCallback, "SteamAPI_ManualDispatch_FreeLastCallback", 1);
+    RESOLVE(p_GetHSteamPipe,       "SteamAPI_GetHSteamPipe", 1);
+    RESOLVE(p_GetHSteamUser,       "SteamAPI_GetHSteamUser", 1);
+    RESOLVE(p_FindOrCreateUserInterface, "SteamInternal_FindOrCreateUserInterface", 1);
+
+    RESOLVE(p_RunCallbacks,       "SteamAPI_RunCallbacks", 1);
+    RESOLVE(p_RegisterCallback,   "SteamAPI_RegisterCallback", 1);
+    RESOLVE(p_UnregisterCallback, "SteamAPI_UnregisterCallback", 1);
+
+    RESOLVE(p_User_BLoggedOn,  "SteamAPI_ISteamUser_BLoggedOn", 1);
+    RESOLVE(p_User_GetSteamID, "SteamAPI_ISteamUser_GetSteamID", 1);
+
+    RESOLVE(p_Stats_RequestCurrentStats,        "SteamAPI_ISteamUserStats_RequestCurrentStats", 1);
+    RESOLVE(p_Stats_GetAchievement,             "SteamAPI_ISteamUserStats_GetAchievement", 1);
+    RESOLVE(p_Stats_GetAchievementAndUnlockTime,"SteamAPI_ISteamUserStats_GetAchievementAndUnlockTime", 0);
+    RESOLVE(p_Stats_SetAchievement,             "SteamAPI_ISteamUserStats_SetAchievement", 1);
+    RESOLVE(p_Stats_ClearAchievement,           "SteamAPI_ISteamUserStats_ClearAchievement", 0);
+    RESOLVE(p_Stats_StoreStats,                 "SteamAPI_ISteamUserStats_StoreStats", 1);
+    RESOLVE(p_Stats_ResetAllStats,              "SteamAPI_ISteamUserStats_ResetAllStats", 1);
+    RESOLVE(p_Stats_GetNumAchievements,         "SteamAPI_ISteamUserStats_GetNumAchievements", 0);
+    RESOLVE(p_Stats_GetAchievementName,         "SteamAPI_ISteamUserStats_GetAchievementName", 0);
+    RESOLVE(p_Stats_GetAchievementDisplayAttribute, "SteamAPI_ISteamUserStats_GetAchievementDisplayAttribute", 0);
+    return 1;
+}
+
+/* ---- trace output ----------------------------------------------------- */
+
+static DWORD g_t0;
+static void tr(const char *fmt, ...)
+{
+    va_list ap;
+    printf("[%6lu ms] ", (unsigned long)(GetTickCount() - g_t0));
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    printf("\n");
+    fflush(stdout);
+}
+
+static void hexdump(const uint8_t *p, int n)
+{
+    for (int i = 0; i < n; i += 16) {
+        printf("      %04x  ", i);
+        for (int j = i; j < i + 16 && j < n; j++) printf("%02x ", p[j]);
+        printf(" |");
+        for (int j = i; j < i + 16 && j < n; j++)
+            putchar(p[j] >= 0x20 && p[j] < 0x7f ? p[j] : '.');
+        printf("|\n");
+    }
+    fflush(stdout);
+}
+
+static const char *cb_name(int id)
+{
+    switch (id) {
+    case 101:                         return "SteamServersConnected_t";
+    case 304:                         return "PersonaStateChange_t";
+    case CBID_SteamAPICallCompleted:  return "SteamAPICallCompleted_t";
+    case CBID_UserStatsReceived:      return "UserStatsReceived_t";
+    case CBID_UserStatsStored:        return "UserStatsStored_t";
+    case CBID_UserAchievementStored:  return "UserAchievementStored_t";
+    default:                          return "?";
+    }
+}
+
+/* Decode the callbacks we care about (Windows x64 layouts). */
+static void decode_cb(int id, const uint8_t *d, int cub)
+{
+    switch (id) {
+    case CBID_UserStatsReceived:  /* uint64 gameid @0, EResult @8, CSteamID @12 (pack(1)) */
+        if (cub >= 20)
+            tr("      -> UserStatsReceived_t  gameid=%llu eresult=%d steamid=%llu",
+               (unsigned long long)*(const uint64_t *)d, *(const int32_t *)(d + 8),
+               (unsigned long long)*(const uint64_t *)(d + 12));
+        break;
+    case CBID_UserStatsStored:    /* uint64 gameid @0, EResult @8 */
+        if (cub >= 12)
+            tr("      -> UserStatsStored_t    gameid=%llu eresult=%d",
+               (unsigned long long)*(const uint64_t *)d, *(const int32_t *)(d + 8));
+        break;
+    case CBID_UserAchievementStored: /* uint64 @0, bool @8, char[128] @9, uint32 @140, @144 */
+        if (cub >= 148)
+            tr("      -> UserAchievementStored_t gameid=%llu group=%d name=\"%s\" cur=%u max=%u",
+               (unsigned long long)*(const uint64_t *)d, d[8], (const char *)(d + 9),
+               *(const uint32_t *)(d + 140), *(const uint32_t *)(d + 144));
+        break;
+    }
+}
+
+/* ---- classic pump: hand-built CCallbackBase vtable in C ---------------- */
+/*
+ * MSVC orders same-name overloads in REVERSE declaration order (map trap #2),
+ * so which of the two Run slots steam_api calls for a plain callback is not
+ * assumed: both slots log which one fired and funnel to the same handler.
+ * GetCallbackSizeBytes sits at slot 2 either way.
+ */
+
+typedef struct {
+    void   **vtbl;
+    uint8_t  m_nCallbackFlags;   /* MSVC layout: vtbl @0, flags @8, id @12 */
+    int32_t  m_iCallback;
+    int32_t  size;               /* ours, past the ABI fields: payload bytes */
+} CCallbackBase;
+
+static int g_want;       /* callback id the current pump is waiting for */
+static int g_want_seen;
+
+static void on_callback(CCallbackBase *self, void *param, int slot)
+{
+    tr("CALLBACK id=%d (%s) via Run slot%d", self->m_iCallback,
+       cb_name(self->m_iCallback), slot);
+    hexdump(param, self->size);
+    decode_cb(self->m_iCallback, param, self->size);
+    if (self->m_iCallback == g_want) g_want_seen = 1;
+}
+
+static void run_slot0(CCallbackBase *self, void *param)
+{ on_callback(self, param, 0); }
+static void run_slot1(CCallbackBase *self, void *param, int io, uint64_t hcall)
+{ (void)io; (void)hcall; on_callback(self, param, 1); }
+static int  cb_get_size(CCallbackBase *self) { return self->size; }
+
+static void *g_cb_vtbl[3] = { (void *)run_slot0, (void *)run_slot1, (void *)cb_get_size };
+
+static CCallbackBase g_cbs[16];
+static int g_ncbs;
+
+static void reg_cb(int id, int size)
+{
+    CCallbackBase *cb = &g_cbs[g_ncbs++];
+    cb->vtbl = g_cb_vtbl;
+    cb->m_nCallbackFlags = 0;
+    cb->m_iCallback = id;
+    cb->size = size;
+    p_RegisterCallback(cb, id);
+    tr("RegisterCallback(id=%d %s, size=%d)", id, cb_name(id), size);
+}
+
+/*
+ * Pump until a callback with id `want` arrives, printing + hex-dumping every
+ * callback seen. Classic pump by default; manual dispatch with --md.
+ * Returns 1 if `want` seen within timeout_ms.
+ */
+static int pump_until(int want, int timeout_ms)
+{
+    DWORD deadline = GetTickCount() + timeout_ms;
+    g_want = want;
+    g_want_seen = 0;
+    while (GetTickCount() < deadline) {
+        if (g_use_md) {
+            p_MD_RunFrame(g_pipe);
+            CallbackMsg_t msg;
+            while (p_MD_GetNextCallback(g_pipe, &msg)) {
+                tr("CALLBACK id=%d (%s) cub=%d huser=%d",
+                   msg.m_iCallback, cb_name(msg.m_iCallback), msg.m_cubParam, msg.m_hSteamUser);
+                hexdump(msg.m_pubParam, msg.m_cubParam);
+                decode_cb(msg.m_iCallback, msg.m_pubParam, msg.m_cubParam);
+                if (msg.m_iCallback == want) g_want_seen = 1;
+                p_MD_FreeLastCallback(g_pipe);
+            }
+        } else {
+            p_RunCallbacks();
+        }
+        if (g_want_seen) return 1;
+        Sleep(50);
+    }
+    tr("TIMEOUT after %d ms waiting for callback %d (%s)", timeout_ms, want, cb_name(want));
+    return 0;
+}
+
+static void print_achievement(const char *name)
+{
+    int ach = 0;
+    if (p_Stats_GetAchievementAndUnlockTime) {
+        uint32_t t = 0;
+        int ok = p_Stats_GetAchievementAndUnlockTime(g_stats, name, &ach, &t); ach &= 0xff;
+        tr("GetAchievementAndUnlockTime(\"%s\") ok=%d achieved=%d unlock=%u", name, ok, ach, t);
+    } else {
+        int ok = p_Stats_GetAchievement(g_stats, name, &ach); ach &= 0xff;
+        tr("GetAchievement(\"%s\") ok=%d achieved=%d", name, ok, ach);
+    }
+}
+
+static const char *SPACEWAR_ACH[] = {
+    "ACH_WIN_ONE_GAME", "ACH_WIN_100_GAMES", "ACH_TRAVEL_FAR_ACCUM", "ACH_TRAVEL_FAR_SINGLE",
+};
+
+static void print_all_achievements(void)
+{
+    if (p_Stats_GetNumAchievements && p_Stats_GetAchievementName) {
+        uint32_t n = p_Stats_GetNumAchievements(g_stats);
+        tr("GetNumAchievements() = %u", n);
+        for (uint32_t i = 0; i < n; i++) {
+            const char *name = p_Stats_GetAchievementName(g_stats, i);
+            print_achievement(name);
+        }
+        if (n > 0) return;
+    }
+    tr("falling back to hardcoded Spacewar achievement list");
+    for (size_t i = 0; i < sizeof SPACEWAR_ACH / sizeof *SPACEWAR_ACH; i++)
+        print_achievement(SPACEWAR_ACH[i]);
+}
+
+static int get_achieved(const char *name)
+{
+    int ach = 0;
+    p_Stats_GetAchievement(g_stats, name, &ach);
+    return ach & 0xff;
+}
+
+int main(int argc, char **argv)
+{
+    const char *pos[2] = { "loop", "ACH_WIN_ONE_GAME" };
+    int npos = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--md") == 0) g_use_md = 1;
+        else if (npos < 2) pos[npos++] = argv[i];
+    }
+    const char *mode = pos[0], *ach = pos[1];
+    g_t0 = GetTickCount();
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    printf("=== steamworks achievement harness (%s) ===\n", mode);
+
+    HMODULE dll = LoadLibraryA("steam_api64.dll");
+    if (!dll) { fprintf(stderr, "FATAL: LoadLibrary(steam_api64.dll) failed err=%lu\n", GetLastError()); return 2; }
+    tr("LoadLibrary(steam_api64.dll) ok base=%p", (void *)dll);
+    if (!resolve_all(dll)) return 2;
+
+    if (g_use_md) {
+        /* Manual dispatch must be armed BEFORE Init. */
+        p_MD_Init();
+        tr("SteamAPI_ManualDispatch_Init() done");
+    } else {
+        tr("classic pump (SteamAPI_RegisterCallback + RunCallbacks)");
+    }
+
+    int ok = p_Init();
+    tr("SteamAPI_Init() = %d", ok);
+    if (!ok) {
+        fprintf(stderr, "FATAL: SteamAPI_Init failed — is Steam running & logged in, "
+                        "and steam_appid.txt present?\n");
+        return 3;
+    }
+
+    if (!g_use_md) {
+        reg_cb(101, 1);                          /* SteamServersConnected_t — pump liveness */
+        reg_cb(304, 16);                         /* PersonaStateChange_t   — pump liveness */
+        reg_cb(CBID_UserStatsReceived, 24);
+        reg_cb(CBID_UserStatsStored, 16);
+        reg_cb(CBID_UserAchievementStored, 152);
+    }
+
+    g_pipe = p_GetHSteamPipe();
+    HSteamUser huser = p_GetHSteamUser();
+    tr("HSteamPipe=%d HSteamUser=%d", g_pipe, huser);
+
+    g_user  = p_FindOrCreateUserInterface(huser, "SteamUser021");
+    g_stats = p_FindOrCreateUserInterface(huser, "STEAMUSERSTATS_INTERFACE_VERSION012");
+    tr("ISteamUser(SteamUser021)=%p ISteamUserStats(v012)=%p", g_user, g_stats);
+    if (!g_user || !g_stats) { fprintf(stderr, "FATAL: interface lookup failed\n"); return 3; }
+
+    int logged = p_User_BLoggedOn(g_user);
+    uint64_t sid = p_User_GetSteamID(g_user);
+    tr("BLoggedOn=%d SteamID=%llu", logged, (unsigned long long)sid);
+    if (!logged) {
+        /* Map trap #1: offline Steam is a convincing false negative. */
+        fprintf(stderr, "ABORT: BLoggedOn=false — Steam is OFFLINE. Results would be "
+                        "meaningless (see map trap #1). Go online and re-run.\n");
+        return 4;
+    }
+
+    tr("RequestCurrentStats() = %d", p_Stats_RequestCurrentStats(g_stats));
+    if (!pump_until(CBID_UserStatsReceived, 10000)) return 5;
+
+    int rc = 0;
+    if (strcmp(mode, "status") == 0) {
+        print_all_achievements();
+
+    } else if (strcmp(mode, "set") == 0) {
+        tr("SetAchievement(\"%s\") = %d", ach, p_Stats_SetAchievement(g_stats, ach));
+        tr("StoreStats() = %d", p_Stats_StoreStats(g_stats));
+        pump_until(CBID_UserStatsStored, 10000);
+        print_achievement(ach);
+
+    } else if (strcmp(mode, "reset") == 0) {
+        tr("ResetAllStats(true) = %d", p_Stats_ResetAllStats(g_stats, 1));
+        tr("RequestCurrentStats() = %d", p_Stats_RequestCurrentStats(g_stats));
+        pump_until(CBID_UserStatsReceived, 10000);
+        print_all_achievements();
+
+    } else { /* loop: the idempotent set -> verify -> reset -> verify cycle */
+        tr("--- phase 0: initial state ---");
+        print_all_achievements();
+
+        tr("--- phase 1: set + store ---");
+        tr("SetAchievement(\"%s\") = %d", ach, p_Stats_SetAchievement(g_stats, ach));
+        tr("StoreStats() = %d", p_Stats_StoreStats(g_stats));
+        if (!pump_until(CBID_UserStatsStored, 10000)) rc = 6;
+
+        tr("--- phase 2: verify set ---");
+        print_achievement(ach);
+        int set_ok = get_achieved(ach) == 1;
+        tr("VERIFY set: %s", set_ok ? "PASS" : "FAIL");
+
+        tr("--- phase 3: reset all ---");
+        tr("ResetAllStats(true) = %d", p_Stats_ResetAllStats(g_stats, 1));
+        tr("RequestCurrentStats() = %d", p_Stats_RequestCurrentStats(g_stats));
+        if (!pump_until(CBID_UserStatsReceived, 10000)) rc = 6;
+
+        tr("--- phase 4: verify reset ---");
+        print_achievement(ach);
+        int reset_ok = get_achieved(ach) == 0;
+        tr("VERIFY reset: %s", reset_ok ? "PASS" : "FAIL");
+
+        tr("=== LOOP %s ===", set_ok && reset_ok && rc == 0 ? "PASS" : "FAIL");
+        if (!(set_ok && reset_ok)) rc = 7;
+    }
+
+    p_Shutdown();
+    tr("SteamAPI_Shutdown() done");
+    return rc;
+}

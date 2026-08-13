@@ -1,0 +1,87 @@
+=== steamworks achievement harness (loop) ===
+[   710 ms] LoadLibrary(steam_api64.dll) ok base=00006FFFE77F0000
+resolve SteamAPI_Init                                        ok
+resolve SteamAPI_Shutdown                                    ok
+resolve SteamAPI_ManualDispatch_Init                         ok
+resolve SteamAPI_ManualDispatch_RunFrame                     ok
+resolve SteamAPI_ManualDispatch_GetNextCallback              ok
+resolve SteamAPI_ManualDispatch_FreeLastCallback             ok
+resolve SteamAPI_GetHSteamPipe                               ok
+resolve SteamAPI_GetHSteamUser                               ok
+resolve SteamInternal_FindOrCreateUserInterface              ok
+resolve SteamAPI_RunCallbacks                                ok
+resolve SteamAPI_RegisterCallback                            ok
+resolve SteamAPI_UnregisterCallback                          ok
+resolve SteamAPI_ISteamUser_BLoggedOn                        ok
+resolve SteamAPI_ISteamUser_GetSteamID                       ok
+resolve SteamAPI_ISteamUserStats_RequestCurrentStats         ok
+resolve SteamAPI_ISteamUserStats_GetAchievement              ok
+resolve SteamAPI_ISteamUserStats_GetAchievementAndUnlockTime ok
+resolve SteamAPI_ISteamUserStats_SetAchievement              ok
+resolve SteamAPI_ISteamUserStats_ClearAchievement            ok
+resolve SteamAPI_ISteamUserStats_StoreStats                  ok
+resolve SteamAPI_ISteamUserStats_ResetAllStats               ok
+resolve SteamAPI_ISteamUserStats_GetNumAchievements          ok
+resolve SteamAPI_ISteamUserStats_GetAchievementName          ok
+resolve SteamAPI_ISteamUserStats_GetAchievementDisplayAttribute ok
+[   710 ms] classic pump (SteamAPI_RegisterCallback + RunCallbacks)
+[  1148 ms] SteamAPI_Init() = 1
+[  1148 ms] RegisterCallback(id=101 SteamServersConnected_t, size=1)
+[  1148 ms] RegisterCallback(id=304 PersonaStateChange_t, size=16)
+[  1148 ms] RegisterCallback(id=1101 UserStatsReceived_t, size=24)
+[  1148 ms] RegisterCallback(id=1102 UserStatsStored_t, size=16)
+[  1148 ms] RegisterCallback(id=1103 UserAchievementStored_t, size=152)
+[  1149 ms] HSteamPipe=1 HSteamUser=1
+[  1151 ms] ISteamUser(SteamUser021)=00000000015001C0 ISteamUserStats(v012)=00000000013407D0
+[  1152 ms] BLoggedOn=1 SteamID=76561198014230730
+[  1153 ms] RequestCurrentStats() = 1
+[  1389 ms] CALLBACK id=1101 (UserStatsReceived_t) via Run slot1
+      0000  e0 01 00 00 00 00 00 00 01 00 00 00 ca 70 37 03  |.............p7.|
+      0010  01 00 10 01 00 00 00 00  |........|
+[  1389 ms]       -> UserStatsReceived_t  gameid=480 eresult=1 steamid=76561198014230730
+[  1389 ms] --- phase 0: initial state ---
+[  1390 ms] GetNumAchievements() = 5
+[  1390 ms] GetAchievementAndUnlockTime("ACH_TRAVEL_FAR_ACCUM") ok=1 achieved=0 unlock=0
+[  1391 ms] GetAchievementAndUnlockTime("ACH_TRAVEL_FAR_SINGLE") ok=1 achieved=0 unlock=0
+[  1392 ms] GetAchievementAndUnlockTime("ACH_WIN_100_GAMES") ok=1 achieved=0 unlock=0
+[  1393 ms] GetAchievementAndUnlockTime("ACH_WIN_ONE_GAME") ok=1 achieved=0 unlock=0
+[  1393 ms] GetAchievementAndUnlockTime("NEW_ACHIEVEMENT_0_4") ok=1 achieved=0 unlock=0
+[  1393 ms] --- phase 1: set + store ---
+[  1395 ms] SetAchievement("ACH_WIN_ONE_GAME") = 1
+[  1396 ms] StoreStats() = 1
+[  1397 ms] CALLBACK id=304 (PersonaStateChange_t) via Run slot1
+      0000  6c e8 27 00 01 00 10 01 00 40 00 00 00 00 00 00  |l.'......@......|
+[  1397 ms] CALLBACK id=304 (PersonaStateChange_t) via Run slot1
+      0000  ca 70 37 03 01 00 10 01 10 00 00 00 00 00 00 00  |.p7.............|
+[  1555 ms] CALLBACK id=1103 (UserAchievementStored_t) via Run slot1
+      0000  e0 01 00 00 00 00 00 00 00 41 43 48 5f 57 49 4e  |.........ACH_WIN|
+      0010  5f 4f 4e 45 5f 47 41 4d 45 00 17 e9 ff 6f 00 00  |_ONE_GAME....o..|
+      0020  c0 0f 8c 18 00 00 00 00 80 04 54 07 00 00 00 00  |..........T.....|
+      0030  60 0e 8d 04 00 00 00 00 ca 70 37 03 00 00 00 00  |`........p7.....|
+      0040  cf ff f1 e9 ff 6f 00 00 00 00 00 00 00 00 00 00  |.....o..........|
+      0050  00 00 00 00 00 00 00 00 5b a2 98 fa ff 6f 00 00  |........[....o..|
+      0060  ca 70 37 03 01 00 10 01 00 00 00 00 00 00 00 00  |.p7.............|
+      0070  00 00 00 00 00 00 00 00 00 00 00 00 6a 00 00 00  |............j...|
+      0080  6a 00 00 00 00 00 00 00 20 b5 81 e8 00 00 00 00  |j....... .......|
+      0090  00 00 00 00 ff 6f 00 00  |.....o..|
+[  1556 ms]       -> UserAchievementStored_t gameid=480 group=0 name="ACH_WIN_ONE_GAME" cur=0 max=0
+[  1556 ms] CALLBACK id=304 (PersonaStateChange_t) via Run slot1
+      0000  ca 70 37 03 01 00 10 01 02 00 00 00 00 00 00 00  |.p7.............|
+[  1765 ms] CALLBACK id=1102 (UserStatsStored_t) via Run slot1
+      0000  e0 01 00 00 00 00 00 00 01 00 00 00 d6 15 00 00  |................|
+[  1765 ms]       -> UserStatsStored_t    gameid=480 eresult=1
+[  1765 ms] --- phase 2: verify set ---
+[  1765 ms] GetAchievementAndUnlockTime("ACH_WIN_ONE_GAME") ok=1 achieved=1 unlock=1786651220
+[  1766 ms] VERIFY set: PASS
+[  1766 ms] --- phase 3: reset all ---
+[  1766 ms] ResetAllStats(true) = 1
+[  1767 ms] RequestCurrentStats() = 1
+[  1980 ms] CALLBACK id=1101 (UserStatsReceived_t) via Run slot1
+      0000  e0 01 00 00 00 00 00 00 01 00 00 00 ca 70 37 03  |.............p7.|
+      0010  01 00 10 01 00 00 00 00  |........|
+[  1980 ms]       -> UserStatsReceived_t  gameid=480 eresult=1 steamid=76561198014230730
+[  1981 ms] --- phase 4: verify reset ---
+[  1981 ms] GetAchievementAndUnlockTime("ACH_WIN_ONE_GAME") ok=1 achieved=0 unlock=0
+[  1983 ms] VERIFY reset: PASS
+[  1983 ms] === LOOP PASS ===
+[  2056 ms] SteamAPI_Shutdown() done

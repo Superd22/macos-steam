@@ -29,3 +29,5 @@ tools/seam-spike/*
 !tools/seam-spike/*.md
 !tools/seam-spike/build.sh
 !tools/seam-spike/run.sh
+
+tools/harness/build/
