@@ -19,6 +19,15 @@ DIST="$(pwd)/dist"
 
 [ -d "$BOTTLE" ] || { echo "bottle '$BOTTLE_NAME' does not exist; create it with cxbottle --create"; exit 2; }
 
+# Stage 2 drives the real steamclient.dylib, so Steam.app must be running — AND
+# ONLINE, or Steam_BConnected reads false off cache and mimics a broken bridge
+# (#2's offline-mode confound). We can only assert "running" from here; the exe
+# fails loudly on b_connected != 1 to catch the offline case.
+if ! pgrep -qx steam_osx && ! pgrep -q "Steam.AppBundle"; then
+    echo "WARNING: native Steam.app does not appear to be running."
+    echo "         Launch Steam and confirm it is ONLINE, then re-run."
+fi
+
 cp "$DIST/bridgetest.dll" "$BOTTLE/drive_c/windows/system32/bridgetest.dll"
 cp "$DIST/spike.exe"      "$BOTTLE/drive_c/spike.exe"
 

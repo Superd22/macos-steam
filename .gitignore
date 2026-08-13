@@ -25,6 +25,8 @@ tools/compat-enabler/*
 
 tools/seam-spike/*
 !tools/seam-spike/*.c
+!tools/seam-spike/*.cpp
+!tools/seam-spike/*.h
 !tools/seam-spike/*.py
 !tools/seam-spike/*.md
 !tools/seam-spike/build.sh

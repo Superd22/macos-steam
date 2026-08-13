@@ -12,8 +12,10 @@ MINGW=x86_64-w64-mingw32-gcc
 mkdir -p dist
 
 # Unix half: thin x86_64 Mach-O dylib, exporting the two unixlib symbol arrays.
-clang -arch x86_64 -dynamiclib -O2 -Wall \
-    -o dist/bridgetest.so bridge_unix.c \
+# C++ now (stage 2 calls through steamclient.dylib's C++ vtables); the exported
+# unixlib arrays stay extern "C" so ntdll.so resolves them by their plain names.
+clang++ -std=c++17 -arch x86_64 -dynamiclib -O2 -Wall \
+    -o dist/bridgetest.so bridge_unix.cpp \
     -Wl,-install_name,@rpath/bridgetest.so
 
 # PE half: mingw builtin DLL, then stamp the Wine-builtin marker at file 0x40.
