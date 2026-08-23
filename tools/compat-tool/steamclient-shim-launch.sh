@@ -76,6 +76,12 @@ log "verb=$VERB exe=$EXE args=$*"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CX_APP="${CX_APP:-$HOME/Applications/CrossOver.app}"
 CXROOT="$CX_APP/Contents/SharedSupport/CrossOver"
+# Overlay (#24) needs an entitled wineloader, and CX_ROOT is derived by bin/wine
+# from its OWN path (bin/wine:69) — env CX_ROOT is overwritten, not read. So the
+# only way to steer it is to invoke a wine from a mirror root. SHIM_CXROOT points
+# at one: bin/wineloader and lib/wine/<arch>-unix/wine are re-signed copies, the
+# rest symlinks into CrossOver.app. Unset = stock CrossOver, unchanged behaviour.
+CXROOT="${SHIM_CXROOT:-$CXROOT}"
 CXWINE="$CXROOT/bin/wine"
 [ -x "$CXWINE" ] || { log "CrossOver front door not found at $CXWINE"; exit 2; }
 
