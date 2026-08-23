@@ -141,6 +141,41 @@ meant to be. If the overlay draws over a D3DMetal frame, this gets built. If it 
 injector would have been a perfect delivery system for a renderer that sees nothing, and the
 conversation moves to architecture (c).
 
+## Correction, 2026-08-24: `CREATE_SUSPENDED` alone is not enough under Wine
+
+The decision above stands — inject at process creation, from inside Wine — but one premise in it was
+wrong, and it cost a title.
+
+> *"With `CREATE_SUSPENDED` the process has only `ntdll` mapped and the main thread has never run, so
+> the title's static imports are not yet resolved. Injecting here is before *any* game `DllMain`."*
+
+True on Windows. **False under Wine**, because the loader init (`LdrInitializeThunk`) runs on
+whichever thread runs *first* — and with the main thread suspended, that is our injected remote
+thread. `LoadLibraryW` therefore returns only after the title's entire static-import graph has
+loaded and run. Measured on Surviving Mars: the payload's own `DllMain` reports
+`user32=LOADED dxgi=LOADED`, and by then `dxgi` had brought up `winemac.so` and `NSApplication`.
+
+Among Us passed only because its imports never touch USER. That is per-title luck, which is the
+thing this ADR exists to avoid.
+
+**The mechanism is therefore import-table injection, not a remote thread.** In the suspended
+process, before anything has read them, the exe's import directory is rewritten so the payload is
+the title's **first static import**. The loader then initialises it before `user32`, before `dxgi`,
+before anything can touch the display — an ordering the loader guarantees rather than a head start.
+The original directory has no spare room, so a new one is built in memory allocated inside the
+target (within 2GB of the image, since RVAs are 32-bit) and the data directory is repointed at it.
+
+`CREATE_SUSPENDED` is still required — it is what gives us an untouched image to rewrite. The remote
+thread survives as a fallback for when the patch cannot be applied, since a title-dependent overlay
+beats none.
+
+**[I]** `GetModuleHandle` returning non-NULL for `dxgi` at our `DllMain` is not a failure: the loader
+maps every dependency before running any `DllMain`. Mapped is not initialised, and initialised is
+what loads the driver.
+
+Confirmed on Surviving Mars (64-bit, `import [0] of 23`) and Among Us (32-bit, via the bitness
+handover), both drawing the overlay.
+
 ## Links
 
 - Supersedes the injection half of #24's two shipping stories (CodeWeavers ask / in-place re-sign).

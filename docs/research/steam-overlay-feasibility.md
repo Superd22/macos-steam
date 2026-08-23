@@ -1380,3 +1380,34 @@ Graphics (§1), arming (A1), load timing (B2), the Wine-side deadline (B7) and n
 all measured and all pass. **Nothing unproven remains between here and an overlay over a Windows
 title except building the loader** — ADR 0003 / #25. The remaining known cost is input parity
 (§6.2), which B8 does not touch.
+
+## B9. The loader ordering, and the overlay working on both titles [V]
+
+#25 built, and the first two real titles disagreed — which is how the last real flaw surfaced.
+
+`CREATE_SUSPENDED` + `CreateRemoteThread` puts the payload in **after** the title's static imports
+under Wine, not before, because `LdrInitializeThunk` runs on whichever thread runs first and with the
+main thread suspended that is our injected thread. Measured on Surviving Mars: the payload's
+`DllMain` reports `user32=LOADED dxgi=LOADED`, `winemac.so` is in the renderer's module list, and no
+hooks are installed. Among Us survives the same mechanism only because its imports never touch USER.
+
+**Import-table injection fixes it by ordering rather than by speed.** In the suspended process the
+exe's import directory is rewritten so the payload is import `[0]`; the loader initialises it before
+the title's own imports initialise:
+
+| title | bitness | result |
+|---|---|---|
+| Surviving Mars | 64-bit | `import [0] of 23` · `winemac` absent at attach · 5/5 hooks · `ValveGetScreenSize( 1766, 1097 )` · overlay draws |
+| Among Us | 32-bit (via handover) | `import [0]` · `winemac` absent · 5/5 hooks · overlay draws |
+| `d3dprobe` | 64-bit, self-pull off | `import [0] of 11` · `winemac` absent · 5/5 hooks |
+
+**[I]** `dxgi=LOADED` at our `DllMain` is expected and harmless: the loader maps every dependency
+before running any `DllMain`. **Mapped is not initialised**, and it is initialisation that brings up
+the driver. Reading that field as a failure would have sent the fix in the wrong direction.
+
+### Where the overlay stands
+
+Graphics, arming, load timing, the Wine-side deadline, D3DMetal and now the loader ordering are all
+measured and passing, and the overlay draws over two real Windows titles of both bitnesses through
+the shipped compat tool. What remains is not feasibility: child-process injection is written but
+untested (neither title relaunches itself), and input parity (§6.2) is still unpriced.
