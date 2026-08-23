@@ -285,6 +285,25 @@ static NTSTATUS u_utils_uilanguage(void *args)
 { auto *p = (sp_utils_str *)args; p->ret = (uint64_t)(uintptr_t)UTILS(p->handle)->GetSteamUILanguage();
   ulog("GetSteamUILanguage() -> %s", p->ret ? (const char *)(uintptr_t)p->ret : "(null)"); return 0; }
 
+/* ---- ISteamInput (VERSION006) — Mars calls Init() at boot; the stub's false
+ * makes it log "SteamInput failed to initialize!" and then null-write on its
+ * render thread. RunFrame/BNewDataAvailable/GetConnectedControllers are wired
+ * too because a game that got a true from Init() will call them next. --------- */
+#define INPUT(h) ((ISteamInput006 *)(h))
+static NTSTATUS u_input_init(void *args)
+{ auto *p = (sp_input_init *)args;
+  p->ret = INPUT(p->handle)->Init(p->explicit_runframe != 0) ? 1 : 0;
+  ulog("SteamInput Init(%d) -> %d", p->explicit_runframe, p->ret); return 0; }
+static NTSTATUS u_input_shutdown(void *args)
+{ auto *p = (sp_input_bool *)args; p->ret = INPUT(p->handle)->Shutdown() ? 1 : 0; return 0; }
+static NTSTATUS u_input_runframe(void *args)
+{ auto *p = (sp_input_runframe *)args; INPUT(p->handle)->RunFrame(p->reserved != 0); return 0; }
+static NTSTATUS u_input_newdata(void *args)
+{ auto *p = (sp_input_bool *)args; p->ret = INPUT(p->handle)->BNewDataAvailable() ? 1 : 0; return 0; }
+static NTSTATUS u_input_connected(void *args)
+{ auto *p = (sp_input_handles *)args;
+  p->ret = INPUT(p->handle)->GetConnectedControllers((uint64_t *)p->out); return 0; }
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -311,6 +330,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_utils_serverrealtime, u_utils_ipcountry, u_utils_batterypower,
     u_utils_apicallcompleted, u_utils_apicallfailure, u_utils_apicallresult,
     u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
+    u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -329,6 +349,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_utils_serverrealtime, u_utils_ipcountry, u_utils_batterypower,
     u_utils_apicallcompleted, u_utils_apicallfailure, u_utils_apicallresult,
     u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
+    u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a

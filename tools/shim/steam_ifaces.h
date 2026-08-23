@@ -161,6 +161,21 @@ class ISteamApps008 {
   // ... truncated
 };
 
+// ISteamInput VERSION006 leading block. Mars calls Init() at boot and logs
+// "SteamInput failed to initialize!" when it returns false — after which its
+// render thread null-writes. Slot order from Proton's winISteamInput.c.
+class ISteamInput006 {
+ public:
+  virtual bool Init(bool bExplicitlyCallRunFrame) = 0;                 // 0
+  virtual bool Shutdown() = 0;                                         // 1
+  virtual bool SetInputActionManifestFilePath(const char*) = 0;        // 2
+  virtual void RunFrame(bool bReservedValue) = 0;                      // 3
+  virtual bool BWaitForData(bool, uint32_t) = 0;                       // 4
+  virtual bool BNewDataAvailable() = 0;                                // 5
+  virtual int  GetConnectedControllers(uint64_t*) = 0;                 // 6
+  // ... truncated
+};
+
 typedef void* (*CreateInterfaceFn)(const char* name, int* returnCode);
 typedef bool  (*Fn_BConnected)(HSteamUser, HSteamPipe);
 typedef bool  (*Fn_BLoggedOn)(HSteamUser, HSteamPipe);

@@ -73,6 +73,8 @@ static const void *vt_utils[VT_SLOTS];
 static const void *vt_apps[VT_SLOTS];
 static const void *vt_friends[VT_SLOTS];
 static const void *vt_generic[VT_SLOTS];
+static const void *vt_input[VT_SLOTS];
+static const void *vt_controller[VT_SLOTS];
 
 /* Per-slot numbered stubs, so an unmapped call names its exact vtable index.
  * MS-x64 is caller-cleanup, so a 0-arg stub is safe under any real signature. */
@@ -85,6 +87,10 @@ static uint64_t utilsstub_impl(int n){dbg("shim: ISteamUtils slot %d (unmapped)"
 static uint64_t userstub_impl(int n){dbg("shim: ISteamUser slot %d (unmapped)",n);return 0;}
 static uint64_t statsstub_impl(int n){dbg("shim: ISteamUserStats slot %d (unmapped)",n);return 0;}
 static uint64_t appsstub_impl(int n){dbg("shim: ISteamApps slot %d (unmapped)",n);return 0;}
+static uint64_t friendsstub_impl(int n){dbg("shim: ISteamFriends slot %d (unmapped)",n);return 0;}
+static uint64_t genericstub_impl(int n){dbg("shim: generic iface slot %d (unmapped)",n);return 0;}
+static uint64_t inputstub_impl(int n){dbg("shim: ISteamInput slot %d (unmapped)",n);return 0;}
+static uint64_t controllerstub_impl(int n){dbg("shim: ISteamController slot %d (unmapped)",n);return 0;}
 #define X(n) static uint64_t cstub_##n(void){return clientstub_impl(n);}
 SLOTLIST
 #undef X
@@ -98,6 +104,18 @@ SLOTLIST
 SLOTLIST
 #undef X
 #define X(n) static uint64_t astub_##n(void){return appsstub_impl(n);}
+SLOTLIST
+#undef X
+#define X(n) static uint64_t fstub_##n(void){return friendsstub_impl(n);}
+SLOTLIST
+#undef X
+#define X(n) static uint64_t gstub_##n(void){return genericstub_impl(n);}
+SLOTLIST
+#undef X
+#define X(n) static uint64_t istub_##n(void){return inputstub_impl(n);}
+SLOTLIST
+#undef X
+#define X(n) static uint64_t ctstub_##n(void){return controllerstub_impl(n);}
 SLOTLIST
 #undef X
 #define X(n) (const void *)cstub_##n,
@@ -115,8 +133,18 @@ static const void *sstubs[64]   = { SLOTLIST };
 #define X(n) (const void *)astub_##n,
 static const void *astubs[64]   = { SLOTLIST };
 #undef X
-static uint64_t stub_friends(void) { dbg("shim: ISteamFriends UNKNOWN slot");  return 0; }
-static uint64_t stub_generic(void) { dbg("shim: generic iface UNKNOWN slot");  return 0; }
+#define X(n) (const void *)fstub_##n,
+static const void *fstubs[64]   = { SLOTLIST };
+#undef X
+#define X(n) (const void *)gstub_##n,
+static const void *gstubs[64]   = { SLOTLIST };
+#undef X
+#define X(n) (const void *)istub_##n,
+static const void *istubs[64]   = { SLOTLIST };
+#undef X
+#define X(n) (const void *)ctstub_##n,
+static const void *ctstubs[64]  = { SLOTLIST };
+#undef X
 
 /* small w_iface cache so repeated acquisition of the same native handle returns
  * a stable pointer (games and steam_api64.dll compare interface pointers). */
@@ -147,6 +175,8 @@ static const void **vt_for_version(const char *ver)
     if (!strncmp(ver, "SteamApps", 9))             return vt_apps;
     if (!strncmp(ver, "STEAMAPPS", 9))             return vt_apps;
     if (!strncmp(ver, "SteamFriends", 12))         return vt_friends;
+    if (!strncmp(ver, "SteamInput", 10))           return vt_input;
+    if (!strncmp(ver, "SteamController", 15))      return vt_controller;
     return vt_generic;
 }
 
@@ -297,6 +327,21 @@ static uint8_t iu_GetUserDataFolder(struct w_iface *s, char *buf, int32_t len)
 { struct sp_user_datafolder p; p.handle = s->handle; p.buf = (uint64_t)(uintptr_t)buf; p.len = len; p.ret = 0;
   seam(C_User_GetUserDataFolder, &p); return (uint8_t)p.ret; }
 
+/* ---- ISteamInput (VERSION006) thunks ------------------------------------ */
+static uint8_t iin_Init(struct w_iface *s, uint8_t explicit_runframe)
+{ struct sp_input_init p; p.handle = s->handle; p.explicit_runframe = explicit_runframe; p.ret = 0;
+  seam(C_Input_Init, &p); dbg("shim: SteamInput Init(%d) -> %d", explicit_runframe, p.ret);
+  return (uint8_t)p.ret; }
+static uint8_t iin_Shutdown(struct w_iface *s)
+{ struct sp_input_bool p; p.handle = s->handle; p.ret = 0; seam(C_Input_Shutdown, &p); return (uint8_t)p.ret; }
+static void iin_RunFrame(struct w_iface *s, uint8_t reserved)
+{ struct sp_input_runframe p; p.handle = s->handle; p.reserved = reserved; seam(C_Input_RunFrame, &p); }
+static uint8_t iin_BNewDataAvailable(struct w_iface *s)
+{ struct sp_input_bool p; p.handle = s->handle; p.ret = 0; seam(C_Input_BNewDataAvailable, &p); return (uint8_t)p.ret; }
+static int32_t iin_GetConnectedControllers(struct w_iface *s, uint64_t *out)
+{ struct sp_input_handles p; p.handle = s->handle; p.out = (uint64_t)(uintptr_t)out; p.ret = 0;
+  seam(C_Input_GetConnectedControllers, &p); return p.ret; }
+
 static void build_vtables(void)
 {
     int i;
@@ -306,8 +351,10 @@ static void build_vtables(void)
         vt_stats[i]   = sstubs[i];
         vt_utils[i]   = ustubs[i];
         vt_apps[i]    = astubs[i];
-        vt_friends[i] = (const void *)stub_friends;
-        vt_generic[i] = (const void *)stub_generic;
+        vt_friends[i] = fstubs[i];
+        vt_generic[i] = gstubs[i];
+        vt_input[i]      = istubs[i];
+        vt_controller[i] = ctstubs[i];
     }
     /* ISteamClient (SteamClient020 order, #3 §7.4 / native-probe steam_min.h) */
     vt_client[0]  = (const void *)ic_CreateSteamPipe;
@@ -377,6 +424,13 @@ static void build_vtables(void)
     /* ISteamUser: GetUserDataFolder (6) writes into a caller buffer that stays
      * uninitialised under the stub. */
     vt_user[6] = (const void *)iu_GetUserDataFolder;
+
+    /* ISteamInput VERSION006 leading slots. */
+    vt_input[0] = (const void *)iin_Init;
+    vt_input[1] = (const void *)iin_Shutdown;
+    vt_input[3] = (const void *)iin_RunFrame;
+    vt_input[5] = (const void *)iin_BNewDataAvailable;
+    vt_input[6] = (const void *)iin_GetConnectedControllers;
 }
 
 /* ---- flat exports ------------------------------------------------------- */

@@ -87,6 +87,13 @@ enum shim_call
     C_Utils_GetIPCCallCount,
     C_Utils_GetSteamUILanguage,
 
+    /* ISteamInput VERSION006 */
+    C_Input_Init,
+    C_Input_Shutdown,
+    C_Input_RunFrame,
+    C_Input_BNewDataAvailable,
+    C_Input_GetConnectedControllers,
+
     C_COUNT
 };
 
@@ -145,3 +152,9 @@ struct sp_utils_call       { uint64_t handle; uint64_t call; uint64_t failed; in
 struct sp_utils_callfail   { uint64_t handle; uint64_t call; int32_t ret; };      /* GetAPICallFailureReason */
 struct sp_utils_callres    { uint64_t handle; uint64_t call; uint64_t buf; int32_t cub; int32_t expected; uint64_t failed; int32_t ret; }; /* GetAPICallResult */
 struct sp_utils_void       { uint64_t handle; };                                  /* RunFrame */
+
+/* ---- ISteamInput (VERSION006) ---- */
+struct sp_input_init       { uint64_t handle; int32_t explicit_runframe; int32_t ret; };
+struct sp_input_bool       { uint64_t handle; int32_t ret; };
+struct sp_input_runframe   { uint64_t handle; int32_t reserved; };
+struct sp_input_handles    { uint64_t handle; uint64_t out; int32_t ret; };
