@@ -43,8 +43,8 @@ fi
 # --- build whatever is missing or stale --------------------------------------
 [ -f "$REPO/tools/compat-enabler/libcompat-enabler.dylib" ] \
     || { log "building injector"; "$REPO/tools/compat-enabler/build.sh"; }
-[ -f "$REPO/tools/shim/dist/steamclient64.dll" ] \
-    || { log "building shim"; "$REPO/tools/shim/build.sh"; }
+[ -f "$REPO/tools/shim/dist/steamclient64.dll" ] && [ -f "$REPO/tools/shim/dist/steamclient.dll" ] \
+    || { log "building shim (both bitnesses)"; "$REPO/tools/shim/build.sh"; }
 
 # --- payload ------------------------------------------------------------------
 mkdir -p "$TOOLDIR/dist"
@@ -54,6 +54,12 @@ cp -f "$REPO/tools/compat-tool/toolmanifest.vdf"           "$TOOLDIR/"
 cp -f "$REPO/tools/compat-tool/compatibilitytool.vdf"      "$TOOLDIR/"
 cp -f "$REPO/tools/shim/dist/steamclient64.dll"            "$TOOLDIR/dist/"
 cp -f "$REPO/tools/shim/dist/steamclient64.so"             "$TOOLDIR/dist/"
+# Both bitnesses: 32-bit titles load steam_api.dll -> steamclient.dll under the
+# SteamClientDll registry value, a different file and a different value from the
+# 64-bit pair (#20). Shipping only the 64-bit half is what made Among Us report
+# "Could not sign in to your Steam account".
+cp -f "$REPO/tools/shim/dist/steamclient.dll"              "$TOOLDIR/dist/"
+cp -f "$REPO/tools/shim/dist/steamclient.so"               "$TOOLDIR/dist/"
 chmod +x "$TOOLDIR/steamclient-shim-launch.sh"
 log "payload -> $PAYLOAD"
 

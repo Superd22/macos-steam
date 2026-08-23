@@ -304,6 +304,33 @@ static NTSTATUS u_input_connected(void *args)
 { auto *p = (sp_input_handles *)args;
   p->ret = INPUT(p->handle)->GetConnectedControllers((uint64_t *)p->out); return 0; }
 
+/* ---- copy-out of native memory (#20) ------------------------------------
+ * The 32-bit PE cannot dereference the dylib's heap (macOS puts it above 4 GB),
+ * so these two run on THIS side of the seam, where the address is a real
+ * pointer, and copy the bytes down into PE memory the caller already owns.
+ * dst is always a PE address, which zero-extends into the uint64 field. */
+static NTSTATUS u_copymem(void *args)
+{
+    auto *p = (sp_copymem *)args;
+    if (p->src && p->dst && p->len > 0)
+        memcpy((void *)(uintptr_t)p->dst, (const void *)(uintptr_t)p->src, (size_t)p->len);
+    return 0;
+}
+static NTSTATUS u_copystr(void *args)
+{
+    auto *p = (sp_copystr *)args;
+    p->ret = 0;
+    if (!p->src || !p->dst || p->cap <= 0) return 0;
+    const char *src = (const char *)(uintptr_t)p->src;
+    char *dst = (char *)(uintptr_t)p->dst;
+    size_t n = strlen(src);
+    p->ret = (int32_t)n;
+    if (n > (size_t)p->cap - 1) n = (size_t)p->cap - 1;   /* truncate, always NUL */
+    memcpy(dst, src, n);
+    dst[n] = 0;
+    return 0;
+}
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -331,6 +358,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_utils_apicallcompleted, u_utils_apicallfailure, u_utils_apicallresult,
     u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
     u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
+    u_copymem, u_copystr,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -350,6 +378,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_utils_apicallcompleted, u_utils_apicallfailure, u_utils_apicallresult,
     u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
     u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
+    u_copymem, u_copystr,
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a

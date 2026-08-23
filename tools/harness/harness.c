@@ -211,11 +211,35 @@ static void on_callback(CCallbackBase *self, void *param, int slot)
     if (self->m_iCallback == g_want) g_want_seen = 1;
 }
 
-static void run_slot0(CCallbackBase *self, void *param)
-{ on_callback(self, param, 0); }
-static void run_slot1(CCallbackBase *self, void *param, int io, uint64_t hcall)
-{ (void)io; (void)hcall; on_callback(self, param, 1); }
-static int  cb_get_size(CCallbackBase *self) { return self->size; }
+/* These three ARE an MSVC vtable — steam_api calls them the way it calls any
+ * CCallbackBase, i.e. __thiscall: `self` in ECX and CALLEE-cleanup. On x86_64
+ * that is just the normal convention with a leading pointer and the plain C
+ * signature is already right; on i386 it is not, and without the attribute
+ * `self` is read from the stack (so it lands on pvParam) and nothing pops the
+ * arguments. The visible symptom is a hexdump of `self->size` bytes of garbage
+ * running off the end of the heap. Same rule as the shim's own vtables (#20):
+ * anything that PRESENTS a vtable to Steam has to present it thiscall. */
+#if defined(__i386__)
+# define CB_THISCALL __attribute__((thiscall))
+#else
+# define CB_THISCALL
+#endif
+/* Slot order is MSVC's, not the header's. CCallbackBase declares
+ *     virtual void Run( void *pvParam );                                  (a)
+ *     virtual void Run( void *pvParam, bool, SteamAPICall_t );            (b)
+ *     virtual int  GetCallbackSizeBytes();
+ * and MSVC emits same-name overloads in REVERSE declaration order, so the
+ * vtable is [b, a, GetCallbackSizeBytes] — the same reversal our own
+ * docs/research/steamworks-vtable-tables.md warns about for Steam's interfaces.
+ * x86_64 forgave having these two swapped (caller-cleanup, and the surplus
+ * register args were simply ignored); i386 does not, because slot 1 then popped
+ * 16 bytes when the caller had pushed 4 and the stack broke on RETURN from the
+ * callback — after its body had already run and printed. */
+static void CB_THISCALL run_slot0(CCallbackBase *self, void *param, int io, uint64_t hcall)
+{ (void)io; (void)hcall; on_callback(self, param, 0); }
+static void CB_THISCALL run_slot1(CCallbackBase *self, void *param)
+{ on_callback(self, param, 1); }
+static int CB_THISCALL cb_get_size(CCallbackBase *self) { return self->size; }
 
 static void *g_cb_vtbl[3] = { (void *)run_slot0, (void *)run_slot1, (void *)cb_get_size };
 
@@ -319,9 +343,18 @@ int main(int argc, char **argv)
 
     printf("=== steamworks achievement harness (%s) ===\n", mode);
 
-    HMODULE dll = LoadLibraryA("steam_api64.dll");
-    if (!dll) { fprintf(stderr, "FATAL: LoadLibrary(steam_api64.dll) failed err=%lu\n", GetLastError()); return 2; }
-    tr("LoadLibrary(steam_api64.dll) ok base=%p", (void *)dll);
+    /* Valve ships a different redistributable per bitness, and each looks for a
+     * different steamclient under a different registry value — steam_api64.dll
+     * -> steamclient64.dll via SteamClientDll64, steam_api.dll ->
+     * steamclient.dll via SteamClientDll (#20). Pick by how we were built. */
+#ifdef __i386__
+    static const char *API_DLL = "steam_api.dll";
+#else
+    static const char *API_DLL = "steam_api64.dll";
+#endif
+    HMODULE dll = LoadLibraryA(API_DLL);
+    if (!dll) { fprintf(stderr, "FATAL: LoadLibrary(%s) failed err=%lu\n", API_DLL, GetLastError()); return 2; }
+    tr("LoadLibrary(%s) ok base=%p", API_DLL, (void *)dll);
     if (!resolve_all(dll)) return 2;
 
     if (g_use_md) {

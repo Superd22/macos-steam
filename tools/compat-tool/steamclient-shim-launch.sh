@@ -89,6 +89,13 @@ fi
 [ -n "${SHIM_DIST:-}" ] && [ -f "$SHIM_DIST/steamclient64.dll" ] && [ -f "$SHIM_DIST/steamclient64.so" ] \
     || { log "shim not found (looked in \$SHIM_DIST, $HERE/dist, $HERE/../shim/dist)"; exit 2; }
 
+# The 32-bit half is optional so an old payload still launches 64-bit titles,
+# but a 32-bit title without it fails as "Could not sign in to your Steam
+# account" — steam_api.dll finds no steamclient.dll and SteamAPI_Init returns 0,
+# which the game reports as a login problem (#20). Say so plainly here.
+HAVE32=0
+[ -f "$SHIM_DIST/steamclient.dll" ] && [ -f "$SHIM_DIST/steamclient.so" ] && HAVE32=1
+
 BOTTLE_NAME="${SHIM_BOTTLE:-steam-shim}"
 BOTTLE="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE_NAME"
 [ -d "$BOTTLE" ] || { log "bottle '$BOTTLE_NAME' missing"; exit 2; }
@@ -109,14 +116,38 @@ fi
 mkdir -p "$SHIMDIR"
 cp -f "$SHIM_DIST/steamclient64.dll" "$SHIMDIR/steamclient64.dll"
 cp -f "$SHIM_DIST/steamclient64.so"  "$SHIMDIR/steamclient64.so"
+if [ "$HAVE32" = 1 ]; then
+    # 32-bit titles (Among Us and most of the older Unity catalogue) load
+    # steam_api.dll, which looks for steamclient.dll and the SteamClientDll
+    # registry value — different file, different value, same shim (#20). The
+    # .so is the same x86_64 unix half under the 32-bit PE's basename, because
+    # ntdll derives the .so name from the builtin PE it just loaded.
+    cp -f "$SHIM_DIST/steamclient.dll" "$SHIMDIR/steamclient.dll"
+    cp -f "$SHIM_DIST/steamclient.so"  "$SHIMDIR/steamclient.so"
+else
+    log "WARNING: no 32-bit shim in $SHIM_DIST — a 32-bit title will fail with"
+    log "         \"Could not sign in to your Steam account\". Run tools/shim/build.sh."
+fi
 
 # Shim dir on WINEDLLPATH through the front door: cxbottle.conf [Wine] DllPath.
 # The perl launcher rebuilds WINEDLLPATH from this key (#19); default win64
 # path first, shim dir after, trailing lib/wine as the launcher's own default.
+# i386-windows is on the path too: a 32-bit title resolves its builtins from
+# there, not from x86_64-windows, and overriding DllPath replaces CrossOver's
+# own default rather than adding to it (#20).
 CONF="$BOTTLE/cxbottle.conf"
+DLLPATH='${CX_ROOT}/lib/wine/x86_64-windows:${CX_ROOT}/lib/wine/i386-windows:${WINEPREFIX}/drive_c/shim:${CX_ROOT}/lib/wine'
 if ! grep -q '^"DllPath"' "$CONF" 2>/dev/null; then
-    printf '\n[Wine]\n"DllPath" = "${CX_ROOT}/lib/wine/x86_64-windows:${WINEPREFIX}/drive_c/shim:${CX_ROOT}/lib/wine"\n' >> "$CONF"
+    printf '\n[Wine]\n"DllPath" = "%s"\n' "$DLLPATH" >> "$CONF"
     log "planted [Wine] DllPath in cxbottle.conf"
+else
+    # A bottle provisioned before #20 has a DllPath without i386-windows. Leave
+    # the operator's line alone, but do not let a 32-bit launch fail silently.
+    grep -q 'drive_c/shim' "$CONF" || log "WARNING: cxbottle.conf [Wine] DllPath does not include drive_c/shim — the shim will not be found"
+    if [ "$HAVE32" = 1 ] && ! grep -q 'i386-windows' "$CONF"; then
+        log "NOTE: cxbottle.conf [Wine] DllPath has no i386-windows entry; if a 32-bit"
+        log "      title fails to start, set it to: $DLLPATH"
+    fi
 fi
 
 export SteamAppId="$APPID"
@@ -125,9 +156,18 @@ export SteamNoOverlayUIDrawing=1
 export SteamOverlayGameId=0
 export CX_BOTTLE="$BOTTLE_NAME"
 
-# The single load-bearing registry value (#13): point steam_api64.dll at our PE.
+# The load-bearing registry values (#13): point steam_api at our PE. There are
+# TWO, one per bitness, and a title reads only its own — steam_api64.dll reads
+# SteamClientDll64, steam_api.dll reads SteamClientDll. Writing just the 64-bit
+# one is exactly why Among Us could not sign in (#20). Both are written on every
+# launch regardless of the title's bitness: it is one cheap reg add, and it
+# means the bottle is correct for whatever gets launched in it next.
 "$CXWINE" --bottle "$BOTTLE_NAME" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
     /v SteamClientDll64 /t REG_SZ /d "C:\\shim\\steamclient64.dll" /f >/dev/null 2>&1
+if [ "$HAVE32" = 1 ]; then
+    "$CXWINE" --bottle "$BOTTLE_NAME" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
+        /v SteamClientDll /t REG_SZ /d "C:\\shim\\steamclient.dll" /f >/dev/null 2>&1
+fi
 
 # --- run the title's .exe through CrossOver's front door ----------------------
 # CWD must be the game dir (#19): the engine mounts pack files relative to it.

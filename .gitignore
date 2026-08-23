@@ -33,6 +33,7 @@ tools/seam-spike/*
 !tools/seam-spike/run.sh
 
 tools/harness/build/
+tools/harness/build32/
 
 tools/shimprobe/steamclient64.dll
 tools/shimprobe/shimprobe.log

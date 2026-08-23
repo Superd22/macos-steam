@@ -94,6 +94,18 @@ enum shim_call
     C_Input_BNewDataAvailable,
     C_Input_GetConnectedControllers,
 
+    /* Copy-out of NATIVE-owned memory (#20, i386 only in practice).
+     * Anything the game passes IN is a PE address that zero-extends into the
+     * uint64 params below and is written by the native side directly. But
+     * anything the native side hands BACK by pointer — a const char* return, a
+     * callback payload — lives on the dylib's heap, which on macOS sits well
+     * above 4 GB (0x7fd695b48ae0, straight out of our own shim_unix.log). A
+     * 32-bit PE cannot dereference that address: it does not fit in a pointer.
+     * So the bytes must be copied down into PE memory across the seam. The
+     * 64-bit PE has no such problem and does not use these. */
+    C_CopyMem,                  /* memcpy(dst, src, len)                        */
+    C_CopyStr,                  /* strlcpy(dst, src, cap) -> ret = source length */
+
     C_COUNT
 };
 
@@ -158,3 +170,7 @@ struct sp_input_init       { uint64_t handle; int32_t explicit_runframe; int32_t
 struct sp_input_bool       { uint64_t handle; int32_t ret; };
 struct sp_input_runframe   { uint64_t handle; int32_t reserved; };
 struct sp_input_handles    { uint64_t handle; uint64_t out; int32_t ret; };
+
+/* ---- copy-out of native memory (#20) ---- */
+struct sp_copymem          { uint64_t src; uint64_t dst; int32_t len; };
+struct sp_copystr          { uint64_t src; uint64_t dst; int32_t cap; int32_t ret; };

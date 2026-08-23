@@ -1,0 +1,6399 @@
+{
+ "tables": {
+  "STEAMAPPLIST_INTERFACE_VERSION001": {
+   "source": "winISteamAppList.c",
+   "tag": "winISteamAppList_STEAMAPPLIST_INTERFACE_VERSION001",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetNumInstalledApps",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "GetInstalledApps",
+     "bytes": 12
+    },
+    {
+     "slot": 2,
+     "name": "GetAppName",
+     "bytes": 16
+    },
+    {
+     "slot": 3,
+     "name": "GetAppInstallDir",
+     "bytes": 16
+    },
+    {
+     "slot": 4,
+     "name": "GetAppBuildId",
+     "bytes": 8
+    }
+   ],
+   "alloc_vtable_count": 5
+  },
+  "STEAMAPPS_INTERFACE_VERSION008": {
+   "source": "winISteamApps.c",
+   "tag": "winISteamApps_STEAMAPPS_INTERFACE_VERSION008",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "BIsSubscribed",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "BIsLowViolence",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "BIsCybercafe",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "BIsVACBanned",
+     "bytes": 4
+    },
+    {
+     "slot": 4,
+     "name": "GetCurrentGameLanguage",
+     "bytes": 4
+    },
+    {
+     "slot": 5,
+     "name": "GetAvailableGameLanguages",
+     "bytes": 4
+    },
+    {
+     "slot": 6,
+     "name": "BIsSubscribedApp",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "BIsDlcInstalled",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "GetEarliestPurchaseUnixTime",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "BIsSubscribedFromFreeWeekend",
+     "bytes": 4
+    },
+    {
+     "slot": 10,
+     "name": "GetDLCCount",
+     "bytes": 4
+    },
+    {
+     "slot": 11,
+     "name": "BGetDLCDataByIndex",
+     "bytes": 24
+    },
+    {
+     "slot": 12,
+     "name": "InstallDLC",
+     "bytes": 8
+    },
+    {
+     "slot": 13,
+     "name": "UninstallDLC",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "RequestAppProofOfPurchaseKey",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetCurrentBetaName",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "MarkContentCorrupt",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "GetInstalledDepots",
+     "bytes": 16
+    },
+    {
+     "slot": 18,
+     "name": "GetAppInstallDir",
+     "bytes": 16
+    },
+    {
+     "slot": 19,
+     "name": "BIsAppInstalled",
+     "bytes": 8
+    },
+    {
+     "slot": 20,
+     "name": "GetAppOwner",
+     "bytes": 8
+    },
+    {
+     "slot": 21,
+     "name": "GetLaunchQueryParam",
+     "bytes": 8
+    },
+    {
+     "slot": 22,
+     "name": "GetDlcDownloadProgress",
+     "bytes": 16
+    },
+    {
+     "slot": 23,
+     "name": "GetAppBuildId",
+     "bytes": 4
+    },
+    {
+     "slot": 24,
+     "name": "RequestAllProofOfPurchaseKeys",
+     "bytes": 4
+    },
+    {
+     "slot": 25,
+     "name": "GetFileDetails",
+     "bytes": 8
+    },
+    {
+     "slot": 26,
+     "name": "GetLaunchCommandLine",
+     "bytes": 12
+    },
+    {
+     "slot": 27,
+     "name": "BIsSubscribedFromFamilySharing",
+     "bytes": 4
+    },
+    {
+     "slot": 28,
+     "name": "BIsTimedTrial",
+     "bytes": 12
+    },
+    {
+     "slot": 29,
+     "name": "SetDlcContext",
+     "bytes": 8
+    },
+    {
+     "slot": 30,
+     "name": "GetNumBetas",
+     "bytes": 12
+    },
+    {
+     "slot": 31,
+     "name": "GetBetaInfo",
+     "bytes": 32
+    },
+    {
+     "slot": 32,
+     "name": "SetActiveBeta",
+     "bytes": 8
+    }
+   ],
+   "alloc_vtable_count": 33
+  },
+  "STEAMHTTP_INTERFACE_VERSION003": {
+   "source": "winISteamHTTP.c",
+   "tag": "winISteamHTTP_STEAMHTTP_INTERFACE_VERSION003",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "CreateHTTPRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 1,
+     "name": "SetHTTPRequestContextValue",
+     "bytes": 16
+    },
+    {
+     "slot": 2,
+     "name": "SetHTTPRequestNetworkActivityTimeout",
+     "bytes": 12
+    },
+    {
+     "slot": 3,
+     "name": "SetHTTPRequestHeaderValue",
+     "bytes": 16
+    },
+    {
+     "slot": 4,
+     "name": "SetHTTPRequestGetOrPostParameter",
+     "bytes": 16
+    },
+    {
+     "slot": 5,
+     "name": "SendHTTPRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 6,
+     "name": "SendHTTPRequestAndStreamResponse",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "DeferHTTPRequest",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "PrioritizeHTTPRequest",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "GetHTTPResponseHeaderSize",
+     "bytes": 16
+    },
+    {
+     "slot": 10,
+     "name": "GetHTTPResponseHeaderValue",
+     "bytes": 20
+    },
+    {
+     "slot": 11,
+     "name": "GetHTTPResponseBodySize",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "GetHTTPResponseBodyData",
+     "bytes": 16
+    },
+    {
+     "slot": 13,
+     "name": "GetHTTPStreamingResponseBodyData",
+     "bytes": 20
+    },
+    {
+     "slot": 14,
+     "name": "ReleaseHTTPRequest",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetHTTPDownloadProgressPct",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "SetHTTPRequestRawPostBody",
+     "bytes": 20
+    },
+    {
+     "slot": 17,
+     "name": "CreateCookieContainer",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "ReleaseCookieContainer",
+     "bytes": 8
+    },
+    {
+     "slot": 19,
+     "name": "SetCookie",
+     "bytes": 20
+    },
+    {
+     "slot": 20,
+     "name": "SetHTTPRequestCookieContainer",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "SetHTTPRequestUserAgentInfo",
+     "bytes": 12
+    },
+    {
+     "slot": 22,
+     "name": "SetHTTPRequestRequiresVerifiedCertificate",
+     "bytes": 12
+    },
+    {
+     "slot": 23,
+     "name": "SetHTTPRequestAbsoluteTimeoutMS",
+     "bytes": 12
+    },
+    {
+     "slot": 24,
+     "name": "GetHTTPRequestWasTimedOut",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 25
+  },
+  "STEAMMUSICREMOTE_INTERFACE_VERSION001": {
+   "source": "winISteamMusicRemote.c",
+   "tag": "winISteamMusicRemote_STEAMMUSICREMOTE_INTERFACE_VERSION001",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "RegisterSteamMusicRemote",
+     "bytes": 8
+    },
+    {
+     "slot": 1,
+     "name": "DeregisterSteamMusicRemote",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "BIsCurrentMusicRemote",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "BActivationSuccess",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "SetDisplayName",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "SetPNGIcon_64x64",
+     "bytes": 12
+    },
+    {
+     "slot": 6,
+     "name": "EnablePlayPrevious",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "EnablePlayNext",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "EnableShuffled",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "EnableLooped",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "EnableQueue",
+     "bytes": 8
+    },
+    {
+     "slot": 11,
+     "name": "EnablePlaylists",
+     "bytes": 8
+    },
+    {
+     "slot": 12,
+     "name": "UpdatePlaybackStatus",
+     "bytes": 8
+    },
+    {
+     "slot": 13,
+     "name": "UpdateShuffled",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "UpdateLooped",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "UpdateVolume",
+     "bytes": 8
+    },
+    {
+     "slot": 16,
+     "name": "CurrentEntryWillChange",
+     "bytes": 4
+    },
+    {
+     "slot": 17,
+     "name": "CurrentEntryIsAvailable",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "UpdateCurrentEntryText",
+     "bytes": 8
+    },
+    {
+     "slot": 19,
+     "name": "UpdateCurrentEntryElapsedSeconds",
+     "bytes": 8
+    },
+    {
+     "slot": 20,
+     "name": "UpdateCurrentEntryCoverArt",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "CurrentEntryDidChange",
+     "bytes": 4
+    },
+    {
+     "slot": 22,
+     "name": "QueueWillChange",
+     "bytes": 4
+    },
+    {
+     "slot": 23,
+     "name": "ResetQueueEntries",
+     "bytes": 4
+    },
+    {
+     "slot": 24,
+     "name": "SetQueueEntry",
+     "bytes": 16
+    },
+    {
+     "slot": 25,
+     "name": "SetCurrentQueueEntry",
+     "bytes": 8
+    },
+    {
+     "slot": 26,
+     "name": "QueueDidChange",
+     "bytes": 4
+    },
+    {
+     "slot": 27,
+     "name": "PlaylistWillChange",
+     "bytes": 4
+    },
+    {
+     "slot": 28,
+     "name": "ResetPlaylistEntries",
+     "bytes": 4
+    },
+    {
+     "slot": 29,
+     "name": "SetPlaylistEntry",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "SetCurrentPlaylistEntry",
+     "bytes": 8
+    },
+    {
+     "slot": 31,
+     "name": "PlaylistDidChange",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 32
+  },
+  "STEAMMUSIC_INTERFACE_VERSION001": {
+   "source": "winISteamMusic.c",
+   "tag": "winISteamMusic_STEAMMUSIC_INTERFACE_VERSION001",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "BIsEnabled",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "BIsPlaying",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "GetPlaybackStatus",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "Play",
+     "bytes": 4
+    },
+    {
+     "slot": 4,
+     "name": "Pause",
+     "bytes": 4
+    },
+    {
+     "slot": 5,
+     "name": "PlayPrevious",
+     "bytes": 4
+    },
+    {
+     "slot": 6,
+     "name": "PlayNext",
+     "bytes": 4
+    },
+    {
+     "slot": 7,
+     "name": "SetVolume",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "GetVolume",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 9
+  },
+  "STEAMPARENTALSETTINGS_INTERFACE_VERSION001": {
+   "source": "winISteamParentalSettings.c",
+   "tag": "winISteamParentalSettings_STEAMPARENTALSETTINGS_INTERFACE_VERSION001",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "BIsParentalLockEnabled",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "BIsParentalLockLocked",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "BIsAppBlocked",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "BIsAppInBlockList",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "BIsFeatureBlocked",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "BIsFeatureInBlockList",
+     "bytes": 8
+    }
+   ],
+   "alloc_vtable_count": 6
+  },
+  "STEAMREMOTEPLAY_INTERFACE_VERSION001": {
+   "source": "winISteamRemotePlay.c",
+   "tag": "winISteamRemotePlay_STEAMREMOTEPLAY_INTERFACE_VERSION001",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetSessionCount",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "GetSessionID",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "GetSessionSteamID",
+     "bytes": 12
+    },
+    {
+     "slot": 3,
+     "name": "GetSessionClientName",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "GetSessionClientFormFactor",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "BGetSessionClientResolution",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "BSendRemotePlayTogetherInvite",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 7
+  },
+  "STEAMREMOTESTORAGE_INTERFACE_VERSION014": {
+   "source": "winISteamRemoteStorage.c",
+   "tag": "winISteamRemoteStorage_STEAMREMOTESTORAGE_INTERFACE_VERSION014",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "FileWrite",
+     "bytes": 16
+    },
+    {
+     "slot": 1,
+     "name": "FileRead",
+     "bytes": 16
+    },
+    {
+     "slot": 2,
+     "name": "FileWriteAsync",
+     "bytes": 16
+    },
+    {
+     "slot": 3,
+     "name": "FileReadAsync",
+     "bytes": 16
+    },
+    {
+     "slot": 4,
+     "name": "FileReadAsyncComplete",
+     "bytes": 20
+    },
+    {
+     "slot": 5,
+     "name": "FileForget",
+     "bytes": 8
+    },
+    {
+     "slot": 6,
+     "name": "FileDelete",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "FileShare",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "SetSyncPlatforms",
+     "bytes": 12
+    },
+    {
+     "slot": 9,
+     "name": "FileWriteStreamOpen",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "FileWriteStreamWriteChunk",
+     "bytes": 20
+    },
+    {
+     "slot": 11,
+     "name": "FileWriteStreamClose",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "FileWriteStreamCancel",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "FileExists",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "FilePersisted",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetFileSize",
+     "bytes": 8
+    },
+    {
+     "slot": 16,
+     "name": "GetFileTimestamp",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "GetSyncPlatforms",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "GetFileCount",
+     "bytes": 4
+    },
+    {
+     "slot": 19,
+     "name": "GetFileNameAndSize",
+     "bytes": 12
+    },
+    {
+     "slot": 20,
+     "name": "GetQuota",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "IsCloudEnabledForAccount",
+     "bytes": 4
+    },
+    {
+     "slot": 22,
+     "name": "IsCloudEnabledForApp",
+     "bytes": 4
+    },
+    {
+     "slot": 23,
+     "name": "SetCloudEnabledForApp",
+     "bytes": 8
+    },
+    {
+     "slot": 24,
+     "name": "UGCDownload",
+     "bytes": 16
+    },
+    {
+     "slot": 25,
+     "name": "GetUGCDownloadProgress",
+     "bytes": 20
+    },
+    {
+     "slot": 26,
+     "name": "GetUGCDetails",
+     "bytes": 28
+    },
+    {
+     "slot": 27,
+     "name": "UGCRead",
+     "bytes": 28
+    },
+    {
+     "slot": 28,
+     "name": "GetCachedUGCCount",
+     "bytes": 4
+    },
+    {
+     "slot": 29,
+     "name": "GetCachedUGCHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 30,
+     "name": "PublishWorkshopFile",
+     "bytes": 36
+    },
+    {
+     "slot": 31,
+     "name": "CreatePublishedFileUpdateRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 32,
+     "name": "UpdatePublishedFileFile",
+     "bytes": 16
+    },
+    {
+     "slot": 33,
+     "name": "UpdatePublishedFilePreviewFile",
+     "bytes": 16
+    },
+    {
+     "slot": 34,
+     "name": "UpdatePublishedFileTitle",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "UpdatePublishedFileDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "UpdatePublishedFileVisibility",
+     "bytes": 16
+    },
+    {
+     "slot": 37,
+     "name": "UpdatePublishedFileTags",
+     "bytes": 16
+    },
+    {
+     "slot": 38,
+     "name": "CommitPublishedFileUpdate",
+     "bytes": 12
+    },
+    {
+     "slot": 39,
+     "name": "GetPublishedFileDetails",
+     "bytes": 16
+    },
+    {
+     "slot": 40,
+     "name": "DeletePublishedFile",
+     "bytes": 12
+    },
+    {
+     "slot": 41,
+     "name": "EnumerateUserPublishedFiles",
+     "bytes": 8
+    },
+    {
+     "slot": 42,
+     "name": "SubscribePublishedFile",
+     "bytes": 12
+    },
+    {
+     "slot": 43,
+     "name": "EnumerateUserSubscribedFiles",
+     "bytes": 8
+    },
+    {
+     "slot": 44,
+     "name": "UnsubscribePublishedFile",
+     "bytes": 12
+    },
+    {
+     "slot": 45,
+     "name": "UpdatePublishedFileSetChangeDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 46,
+     "name": "GetPublishedItemVoteDetails",
+     "bytes": 12
+    },
+    {
+     "slot": 47,
+     "name": "UpdateUserPublishedItemVote",
+     "bytes": 16
+    },
+    {
+     "slot": 48,
+     "name": "GetUserPublishedItemVoteDetails",
+     "bytes": 12
+    },
+    {
+     "slot": 49,
+     "name": "EnumerateUserSharedWorkshopFiles",
+     "bytes": 24
+    },
+    {
+     "slot": 50,
+     "name": "PublishVideo",
+     "bytes": 40
+    },
+    {
+     "slot": 51,
+     "name": "SetUserPublishedFileAction",
+     "bytes": 16
+    },
+    {
+     "slot": 52,
+     "name": "EnumeratePublishedFilesByUserAction",
+     "bytes": 12
+    },
+    {
+     "slot": 53,
+     "name": "EnumeratePublishedWorkshopFiles",
+     "bytes": 28
+    },
+    {
+     "slot": 54,
+     "name": "UGCDownloadToLocation",
+     "bytes": 20
+    }
+   ],
+   "alloc_vtable_count": 55
+  },
+  "STEAMREMOTESTORAGE_INTERFACE_VERSION016": {
+   "source": "winISteamRemoteStorage.c",
+   "tag": "winISteamRemoteStorage_STEAMREMOTESTORAGE_INTERFACE_VERSION016",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "FileWrite",
+     "bytes": 16
+    },
+    {
+     "slot": 1,
+     "name": "FileRead",
+     "bytes": 16
+    },
+    {
+     "slot": 2,
+     "name": "FileWriteAsync",
+     "bytes": 16
+    },
+    {
+     "slot": 3,
+     "name": "FileReadAsync",
+     "bytes": 16
+    },
+    {
+     "slot": 4,
+     "name": "FileReadAsyncComplete",
+     "bytes": 20
+    },
+    {
+     "slot": 5,
+     "name": "FileForget",
+     "bytes": 8
+    },
+    {
+     "slot": 6,
+     "name": "FileDelete",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "FileShare",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "SetSyncPlatforms",
+     "bytes": 12
+    },
+    {
+     "slot": 9,
+     "name": "FileWriteStreamOpen",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "FileWriteStreamWriteChunk",
+     "bytes": 20
+    },
+    {
+     "slot": 11,
+     "name": "FileWriteStreamClose",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "FileWriteStreamCancel",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "FileExists",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "FilePersisted",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetFileSize",
+     "bytes": 8
+    },
+    {
+     "slot": 16,
+     "name": "GetFileTimestamp",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "GetSyncPlatforms",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "GetFileCount",
+     "bytes": 4
+    },
+    {
+     "slot": 19,
+     "name": "GetFileNameAndSize",
+     "bytes": 12
+    },
+    {
+     "slot": 20,
+     "name": "GetQuota",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "IsCloudEnabledForAccount",
+     "bytes": 4
+    },
+    {
+     "slot": 22,
+     "name": "IsCloudEnabledForApp",
+     "bytes": 4
+    },
+    {
+     "slot": 23,
+     "name": "SetCloudEnabledForApp",
+     "bytes": 8
+    },
+    {
+     "slot": 24,
+     "name": "UGCDownload",
+     "bytes": 16
+    },
+    {
+     "slot": 25,
+     "name": "GetUGCDownloadProgress",
+     "bytes": 20
+    },
+    {
+     "slot": 26,
+     "name": "GetUGCDetails",
+     "bytes": 28
+    },
+    {
+     "slot": 27,
+     "name": "UGCRead",
+     "bytes": 28
+    },
+    {
+     "slot": 28,
+     "name": "GetCachedUGCCount",
+     "bytes": 4
+    },
+    {
+     "slot": 29,
+     "name": "GetCachedUGCHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 30,
+     "name": "PublishWorkshopFile",
+     "bytes": 36
+    },
+    {
+     "slot": 31,
+     "name": "CreatePublishedFileUpdateRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 32,
+     "name": "UpdatePublishedFileFile",
+     "bytes": 16
+    },
+    {
+     "slot": 33,
+     "name": "UpdatePublishedFilePreviewFile",
+     "bytes": 16
+    },
+    {
+     "slot": 34,
+     "name": "UpdatePublishedFileTitle",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "UpdatePublishedFileDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "UpdatePublishedFileVisibility",
+     "bytes": 16
+    },
+    {
+     "slot": 37,
+     "name": "UpdatePublishedFileTags",
+     "bytes": 16
+    },
+    {
+     "slot": 38,
+     "name": "CommitPublishedFileUpdate",
+     "bytes": 12
+    },
+    {
+     "slot": 39,
+     "name": "GetPublishedFileDetails",
+     "bytes": 16
+    },
+    {
+     "slot": 40,
+     "name": "DeletePublishedFile",
+     "bytes": 12
+    },
+    {
+     "slot": 41,
+     "name": "EnumerateUserPublishedFiles",
+     "bytes": 8
+    },
+    {
+     "slot": 42,
+     "name": "SubscribePublishedFile",
+     "bytes": 12
+    },
+    {
+     "slot": 43,
+     "name": "EnumerateUserSubscribedFiles",
+     "bytes": 8
+    },
+    {
+     "slot": 44,
+     "name": "UnsubscribePublishedFile",
+     "bytes": 12
+    },
+    {
+     "slot": 45,
+     "name": "UpdatePublishedFileSetChangeDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 46,
+     "name": "GetPublishedItemVoteDetails",
+     "bytes": 12
+    },
+    {
+     "slot": 47,
+     "name": "UpdateUserPublishedItemVote",
+     "bytes": 16
+    },
+    {
+     "slot": 48,
+     "name": "GetUserPublishedItemVoteDetails",
+     "bytes": 12
+    },
+    {
+     "slot": 49,
+     "name": "EnumerateUserSharedWorkshopFiles",
+     "bytes": 24
+    },
+    {
+     "slot": 50,
+     "name": "PublishVideo",
+     "bytes": 40
+    },
+    {
+     "slot": 51,
+     "name": "SetUserPublishedFileAction",
+     "bytes": 16
+    },
+    {
+     "slot": 52,
+     "name": "EnumeratePublishedFilesByUserAction",
+     "bytes": 12
+    },
+    {
+     "slot": 53,
+     "name": "EnumeratePublishedWorkshopFiles",
+     "bytes": 28
+    },
+    {
+     "slot": 54,
+     "name": "UGCDownloadToLocation",
+     "bytes": 20
+    },
+    {
+     "slot": 55,
+     "name": "GetLocalFileChangeCount",
+     "bytes": 4
+    },
+    {
+     "slot": 56,
+     "name": "GetLocalFileChange",
+     "bytes": 16
+    },
+    {
+     "slot": 57,
+     "name": "BeginFileWriteBatch",
+     "bytes": 4
+    },
+    {
+     "slot": 58,
+     "name": "EndFileWriteBatch",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 59
+  },
+  "STEAMSCREENSHOTS_INTERFACE_VERSION003": {
+   "source": "winISteamScreenshots.c",
+   "tag": "winISteamScreenshots_STEAMSCREENSHOTS_INTERFACE_VERSION003",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "WriteScreenshot",
+     "bytes": 20
+    },
+    {
+     "slot": 1,
+     "name": "AddScreenshotToLibrary",
+     "bytes": 20
+    },
+    {
+     "slot": 2,
+     "name": "TriggerScreenshot",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "HookScreenshots",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "SetLocation",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "TagUser",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "TagPublishedFile",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "IsScreenshotsHooked",
+     "bytes": 4
+    },
+    {
+     "slot": 8,
+     "name": "AddVRScreenshotToLibrary",
+     "bytes": 16
+    }
+   ],
+   "alloc_vtable_count": 9
+  },
+  "STEAMUGC_INTERFACE_VERSION015": {
+   "source": "winISteamUGC.c",
+   "tag": "winISteamUGC_STEAMUGC_INTERFACE_VERSION015",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "CreateQueryUserUGCRequest",
+     "bytes": 32
+    },
+    {
+     "slot": 1,
+     "name": "CreateQueryAllUGCRequest_2",
+     "bytes": 24
+    },
+    {
+     "slot": 2,
+     "name": "CreateQueryAllUGCRequest",
+     "bytes": 24
+    },
+    {
+     "slot": 3,
+     "name": "CreateQueryUGCDetailsRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "SendQueryUGCRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "GetQueryUGCResult",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "GetQueryUGCNumTags",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "GetQueryUGCTag",
+     "bytes": 28
+    },
+    {
+     "slot": 8,
+     "name": "GetQueryUGCTagDisplayName",
+     "bytes": 28
+    },
+    {
+     "slot": 9,
+     "name": "GetQueryUGCPreviewURL",
+     "bytes": 24
+    },
+    {
+     "slot": 10,
+     "name": "GetQueryUGCMetadata",
+     "bytes": 24
+    },
+    {
+     "slot": 11,
+     "name": "GetQueryUGCChildren",
+     "bytes": 24
+    },
+    {
+     "slot": 12,
+     "name": "GetQueryUGCStatistic",
+     "bytes": 24
+    },
+    {
+     "slot": 13,
+     "name": "GetQueryUGCNumAdditionalPreviews",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "GetQueryUGCAdditionalPreview",
+     "bytes": 40
+    },
+    {
+     "slot": 15,
+     "name": "GetQueryUGCNumKeyValueTags",
+     "bytes": 16
+    },
+    {
+     "slot": 16,
+     "name": "GetQueryUGCKeyValueTag_2",
+     "bytes": 28
+    },
+    {
+     "slot": 17,
+     "name": "GetQueryUGCKeyValueTag",
+     "bytes": 36
+    },
+    {
+     "slot": 18,
+     "name": "ReleaseQueryUGCRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 19,
+     "name": "AddRequiredTag",
+     "bytes": 16
+    },
+    {
+     "slot": 20,
+     "name": "AddRequiredTagGroup",
+     "bytes": 16
+    },
+    {
+     "slot": 21,
+     "name": "AddExcludedTag",
+     "bytes": 16
+    },
+    {
+     "slot": 22,
+     "name": "SetReturnOnlyIDs",
+     "bytes": 16
+    },
+    {
+     "slot": 23,
+     "name": "SetReturnKeyValueTags",
+     "bytes": 16
+    },
+    {
+     "slot": 24,
+     "name": "SetReturnLongDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 25,
+     "name": "SetReturnMetadata",
+     "bytes": 16
+    },
+    {
+     "slot": 26,
+     "name": "SetReturnChildren",
+     "bytes": 16
+    },
+    {
+     "slot": 27,
+     "name": "SetReturnAdditionalPreviews",
+     "bytes": 16
+    },
+    {
+     "slot": 28,
+     "name": "SetReturnTotalOnly",
+     "bytes": 16
+    },
+    {
+     "slot": 29,
+     "name": "SetReturnPlaytimeStats",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "SetLanguage",
+     "bytes": 16
+    },
+    {
+     "slot": 31,
+     "name": "SetAllowCachedResponse",
+     "bytes": 16
+    },
+    {
+     "slot": 32,
+     "name": "SetCloudFileNameFilter",
+     "bytes": 16
+    },
+    {
+     "slot": 33,
+     "name": "SetMatchAnyTag",
+     "bytes": 16
+    },
+    {
+     "slot": 34,
+     "name": "SetSearchText",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "SetRankedByTrendDays",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "AddRequiredKeyValueTag",
+     "bytes": 20
+    },
+    {
+     "slot": 37,
+     "name": "RequestUGCDetails",
+     "bytes": 16
+    },
+    {
+     "slot": 38,
+     "name": "CreateItem",
+     "bytes": 12
+    },
+    {
+     "slot": 39,
+     "name": "StartItemUpdate",
+     "bytes": 16
+    },
+    {
+     "slot": 40,
+     "name": "SetItemTitle",
+     "bytes": 16
+    },
+    {
+     "slot": 41,
+     "name": "SetItemDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 42,
+     "name": "SetItemUpdateLanguage",
+     "bytes": 16
+    },
+    {
+     "slot": 43,
+     "name": "SetItemMetadata",
+     "bytes": 16
+    },
+    {
+     "slot": 44,
+     "name": "SetItemVisibility",
+     "bytes": 16
+    },
+    {
+     "slot": 45,
+     "name": "SetItemTags",
+     "bytes": 16
+    },
+    {
+     "slot": 46,
+     "name": "SetItemContent",
+     "bytes": 16
+    },
+    {
+     "slot": 47,
+     "name": "SetItemPreview",
+     "bytes": 16
+    },
+    {
+     "slot": 48,
+     "name": "SetAllowLegacyUpload",
+     "bytes": 16
+    },
+    {
+     "slot": 49,
+     "name": "RemoveAllItemKeyValueTags",
+     "bytes": 12
+    },
+    {
+     "slot": 50,
+     "name": "RemoveItemKeyValueTags",
+     "bytes": 16
+    },
+    {
+     "slot": 51,
+     "name": "AddItemKeyValueTag",
+     "bytes": 20
+    },
+    {
+     "slot": 52,
+     "name": "AddItemPreviewFile",
+     "bytes": 20
+    },
+    {
+     "slot": 53,
+     "name": "AddItemPreviewVideo",
+     "bytes": 16
+    },
+    {
+     "slot": 54,
+     "name": "UpdateItemPreviewFile",
+     "bytes": 20
+    },
+    {
+     "slot": 55,
+     "name": "UpdateItemPreviewVideo",
+     "bytes": 20
+    },
+    {
+     "slot": 56,
+     "name": "RemoveItemPreview",
+     "bytes": 16
+    },
+    {
+     "slot": 57,
+     "name": "SubmitItemUpdate",
+     "bytes": 16
+    },
+    {
+     "slot": 58,
+     "name": "GetItemUpdateProgress",
+     "bytes": 20
+    },
+    {
+     "slot": 59,
+     "name": "SetUserItemVote",
+     "bytes": 16
+    },
+    {
+     "slot": 60,
+     "name": "GetUserItemVote",
+     "bytes": 12
+    },
+    {
+     "slot": 61,
+     "name": "AddItemToFavorites",
+     "bytes": 16
+    },
+    {
+     "slot": 62,
+     "name": "RemoveItemFromFavorites",
+     "bytes": 16
+    },
+    {
+     "slot": 63,
+     "name": "SubscribeItem",
+     "bytes": 12
+    },
+    {
+     "slot": 64,
+     "name": "UnsubscribeItem",
+     "bytes": 12
+    },
+    {
+     "slot": 65,
+     "name": "GetNumSubscribedItems",
+     "bytes": 4
+    },
+    {
+     "slot": 66,
+     "name": "GetSubscribedItems",
+     "bytes": 12
+    },
+    {
+     "slot": 67,
+     "name": "GetItemState",
+     "bytes": 12
+    },
+    {
+     "slot": 68,
+     "name": "GetItemInstallInfo",
+     "bytes": 28
+    },
+    {
+     "slot": 69,
+     "name": "GetItemDownloadInfo",
+     "bytes": 20
+    },
+    {
+     "slot": 70,
+     "name": "DownloadItem",
+     "bytes": 16
+    },
+    {
+     "slot": 71,
+     "name": "BInitWorkshopForGameServer",
+     "bytes": 12
+    },
+    {
+     "slot": 72,
+     "name": "SuspendDownloads",
+     "bytes": 8
+    },
+    {
+     "slot": 73,
+     "name": "StartPlaytimeTracking",
+     "bytes": 12
+    },
+    {
+     "slot": 74,
+     "name": "StopPlaytimeTracking",
+     "bytes": 12
+    },
+    {
+     "slot": 75,
+     "name": "StopPlaytimeTrackingForAllItems",
+     "bytes": 4
+    },
+    {
+     "slot": 76,
+     "name": "AddDependency",
+     "bytes": 20
+    },
+    {
+     "slot": 77,
+     "name": "RemoveDependency",
+     "bytes": 20
+    },
+    {
+     "slot": 78,
+     "name": "AddAppDependency",
+     "bytes": 16
+    },
+    {
+     "slot": 79,
+     "name": "RemoveAppDependency",
+     "bytes": 16
+    },
+    {
+     "slot": 80,
+     "name": "GetAppDependencies",
+     "bytes": 12
+    },
+    {
+     "slot": 81,
+     "name": "DeleteItem",
+     "bytes": 12
+    },
+    {
+     "slot": 82,
+     "name": "ShowWorkshopEULA",
+     "bytes": 4
+    },
+    {
+     "slot": 83,
+     "name": "GetWorkshopEULAStatus",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 84
+  },
+  "STEAMUGC_INTERFACE_VERSION016": {
+   "source": "winISteamUGC.c",
+   "tag": "winISteamUGC_STEAMUGC_INTERFACE_VERSION016",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "CreateQueryUserUGCRequest",
+     "bytes": 32
+    },
+    {
+     "slot": 1,
+     "name": "CreateQueryAllUGCRequest_2",
+     "bytes": 24
+    },
+    {
+     "slot": 2,
+     "name": "CreateQueryAllUGCRequest",
+     "bytes": 24
+    },
+    {
+     "slot": 3,
+     "name": "CreateQueryUGCDetailsRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "SendQueryUGCRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "GetQueryUGCResult",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "GetQueryUGCNumTags",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "GetQueryUGCTag",
+     "bytes": 28
+    },
+    {
+     "slot": 8,
+     "name": "GetQueryUGCTagDisplayName",
+     "bytes": 28
+    },
+    {
+     "slot": 9,
+     "name": "GetQueryUGCPreviewURL",
+     "bytes": 24
+    },
+    {
+     "slot": 10,
+     "name": "GetQueryUGCMetadata",
+     "bytes": 24
+    },
+    {
+     "slot": 11,
+     "name": "GetQueryUGCChildren",
+     "bytes": 24
+    },
+    {
+     "slot": 12,
+     "name": "GetQueryUGCStatistic",
+     "bytes": 24
+    },
+    {
+     "slot": 13,
+     "name": "GetQueryUGCNumAdditionalPreviews",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "GetQueryUGCAdditionalPreview",
+     "bytes": 40
+    },
+    {
+     "slot": 15,
+     "name": "GetQueryUGCNumKeyValueTags",
+     "bytes": 16
+    },
+    {
+     "slot": 16,
+     "name": "GetQueryUGCKeyValueTag_2",
+     "bytes": 28
+    },
+    {
+     "slot": 17,
+     "name": "GetQueryUGCKeyValueTag",
+     "bytes": 36
+    },
+    {
+     "slot": 18,
+     "name": "ReleaseQueryUGCRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 19,
+     "name": "AddRequiredTag",
+     "bytes": 16
+    },
+    {
+     "slot": 20,
+     "name": "AddRequiredTagGroup",
+     "bytes": 16
+    },
+    {
+     "slot": 21,
+     "name": "AddExcludedTag",
+     "bytes": 16
+    },
+    {
+     "slot": 22,
+     "name": "SetReturnOnlyIDs",
+     "bytes": 16
+    },
+    {
+     "slot": 23,
+     "name": "SetReturnKeyValueTags",
+     "bytes": 16
+    },
+    {
+     "slot": 24,
+     "name": "SetReturnLongDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 25,
+     "name": "SetReturnMetadata",
+     "bytes": 16
+    },
+    {
+     "slot": 26,
+     "name": "SetReturnChildren",
+     "bytes": 16
+    },
+    {
+     "slot": 27,
+     "name": "SetReturnAdditionalPreviews",
+     "bytes": 16
+    },
+    {
+     "slot": 28,
+     "name": "SetReturnTotalOnly",
+     "bytes": 16
+    },
+    {
+     "slot": 29,
+     "name": "SetReturnPlaytimeStats",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "SetLanguage",
+     "bytes": 16
+    },
+    {
+     "slot": 31,
+     "name": "SetAllowCachedResponse",
+     "bytes": 16
+    },
+    {
+     "slot": 32,
+     "name": "SetCloudFileNameFilter",
+     "bytes": 16
+    },
+    {
+     "slot": 33,
+     "name": "SetMatchAnyTag",
+     "bytes": 16
+    },
+    {
+     "slot": 34,
+     "name": "SetSearchText",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "SetRankedByTrendDays",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "SetTimeCreatedDateRange",
+     "bytes": 20
+    },
+    {
+     "slot": 37,
+     "name": "SetTimeUpdatedDateRange",
+     "bytes": 20
+    },
+    {
+     "slot": 38,
+     "name": "AddRequiredKeyValueTag",
+     "bytes": 20
+    },
+    {
+     "slot": 39,
+     "name": "RequestUGCDetails",
+     "bytes": 16
+    },
+    {
+     "slot": 40,
+     "name": "CreateItem",
+     "bytes": 12
+    },
+    {
+     "slot": 41,
+     "name": "StartItemUpdate",
+     "bytes": 16
+    },
+    {
+     "slot": 42,
+     "name": "SetItemTitle",
+     "bytes": 16
+    },
+    {
+     "slot": 43,
+     "name": "SetItemDescription",
+     "bytes": 16
+    },
+    {
+     "slot": 44,
+     "name": "SetItemUpdateLanguage",
+     "bytes": 16
+    },
+    {
+     "slot": 45,
+     "name": "SetItemMetadata",
+     "bytes": 16
+    },
+    {
+     "slot": 46,
+     "name": "SetItemVisibility",
+     "bytes": 16
+    },
+    {
+     "slot": 47,
+     "name": "SetItemTags",
+     "bytes": 16
+    },
+    {
+     "slot": 48,
+     "name": "SetItemContent",
+     "bytes": 16
+    },
+    {
+     "slot": 49,
+     "name": "SetItemPreview",
+     "bytes": 16
+    },
+    {
+     "slot": 50,
+     "name": "SetAllowLegacyUpload",
+     "bytes": 16
+    },
+    {
+     "slot": 51,
+     "name": "RemoveAllItemKeyValueTags",
+     "bytes": 12
+    },
+    {
+     "slot": 52,
+     "name": "RemoveItemKeyValueTags",
+     "bytes": 16
+    },
+    {
+     "slot": 53,
+     "name": "AddItemKeyValueTag",
+     "bytes": 20
+    },
+    {
+     "slot": 54,
+     "name": "AddItemPreviewFile",
+     "bytes": 20
+    },
+    {
+     "slot": 55,
+     "name": "AddItemPreviewVideo",
+     "bytes": 16
+    },
+    {
+     "slot": 56,
+     "name": "UpdateItemPreviewFile",
+     "bytes": 20
+    },
+    {
+     "slot": 57,
+     "name": "UpdateItemPreviewVideo",
+     "bytes": 20
+    },
+    {
+     "slot": 58,
+     "name": "RemoveItemPreview",
+     "bytes": 16
+    },
+    {
+     "slot": 59,
+     "name": "SubmitItemUpdate",
+     "bytes": 16
+    },
+    {
+     "slot": 60,
+     "name": "GetItemUpdateProgress",
+     "bytes": 20
+    },
+    {
+     "slot": 61,
+     "name": "SetUserItemVote",
+     "bytes": 16
+    },
+    {
+     "slot": 62,
+     "name": "GetUserItemVote",
+     "bytes": 12
+    },
+    {
+     "slot": 63,
+     "name": "AddItemToFavorites",
+     "bytes": 16
+    },
+    {
+     "slot": 64,
+     "name": "RemoveItemFromFavorites",
+     "bytes": 16
+    },
+    {
+     "slot": 65,
+     "name": "SubscribeItem",
+     "bytes": 12
+    },
+    {
+     "slot": 66,
+     "name": "UnsubscribeItem",
+     "bytes": 12
+    },
+    {
+     "slot": 67,
+     "name": "GetNumSubscribedItems",
+     "bytes": 4
+    },
+    {
+     "slot": 68,
+     "name": "GetSubscribedItems",
+     "bytes": 12
+    },
+    {
+     "slot": 69,
+     "name": "GetItemState",
+     "bytes": 12
+    },
+    {
+     "slot": 70,
+     "name": "GetItemInstallInfo",
+     "bytes": 28
+    },
+    {
+     "slot": 71,
+     "name": "GetItemDownloadInfo",
+     "bytes": 20
+    },
+    {
+     "slot": 72,
+     "name": "DownloadItem",
+     "bytes": 16
+    },
+    {
+     "slot": 73,
+     "name": "BInitWorkshopForGameServer",
+     "bytes": 12
+    },
+    {
+     "slot": 74,
+     "name": "SuspendDownloads",
+     "bytes": 8
+    },
+    {
+     "slot": 75,
+     "name": "StartPlaytimeTracking",
+     "bytes": 12
+    },
+    {
+     "slot": 76,
+     "name": "StopPlaytimeTracking",
+     "bytes": 12
+    },
+    {
+     "slot": 77,
+     "name": "StopPlaytimeTrackingForAllItems",
+     "bytes": 4
+    },
+    {
+     "slot": 78,
+     "name": "AddDependency",
+     "bytes": 20
+    },
+    {
+     "slot": 79,
+     "name": "RemoveDependency",
+     "bytes": 20
+    },
+    {
+     "slot": 80,
+     "name": "AddAppDependency",
+     "bytes": 16
+    },
+    {
+     "slot": 81,
+     "name": "RemoveAppDependency",
+     "bytes": 16
+    },
+    {
+     "slot": 82,
+     "name": "GetAppDependencies",
+     "bytes": 12
+    },
+    {
+     "slot": 83,
+     "name": "DeleteItem",
+     "bytes": 12
+    },
+    {
+     "slot": 84,
+     "name": "ShowWorkshopEULA",
+     "bytes": 4
+    },
+    {
+     "slot": 85,
+     "name": "GetWorkshopEULAStatus",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 86
+  },
+  "STEAMUSERSTATS_INTERFACE_VERSION012": {
+   "source": "winISteamUserStats.c",
+   "tag": "winISteamUserStats_STEAMUSERSTATS_INTERFACE_VERSION012",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "RequestCurrentStats",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "GetStat_2",
+     "bytes": 12
+    },
+    {
+     "slot": 2,
+     "name": "GetStat",
+     "bytes": 12
+    },
+    {
+     "slot": 3,
+     "name": "SetStat_2",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "SetStat",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "UpdateAvgRateStat",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "GetAchievement",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "SetAchievement",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "ClearAchievement",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "GetAchievementAndUnlockTime",
+     "bytes": 16
+    },
+    {
+     "slot": 10,
+     "name": "StoreStats",
+     "bytes": 4
+    },
+    {
+     "slot": 11,
+     "name": "GetAchievementIcon",
+     "bytes": 8
+    },
+    {
+     "slot": 12,
+     "name": "GetAchievementDisplayAttribute",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "IndicateAchievementProgress",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "GetNumAchievements",
+     "bytes": 4
+    },
+    {
+     "slot": 15,
+     "name": "GetAchievementName",
+     "bytes": 8
+    },
+    {
+     "slot": 16,
+     "name": "RequestUserStats",
+     "bytes": 12
+    },
+    {
+     "slot": 17,
+     "name": "GetUserStat_2",
+     "bytes": 20
+    },
+    {
+     "slot": 18,
+     "name": "GetUserStat",
+     "bytes": 20
+    },
+    {
+     "slot": 19,
+     "name": "GetUserAchievement",
+     "bytes": 20
+    },
+    {
+     "slot": 20,
+     "name": "GetUserAchievementAndUnlockTime",
+     "bytes": 24
+    },
+    {
+     "slot": 21,
+     "name": "ResetAllStats",
+     "bytes": 8
+    },
+    {
+     "slot": 22,
+     "name": "FindOrCreateLeaderboard",
+     "bytes": 16
+    },
+    {
+     "slot": 23,
+     "name": "FindLeaderboard",
+     "bytes": 8
+    },
+    {
+     "slot": 24,
+     "name": "GetLeaderboardName",
+     "bytes": 12
+    },
+    {
+     "slot": 25,
+     "name": "GetLeaderboardEntryCount",
+     "bytes": 12
+    },
+    {
+     "slot": 26,
+     "name": "GetLeaderboardSortMethod",
+     "bytes": 12
+    },
+    {
+     "slot": 27,
+     "name": "GetLeaderboardDisplayType",
+     "bytes": 12
+    },
+    {
+     "slot": 28,
+     "name": "DownloadLeaderboardEntries",
+     "bytes": 24
+    },
+    {
+     "slot": 29,
+     "name": "DownloadLeaderboardEntriesForUsers",
+     "bytes": 20
+    },
+    {
+     "slot": 30,
+     "name": "GetDownloadedLeaderboardEntry",
+     "bytes": 28
+    },
+    {
+     "slot": 31,
+     "name": "UploadLeaderboardScore",
+     "bytes": 28
+    },
+    {
+     "slot": 32,
+     "name": "AttachLeaderboardUGC",
+     "bytes": 20
+    },
+    {
+     "slot": 33,
+     "name": "GetNumberOfCurrentPlayers",
+     "bytes": 4
+    },
+    {
+     "slot": 34,
+     "name": "RequestGlobalAchievementPercentages",
+     "bytes": 4
+    },
+    {
+     "slot": 35,
+     "name": "GetMostAchievedAchievementInfo",
+     "bytes": 20
+    },
+    {
+     "slot": 36,
+     "name": "GetNextMostAchievedAchievementInfo",
+     "bytes": 24
+    },
+    {
+     "slot": 37,
+     "name": "GetAchievementAchievedPercent",
+     "bytes": 12
+    },
+    {
+     "slot": 38,
+     "name": "RequestGlobalStats",
+     "bytes": 8
+    },
+    {
+     "slot": 39,
+     "name": "GetGlobalStat_2",
+     "bytes": 12
+    },
+    {
+     "slot": 40,
+     "name": "GetGlobalStat",
+     "bytes": 12
+    },
+    {
+     "slot": 41,
+     "name": "GetGlobalStatHistory_2",
+     "bytes": 16
+    },
+    {
+     "slot": 42,
+     "name": "GetGlobalStatHistory",
+     "bytes": 16
+    },
+    {
+     "slot": 43,
+     "name": "GetAchievementProgressLimits_2",
+     "bytes": 16
+    },
+    {
+     "slot": 44,
+     "name": "GetAchievementProgressLimits",
+     "bytes": 16
+    }
+   ],
+   "alloc_vtable_count": 45
+  },
+  "SteamClient017": {
+   "source": "winISteamClient.c",
+   "tag": "winISteamClient_SteamClient017",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "CreateSteamPipe",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "BReleaseSteamPipe",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "ConnectToGlobalUser",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "CreateLocalUser",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "ReleaseUser",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "GetISteamUser",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "GetISteamGameServer",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "SetLocalIPBinding",
+     "bytes": 12
+    },
+    {
+     "slot": 8,
+     "name": "GetISteamFriends",
+     "bytes": 16
+    },
+    {
+     "slot": 9,
+     "name": "GetISteamUtils",
+     "bytes": 12
+    },
+    {
+     "slot": 10,
+     "name": "GetISteamMatchmaking",
+     "bytes": 16
+    },
+    {
+     "slot": 11,
+     "name": "GetISteamMatchmakingServers",
+     "bytes": 16
+    },
+    {
+     "slot": 12,
+     "name": "GetISteamGenericInterface",
+     "bytes": 16
+    },
+    {
+     "slot": 13,
+     "name": "GetISteamUserStats",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "GetISteamGameServerStats",
+     "bytes": 16
+    },
+    {
+     "slot": 15,
+     "name": "GetISteamApps",
+     "bytes": 16
+    },
+    {
+     "slot": 16,
+     "name": "GetISteamNetworking",
+     "bytes": 16
+    },
+    {
+     "slot": 17,
+     "name": "GetISteamRemoteStorage",
+     "bytes": 16
+    },
+    {
+     "slot": 18,
+     "name": "GetISteamScreenshots",
+     "bytes": 16
+    },
+    {
+     "slot": 19,
+     "name": "RunFrame",
+     "bytes": 4
+    },
+    {
+     "slot": 20,
+     "name": "GetIPCCallCount",
+     "bytes": 4
+    },
+    {
+     "slot": 21,
+     "name": "SetWarningMessageHook",
+     "bytes": 8
+    },
+    {
+     "slot": 22,
+     "name": "BShutdownIfAllPipesClosed",
+     "bytes": 4
+    },
+    {
+     "slot": 23,
+     "name": "GetISteamHTTP",
+     "bytes": 16
+    },
+    {
+     "slot": 24,
+     "name": "DEPRECATED_GetISteamUnifiedMessages",
+     "bytes": 16
+    },
+    {
+     "slot": 25,
+     "name": "GetISteamController",
+     "bytes": 16
+    },
+    {
+     "slot": 26,
+     "name": "GetISteamUGC",
+     "bytes": 16
+    },
+    {
+     "slot": 27,
+     "name": "GetISteamAppList",
+     "bytes": 16
+    },
+    {
+     "slot": 28,
+     "name": "GetISteamMusic",
+     "bytes": 16
+    },
+    {
+     "slot": 29,
+     "name": "GetISteamMusicRemote",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "GetISteamHTMLSurface",
+     "bytes": 16
+    },
+    {
+     "slot": 31,
+     "name": "DEPRECATED_Set_SteamAPI_CPostAPIResultInProcess",
+     "bytes": 8
+    },
+    {
+     "slot": 32,
+     "name": "DEPRECATED_Remove_SteamAPI_CPostAPIResultInProcess",
+     "bytes": 8
+    },
+    {
+     "slot": 33,
+     "name": "Set_SteamAPI_CCheckCallbackRegisteredInProcess",
+     "bytes": 8
+    },
+    {
+     "slot": 34,
+     "name": "GetISteamInventory",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "GetISteamVideo",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "GetISteamParentalSettings",
+     "bytes": 16
+    }
+   ],
+   "alloc_vtable_count": 37
+  },
+  "SteamClient020": {
+   "source": "winISteamClient.c",
+   "tag": "winISteamClient_SteamClient020",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "CreateSteamPipe",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "BReleaseSteamPipe",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "ConnectToGlobalUser",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "CreateLocalUser",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "ReleaseUser",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "GetISteamUser",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "GetISteamGameServer",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "SetLocalIPBinding",
+     "bytes": 12
+    },
+    {
+     "slot": 8,
+     "name": "GetISteamFriends",
+     "bytes": 16
+    },
+    {
+     "slot": 9,
+     "name": "GetISteamUtils",
+     "bytes": 12
+    },
+    {
+     "slot": 10,
+     "name": "GetISteamMatchmaking",
+     "bytes": 16
+    },
+    {
+     "slot": 11,
+     "name": "GetISteamMatchmakingServers",
+     "bytes": 16
+    },
+    {
+     "slot": 12,
+     "name": "GetISteamGenericInterface",
+     "bytes": 16
+    },
+    {
+     "slot": 13,
+     "name": "GetISteamUserStats",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "GetISteamGameServerStats",
+     "bytes": 16
+    },
+    {
+     "slot": 15,
+     "name": "GetISteamApps",
+     "bytes": 16
+    },
+    {
+     "slot": 16,
+     "name": "GetISteamNetworking",
+     "bytes": 16
+    },
+    {
+     "slot": 17,
+     "name": "GetISteamRemoteStorage",
+     "bytes": 16
+    },
+    {
+     "slot": 18,
+     "name": "GetISteamScreenshots",
+     "bytes": 16
+    },
+    {
+     "slot": 19,
+     "name": "GetISteamGameSearch",
+     "bytes": 16
+    },
+    {
+     "slot": 20,
+     "name": "RunFrame",
+     "bytes": 4
+    },
+    {
+     "slot": 21,
+     "name": "GetIPCCallCount",
+     "bytes": 4
+    },
+    {
+     "slot": 22,
+     "name": "SetWarningMessageHook",
+     "bytes": 8
+    },
+    {
+     "slot": 23,
+     "name": "BShutdownIfAllPipesClosed",
+     "bytes": 4
+    },
+    {
+     "slot": 24,
+     "name": "GetISteamHTTP",
+     "bytes": 16
+    },
+    {
+     "slot": 25,
+     "name": "DEPRECATED_GetISteamUnifiedMessages",
+     "bytes": 16
+    },
+    {
+     "slot": 26,
+     "name": "GetISteamController",
+     "bytes": 16
+    },
+    {
+     "slot": 27,
+     "name": "GetISteamUGC",
+     "bytes": 16
+    },
+    {
+     "slot": 28,
+     "name": "GetISteamAppList",
+     "bytes": 16
+    },
+    {
+     "slot": 29,
+     "name": "GetISteamMusic",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "GetISteamMusicRemote",
+     "bytes": 16
+    },
+    {
+     "slot": 31,
+     "name": "GetISteamHTMLSurface",
+     "bytes": 16
+    },
+    {
+     "slot": 32,
+     "name": "DEPRECATED_Set_SteamAPI_CPostAPIResultInProcess",
+     "bytes": 8
+    },
+    {
+     "slot": 33,
+     "name": "DEPRECATED_Remove_SteamAPI_CPostAPIResultInProcess",
+     "bytes": 8
+    },
+    {
+     "slot": 34,
+     "name": "Set_SteamAPI_CCheckCallbackRegisteredInProcess",
+     "bytes": 8
+    },
+    {
+     "slot": 35,
+     "name": "GetISteamInventory",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "GetISteamVideo",
+     "bytes": 16
+    },
+    {
+     "slot": 37,
+     "name": "GetISteamParentalSettings",
+     "bytes": 16
+    },
+    {
+     "slot": 38,
+     "name": "GetISteamInput",
+     "bytes": 16
+    },
+    {
+     "slot": 39,
+     "name": "GetISteamParties",
+     "bytes": 16
+    },
+    {
+     "slot": 40,
+     "name": "GetISteamRemotePlay",
+     "bytes": 16
+    },
+    {
+     "slot": 41,
+     "name": "DestroyAllInterfaces",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 42
+  },
+  "SteamController008": {
+   "source": "winISteamController.c",
+   "tag": "winISteamController_SteamController008",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "Init",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "Shutdown",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "RunFrame",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "GetConnectedControllers",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "GetActionSetHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "ActivateActionSet",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "GetCurrentActionSet",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "ActivateActionSetLayer",
+     "bytes": 20
+    },
+    {
+     "slot": 8,
+     "name": "DeactivateActionSetLayer",
+     "bytes": 20
+    },
+    {
+     "slot": 9,
+     "name": "DeactivateAllActionSetLayers",
+     "bytes": 12
+    },
+    {
+     "slot": 10,
+     "name": "GetActiveActionSetLayers",
+     "bytes": 16
+    },
+    {
+     "slot": 11,
+     "name": "GetDigitalActionHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 12,
+     "name": "GetDigitalActionData",
+     "bytes": 24
+    },
+    {
+     "slot": 13,
+     "name": "GetDigitalActionOrigins",
+     "bytes": 32
+    },
+    {
+     "slot": 14,
+     "name": "GetAnalogActionHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetAnalogActionData",
+     "bytes": 24
+    },
+    {
+     "slot": 16,
+     "name": "GetAnalogActionOrigins",
+     "bytes": 32
+    },
+    {
+     "slot": 17,
+     "name": "GetGlyphForActionOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "GetStringForActionOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 19,
+     "name": "StopAnalogActionMomentum",
+     "bytes": 20
+    },
+    {
+     "slot": 20,
+     "name": "GetMotionData",
+     "bytes": 16
+    },
+    {
+     "slot": 21,
+     "name": "TriggerHapticPulse",
+     "bytes": 20
+    },
+    {
+     "slot": 22,
+     "name": "TriggerRepeatedHapticPulse",
+     "bytes": 32
+    },
+    {
+     "slot": 23,
+     "name": "TriggerVibration",
+     "bytes": 20
+    },
+    {
+     "slot": 24,
+     "name": "SetLEDColor",
+     "bytes": 28
+    },
+    {
+     "slot": 25,
+     "name": "ShowBindingPanel",
+     "bytes": 12
+    },
+    {
+     "slot": 26,
+     "name": "GetInputTypeForHandle",
+     "bytes": 12
+    },
+    {
+     "slot": 27,
+     "name": "GetControllerForGamepadIndex",
+     "bytes": 8
+    },
+    {
+     "slot": 28,
+     "name": "GetGamepadIndexForController",
+     "bytes": 12
+    },
+    {
+     "slot": 29,
+     "name": "GetStringForXboxOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 30,
+     "name": "GetGlyphForXboxOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 31,
+     "name": "GetActionOriginFromXboxOrigin",
+     "bytes": 16
+    },
+    {
+     "slot": 32,
+     "name": "TranslateActionOrigin",
+     "bytes": 12
+    },
+    {
+     "slot": 33,
+     "name": "GetControllerBindingRevision",
+     "bytes": 20
+    }
+   ],
+   "alloc_vtable_count": 34
+  },
+  "SteamFriends017": {
+   "source": "winISteamFriends.c",
+   "tag": "winISteamFriends_SteamFriends017",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetPersonaName",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "SetPersonaName",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "GetPersonaState",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "GetFriendCount",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "GetFriendByIndex",
+     "bytes": 16
+    },
+    {
+     "slot": 5,
+     "name": "GetFriendRelationship",
+     "bytes": 12
+    },
+    {
+     "slot": 6,
+     "name": "GetFriendPersonaState",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "GetFriendPersonaName",
+     "bytes": 12
+    },
+    {
+     "slot": 8,
+     "name": "GetFriendGamePlayed",
+     "bytes": 16
+    },
+    {
+     "slot": 9,
+     "name": "GetFriendPersonaNameHistory",
+     "bytes": 16
+    },
+    {
+     "slot": 10,
+     "name": "GetFriendSteamLevel",
+     "bytes": 12
+    },
+    {
+     "slot": 11,
+     "name": "GetPlayerNickname",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "GetFriendsGroupCount",
+     "bytes": 4
+    },
+    {
+     "slot": 13,
+     "name": "GetFriendsGroupIDByIndex",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "GetFriendsGroupName",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetFriendsGroupMembersCount",
+     "bytes": 8
+    },
+    {
+     "slot": 16,
+     "name": "GetFriendsGroupMembersList",
+     "bytes": 16
+    },
+    {
+     "slot": 17,
+     "name": "HasFriend",
+     "bytes": 16
+    },
+    {
+     "slot": 18,
+     "name": "GetClanCount",
+     "bytes": 4
+    },
+    {
+     "slot": 19,
+     "name": "GetClanByIndex",
+     "bytes": 12
+    },
+    {
+     "slot": 20,
+     "name": "GetClanName",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "GetClanTag",
+     "bytes": 12
+    },
+    {
+     "slot": 22,
+     "name": "GetClanActivityCounts",
+     "bytes": 24
+    },
+    {
+     "slot": 23,
+     "name": "DownloadClanActivityCounts",
+     "bytes": 12
+    },
+    {
+     "slot": 24,
+     "name": "GetFriendCountFromSource",
+     "bytes": 12
+    },
+    {
+     "slot": 25,
+     "name": "GetFriendFromSourceByIndex",
+     "bytes": 20
+    },
+    {
+     "slot": 26,
+     "name": "IsUserInSource",
+     "bytes": 20
+    },
+    {
+     "slot": 27,
+     "name": "SetInGameVoiceSpeaking",
+     "bytes": 16
+    },
+    {
+     "slot": 28,
+     "name": "ActivateGameOverlay",
+     "bytes": 8
+    },
+    {
+     "slot": 29,
+     "name": "ActivateGameOverlayToUser",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "ActivateGameOverlayToWebPage",
+     "bytes": 12
+    },
+    {
+     "slot": 31,
+     "name": "ActivateGameOverlayToStore",
+     "bytes": 12
+    },
+    {
+     "slot": 32,
+     "name": "SetPlayedWith",
+     "bytes": 12
+    },
+    {
+     "slot": 33,
+     "name": "ActivateGameOverlayInviteDialog",
+     "bytes": 12
+    },
+    {
+     "slot": 34,
+     "name": "GetSmallFriendAvatar",
+     "bytes": 12
+    },
+    {
+     "slot": 35,
+     "name": "GetMediumFriendAvatar",
+     "bytes": 12
+    },
+    {
+     "slot": 36,
+     "name": "GetLargeFriendAvatar",
+     "bytes": 12
+    },
+    {
+     "slot": 37,
+     "name": "RequestUserInformation",
+     "bytes": 16
+    },
+    {
+     "slot": 38,
+     "name": "RequestClanOfficerList",
+     "bytes": 12
+    },
+    {
+     "slot": 39,
+     "name": "GetClanOwner",
+     "bytes": 16
+    },
+    {
+     "slot": 40,
+     "name": "GetClanOfficerCount",
+     "bytes": 12
+    },
+    {
+     "slot": 41,
+     "name": "GetClanOfficerByIndex",
+     "bytes": 20
+    },
+    {
+     "slot": 42,
+     "name": "GetUserRestrictions",
+     "bytes": 4
+    },
+    {
+     "slot": 43,
+     "name": "SetRichPresence",
+     "bytes": 12
+    },
+    {
+     "slot": 44,
+     "name": "ClearRichPresence",
+     "bytes": 4
+    },
+    {
+     "slot": 45,
+     "name": "GetFriendRichPresence",
+     "bytes": 16
+    },
+    {
+     "slot": 46,
+     "name": "GetFriendRichPresenceKeyCount",
+     "bytes": 12
+    },
+    {
+     "slot": 47,
+     "name": "GetFriendRichPresenceKeyByIndex",
+     "bytes": 16
+    },
+    {
+     "slot": 48,
+     "name": "RequestFriendRichPresence",
+     "bytes": 12
+    },
+    {
+     "slot": 49,
+     "name": "InviteUserToGame",
+     "bytes": 16
+    },
+    {
+     "slot": 50,
+     "name": "GetCoplayFriendCount",
+     "bytes": 4
+    },
+    {
+     "slot": 51,
+     "name": "GetCoplayFriend",
+     "bytes": 12
+    },
+    {
+     "slot": 52,
+     "name": "GetFriendCoplayTime",
+     "bytes": 12
+    },
+    {
+     "slot": 53,
+     "name": "GetFriendCoplayGame",
+     "bytes": 12
+    },
+    {
+     "slot": 54,
+     "name": "JoinClanChatRoom",
+     "bytes": 12
+    },
+    {
+     "slot": 55,
+     "name": "LeaveClanChatRoom",
+     "bytes": 12
+    },
+    {
+     "slot": 56,
+     "name": "GetClanChatMemberCount",
+     "bytes": 12
+    },
+    {
+     "slot": 57,
+     "name": "GetChatMemberByIndex",
+     "bytes": 20
+    },
+    {
+     "slot": 58,
+     "name": "SendClanChatMessage",
+     "bytes": 16
+    },
+    {
+     "slot": 59,
+     "name": "GetClanChatMessage",
+     "bytes": 32
+    },
+    {
+     "slot": 60,
+     "name": "IsClanChatAdmin",
+     "bytes": 20
+    },
+    {
+     "slot": 61,
+     "name": "IsClanChatWindowOpenInSteam",
+     "bytes": 12
+    },
+    {
+     "slot": 62,
+     "name": "OpenClanChatWindowInSteam",
+     "bytes": 12
+    },
+    {
+     "slot": 63,
+     "name": "CloseClanChatWindowInSteam",
+     "bytes": 12
+    },
+    {
+     "slot": 64,
+     "name": "SetListenForFriendsMessages",
+     "bytes": 8
+    },
+    {
+     "slot": 65,
+     "name": "ReplyToFriendMessage",
+     "bytes": 16
+    },
+    {
+     "slot": 66,
+     "name": "GetFriendMessage",
+     "bytes": 28
+    },
+    {
+     "slot": 67,
+     "name": "GetFollowerCount",
+     "bytes": 12
+    },
+    {
+     "slot": 68,
+     "name": "IsFollowing",
+     "bytes": 12
+    },
+    {
+     "slot": 69,
+     "name": "EnumerateFollowingList",
+     "bytes": 8
+    },
+    {
+     "slot": 70,
+     "name": "IsClanPublic",
+     "bytes": 12
+    },
+    {
+     "slot": 71,
+     "name": "IsClanOfficialGameGroup",
+     "bytes": 12
+    },
+    {
+     "slot": 72,
+     "name": "GetNumChatsWithUnreadPriorityMessages",
+     "bytes": 4
+    },
+    {
+     "slot": 73,
+     "name": "ActivateGameOverlayRemotePlayTogetherInviteDialog",
+     "bytes": 12
+    },
+    {
+     "slot": 74,
+     "name": "RegisterProtocolInOverlayBrowser",
+     "bytes": 8
+    },
+    {
+     "slot": 75,
+     "name": "ActivateGameOverlayInviteDialogConnectString",
+     "bytes": 8
+    },
+    {
+     "slot": 76,
+     "name": "RequestEquippedProfileItems",
+     "bytes": 12
+    },
+    {
+     "slot": 77,
+     "name": "BHasEquippedProfileItem",
+     "bytes": 16
+    },
+    {
+     "slot": 78,
+     "name": "GetProfileItemPropertyString",
+     "bytes": 20
+    },
+    {
+     "slot": 79,
+     "name": "GetProfileItemPropertyUint",
+     "bytes": 20
+    }
+   ],
+   "alloc_vtable_count": 80
+  },
+  "SteamGameServer013": {
+   "source": "winISteamGameServer.c",
+   "tag": "winISteamGameServer_SteamGameServer013",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "InitGameServer",
+     "bytes": 28
+    },
+    {
+     "slot": 1,
+     "name": "SetProduct",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "SetGameDescription",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "SetModDir",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "SetDedicatedServer",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "LogOn",
+     "bytes": 8
+    },
+    {
+     "slot": 6,
+     "name": "LogOnAnonymous",
+     "bytes": 4
+    },
+    {
+     "slot": 7,
+     "name": "LogOff",
+     "bytes": 4
+    },
+    {
+     "slot": 8,
+     "name": "BLoggedOn",
+     "bytes": 4
+    },
+    {
+     "slot": 9,
+     "name": "BSecure",
+     "bytes": 4
+    },
+    {
+     "slot": 10,
+     "name": "GetSteamID",
+     "bytes": 8
+    },
+    {
+     "slot": 11,
+     "name": "WasRestartRequested",
+     "bytes": 4
+    },
+    {
+     "slot": 12,
+     "name": "SetMaxPlayerCount",
+     "bytes": 8
+    },
+    {
+     "slot": 13,
+     "name": "SetBotPlayerCount",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "SetServerName",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "SetMapName",
+     "bytes": 8
+    },
+    {
+     "slot": 16,
+     "name": "SetPasswordProtected",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "SetSpectatorPort",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "SetSpectatorServerName",
+     "bytes": 8
+    },
+    {
+     "slot": 19,
+     "name": "ClearAllKeyValues",
+     "bytes": 4
+    },
+    {
+     "slot": 20,
+     "name": "SetKeyValue",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "SetGameTags",
+     "bytes": 8
+    },
+    {
+     "slot": 22,
+     "name": "SetGameData",
+     "bytes": 8
+    },
+    {
+     "slot": 23,
+     "name": "SetRegion",
+     "bytes": 8
+    },
+    {
+     "slot": 24,
+     "name": "SendUserConnectAndAuthenticate",
+     "bytes": 20
+    },
+    {
+     "slot": 25,
+     "name": "CreateUnauthenticatedUserConnection",
+     "bytes": 8
+    },
+    {
+     "slot": 26,
+     "name": "SendUserDisconnect",
+     "bytes": 12
+    },
+    {
+     "slot": 27,
+     "name": "BUpdateUserData",
+     "bytes": 20
+    },
+    {
+     "slot": 28,
+     "name": "GetAuthSessionTicket",
+     "bytes": 16
+    },
+    {
+     "slot": 29,
+     "name": "BeginAuthSession",
+     "bytes": 20
+    },
+    {
+     "slot": 30,
+     "name": "EndAuthSession",
+     "bytes": 12
+    },
+    {
+     "slot": 31,
+     "name": "CancelAuthTicket",
+     "bytes": 8
+    },
+    {
+     "slot": 32,
+     "name": "UserHasLicenseForApp",
+     "bytes": 16
+    },
+    {
+     "slot": 33,
+     "name": "RequestUserGroupStatus",
+     "bytes": 20
+    },
+    {
+     "slot": 34,
+     "name": "GetGameplayStats",
+     "bytes": 4
+    },
+    {
+     "slot": 35,
+     "name": "GetServerReputation",
+     "bytes": 4
+    },
+    {
+     "slot": 36,
+     "name": "GetPublicIP",
+     "bytes": 8
+    },
+    {
+     "slot": 37,
+     "name": "HandleIncomingPacket",
+     "bytes": 20
+    },
+    {
+     "slot": 38,
+     "name": "GetNextOutgoingPacket",
+     "bytes": 20
+    },
+    {
+     "slot": 39,
+     "name": "EnableHeartbeats",
+     "bytes": 8
+    },
+    {
+     "slot": 40,
+     "name": "SetHeartbeatInterval",
+     "bytes": 8
+    },
+    {
+     "slot": 41,
+     "name": "ForceHeartbeat",
+     "bytes": 4
+    },
+    {
+     "slot": 42,
+     "name": "AssociateWithClan",
+     "bytes": 12
+    },
+    {
+     "slot": 43,
+     "name": "ComputeNewPlayerCompatibility",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 44
+  },
+  "SteamGameServer014": {
+   "source": "winISteamGameServer.c",
+   "tag": "winISteamGameServer_SteamGameServer014",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "InitGameServer",
+     "bytes": 28
+    },
+    {
+     "slot": 1,
+     "name": "SetProduct",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "SetGameDescription",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "SetModDir",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "SetDedicatedServer",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "LogOn",
+     "bytes": 8
+    },
+    {
+     "slot": 6,
+     "name": "LogOnAnonymous",
+     "bytes": 4
+    },
+    {
+     "slot": 7,
+     "name": "LogOff",
+     "bytes": 4
+    },
+    {
+     "slot": 8,
+     "name": "BLoggedOn",
+     "bytes": 4
+    },
+    {
+     "slot": 9,
+     "name": "BSecure",
+     "bytes": 4
+    },
+    {
+     "slot": 10,
+     "name": "GetSteamID",
+     "bytes": 8
+    },
+    {
+     "slot": 11,
+     "name": "WasRestartRequested",
+     "bytes": 4
+    },
+    {
+     "slot": 12,
+     "name": "SetMaxPlayerCount",
+     "bytes": 8
+    },
+    {
+     "slot": 13,
+     "name": "SetBotPlayerCount",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "SetServerName",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "SetMapName",
+     "bytes": 8
+    },
+    {
+     "slot": 16,
+     "name": "SetPasswordProtected",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "SetSpectatorPort",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "SetSpectatorServerName",
+     "bytes": 8
+    },
+    {
+     "slot": 19,
+     "name": "ClearAllKeyValues",
+     "bytes": 4
+    },
+    {
+     "slot": 20,
+     "name": "SetKeyValue",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "SetGameTags",
+     "bytes": 8
+    },
+    {
+     "slot": 22,
+     "name": "SetGameData",
+     "bytes": 8
+    },
+    {
+     "slot": 23,
+     "name": "SetRegion",
+     "bytes": 8
+    },
+    {
+     "slot": 24,
+     "name": "SetAdvertiseServerActive",
+     "bytes": 8
+    },
+    {
+     "slot": 25,
+     "name": "GetAuthSessionTicket",
+     "bytes": 16
+    },
+    {
+     "slot": 26,
+     "name": "BeginAuthSession",
+     "bytes": 20
+    },
+    {
+     "slot": 27,
+     "name": "EndAuthSession",
+     "bytes": 12
+    },
+    {
+     "slot": 28,
+     "name": "CancelAuthTicket",
+     "bytes": 8
+    },
+    {
+     "slot": 29,
+     "name": "UserHasLicenseForApp",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "RequestUserGroupStatus",
+     "bytes": 20
+    },
+    {
+     "slot": 31,
+     "name": "GetGameplayStats",
+     "bytes": 4
+    },
+    {
+     "slot": 32,
+     "name": "GetServerReputation",
+     "bytes": 4
+    },
+    {
+     "slot": 33,
+     "name": "GetPublicIP",
+     "bytes": 8
+    },
+    {
+     "slot": 34,
+     "name": "HandleIncomingPacket",
+     "bytes": 20
+    },
+    {
+     "slot": 35,
+     "name": "GetNextOutgoingPacket",
+     "bytes": 20
+    },
+    {
+     "slot": 36,
+     "name": "AssociateWithClan",
+     "bytes": 12
+    },
+    {
+     "slot": 37,
+     "name": "ComputeNewPlayerCompatibility",
+     "bytes": 12
+    },
+    {
+     "slot": 38,
+     "name": "SendUserConnectAndAuthenticate_DEPRECATED",
+     "bytes": 20
+    },
+    {
+     "slot": 39,
+     "name": "CreateUnauthenticatedUserConnection",
+     "bytes": 8
+    },
+    {
+     "slot": 40,
+     "name": "SendUserDisconnect_DEPRECATED",
+     "bytes": 12
+    },
+    {
+     "slot": 41,
+     "name": "BUpdateUserData",
+     "bytes": 20
+    },
+    {
+     "slot": 42,
+     "name": "SetMasterServerHeartbeatInterval_DEPRECATED",
+     "bytes": 8
+    },
+    {
+     "slot": 43,
+     "name": "ForceMasterServerHeartbeat_DEPRECATED",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 44
+  },
+  "SteamGameServerStats001": {
+   "source": "winISteamGameServerStats.c",
+   "tag": "winISteamGameServerStats_SteamGameServerStats001",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "RequestUserStats",
+     "bytes": 12
+    },
+    {
+     "slot": 1,
+     "name": "GetUserStat_2",
+     "bytes": 20
+    },
+    {
+     "slot": 2,
+     "name": "GetUserStat",
+     "bytes": 20
+    },
+    {
+     "slot": 3,
+     "name": "GetUserAchievement",
+     "bytes": 20
+    },
+    {
+     "slot": 4,
+     "name": "SetUserStat_2",
+     "bytes": 20
+    },
+    {
+     "slot": 5,
+     "name": "SetUserStat",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "UpdateUserAvgRateStat",
+     "bytes": 28
+    },
+    {
+     "slot": 7,
+     "name": "SetUserAchievement",
+     "bytes": 16
+    },
+    {
+     "slot": 8,
+     "name": "ClearUserAchievement",
+     "bytes": 16
+    },
+    {
+     "slot": 9,
+     "name": "StoreUserStats",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 10
+  },
+  "SteamInput002": {
+   "source": "winISteamInput.c",
+   "tag": "winISteamInput_SteamInput002",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "Init",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "Shutdown",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "RunFrame",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "GetConnectedControllers",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "GetActionSetHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "ActivateActionSet",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "GetCurrentActionSet",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "ActivateActionSetLayer",
+     "bytes": 20
+    },
+    {
+     "slot": 8,
+     "name": "DeactivateActionSetLayer",
+     "bytes": 20
+    },
+    {
+     "slot": 9,
+     "name": "DeactivateAllActionSetLayers",
+     "bytes": 12
+    },
+    {
+     "slot": 10,
+     "name": "GetActiveActionSetLayers",
+     "bytes": 16
+    },
+    {
+     "slot": 11,
+     "name": "GetDigitalActionHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 12,
+     "name": "GetDigitalActionData",
+     "bytes": 24
+    },
+    {
+     "slot": 13,
+     "name": "GetDigitalActionOrigins",
+     "bytes": 32
+    },
+    {
+     "slot": 14,
+     "name": "GetAnalogActionHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetAnalogActionData",
+     "bytes": 24
+    },
+    {
+     "slot": 16,
+     "name": "GetAnalogActionOrigins",
+     "bytes": 32
+    },
+    {
+     "slot": 17,
+     "name": "GetGlyphForActionOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 18,
+     "name": "GetStringForActionOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 19,
+     "name": "StopAnalogActionMomentum",
+     "bytes": 20
+    },
+    {
+     "slot": 20,
+     "name": "GetMotionData",
+     "bytes": 16
+    },
+    {
+     "slot": 21,
+     "name": "TriggerVibration",
+     "bytes": 20
+    },
+    {
+     "slot": 22,
+     "name": "SetLEDColor",
+     "bytes": 28
+    },
+    {
+     "slot": 23,
+     "name": "TriggerHapticPulse",
+     "bytes": 20
+    },
+    {
+     "slot": 24,
+     "name": "TriggerRepeatedHapticPulse",
+     "bytes": 32
+    },
+    {
+     "slot": 25,
+     "name": "ShowBindingPanel",
+     "bytes": 12
+    },
+    {
+     "slot": 26,
+     "name": "GetInputTypeForHandle",
+     "bytes": 12
+    },
+    {
+     "slot": 27,
+     "name": "GetControllerForGamepadIndex",
+     "bytes": 8
+    },
+    {
+     "slot": 28,
+     "name": "GetGamepadIndexForController",
+     "bytes": 12
+    },
+    {
+     "slot": 29,
+     "name": "GetStringForXboxOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 30,
+     "name": "GetGlyphForXboxOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 31,
+     "name": "GetActionOriginFromXboxOrigin",
+     "bytes": 16
+    },
+    {
+     "slot": 32,
+     "name": "TranslateActionOrigin",
+     "bytes": 12
+    },
+    {
+     "slot": 33,
+     "name": "GetDeviceBindingRevision",
+     "bytes": 20
+    },
+    {
+     "slot": 34,
+     "name": "GetRemotePlaySessionID",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 35
+  },
+  "SteamInput006": {
+   "source": "winISteamInput.c",
+   "tag": "winISteamInput_SteamInput006",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "Init",
+     "bytes": 8
+    },
+    {
+     "slot": 1,
+     "name": "Shutdown",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "SetInputActionManifestFilePath",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "RunFrame",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "BWaitForData",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "BNewDataAvailable",
+     "bytes": 4
+    },
+    {
+     "slot": 6,
+     "name": "GetConnectedControllers",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "EnableDeviceCallbacks",
+     "bytes": 4
+    },
+    {
+     "slot": 8,
+     "name": "EnableActionEventCallbacks",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "GetActionSetHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "ActivateActionSet",
+     "bytes": 20
+    },
+    {
+     "slot": 11,
+     "name": "GetCurrentActionSet",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "ActivateActionSetLayer",
+     "bytes": 20
+    },
+    {
+     "slot": 13,
+     "name": "DeactivateActionSetLayer",
+     "bytes": 20
+    },
+    {
+     "slot": 14,
+     "name": "DeactivateAllActionSetLayers",
+     "bytes": 12
+    },
+    {
+     "slot": 15,
+     "name": "GetActiveActionSetLayers",
+     "bytes": 16
+    },
+    {
+     "slot": 16,
+     "name": "GetDigitalActionHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "GetDigitalActionData",
+     "bytes": 24
+    },
+    {
+     "slot": 18,
+     "name": "GetDigitalActionOrigins",
+     "bytes": 32
+    },
+    {
+     "slot": 19,
+     "name": "GetStringForDigitalActionName",
+     "bytes": 12
+    },
+    {
+     "slot": 20,
+     "name": "GetAnalogActionHandle",
+     "bytes": 8
+    },
+    {
+     "slot": 21,
+     "name": "GetAnalogActionData",
+     "bytes": 24
+    },
+    {
+     "slot": 22,
+     "name": "GetAnalogActionOrigins",
+     "bytes": 32
+    },
+    {
+     "slot": 23,
+     "name": "GetGlyphPNGForActionOrigin",
+     "bytes": 16
+    },
+    {
+     "slot": 24,
+     "name": "GetGlyphSVGForActionOrigin",
+     "bytes": 12
+    },
+    {
+     "slot": 25,
+     "name": "GetGlyphForActionOrigin_Legacy",
+     "bytes": 8
+    },
+    {
+     "slot": 26,
+     "name": "GetStringForActionOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 27,
+     "name": "GetStringForAnalogActionName",
+     "bytes": 12
+    },
+    {
+     "slot": 28,
+     "name": "StopAnalogActionMomentum",
+     "bytes": 20
+    },
+    {
+     "slot": 29,
+     "name": "GetMotionData",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "TriggerVibration",
+     "bytes": 20
+    },
+    {
+     "slot": 31,
+     "name": "TriggerVibrationExtended",
+     "bytes": 28
+    },
+    {
+     "slot": 32,
+     "name": "TriggerSimpleHapticEvent",
+     "bytes": 32
+    },
+    {
+     "slot": 33,
+     "name": "SetLEDColor",
+     "bytes": 28
+    },
+    {
+     "slot": 34,
+     "name": "Legacy_TriggerHapticPulse",
+     "bytes": 20
+    },
+    {
+     "slot": 35,
+     "name": "Legacy_TriggerRepeatedHapticPulse",
+     "bytes": 32
+    },
+    {
+     "slot": 36,
+     "name": "ShowBindingPanel",
+     "bytes": 12
+    },
+    {
+     "slot": 37,
+     "name": "GetInputTypeForHandle",
+     "bytes": 12
+    },
+    {
+     "slot": 38,
+     "name": "GetControllerForGamepadIndex",
+     "bytes": 8
+    },
+    {
+     "slot": 39,
+     "name": "GetGamepadIndexForController",
+     "bytes": 12
+    },
+    {
+     "slot": 40,
+     "name": "GetStringForXboxOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 41,
+     "name": "GetGlyphForXboxOrigin",
+     "bytes": 8
+    },
+    {
+     "slot": 42,
+     "name": "GetActionOriginFromXboxOrigin",
+     "bytes": 16
+    },
+    {
+     "slot": 43,
+     "name": "TranslateActionOrigin",
+     "bytes": 12
+    },
+    {
+     "slot": 44,
+     "name": "GetDeviceBindingRevision",
+     "bytes": 20
+    },
+    {
+     "slot": 45,
+     "name": "GetRemotePlaySessionID",
+     "bytes": 12
+    },
+    {
+     "slot": 46,
+     "name": "GetSessionInputConfigurationSettings",
+     "bytes": 4
+    },
+    {
+     "slot": 47,
+     "name": "SetDualSenseTriggerEffect",
+     "bytes": 16
+    }
+   ],
+   "alloc_vtable_count": 48
+  },
+  "SteamMatchGameSearch001": {
+   "source": "winISteamGameSearch.c",
+   "tag": "winISteamGameSearch_SteamMatchGameSearch001",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "AddGameSearchParams",
+     "bytes": 12
+    },
+    {
+     "slot": 1,
+     "name": "SearchForGameWithLobby",
+     "bytes": 20
+    },
+    {
+     "slot": 2,
+     "name": "SearchForGameSolo",
+     "bytes": 12
+    },
+    {
+     "slot": 3,
+     "name": "AcceptGame",
+     "bytes": 4
+    },
+    {
+     "slot": 4,
+     "name": "DeclineGame",
+     "bytes": 4
+    },
+    {
+     "slot": 5,
+     "name": "RetrieveConnectionDetails",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "EndGameSearch",
+     "bytes": 4
+    },
+    {
+     "slot": 7,
+     "name": "SetGameHostParams",
+     "bytes": 12
+    },
+    {
+     "slot": 8,
+     "name": "SetConnectionDetails",
+     "bytes": 12
+    },
+    {
+     "slot": 9,
+     "name": "RequestPlayersForGame",
+     "bytes": 16
+    },
+    {
+     "slot": 10,
+     "name": "HostConfirmGameStart",
+     "bytes": 12
+    },
+    {
+     "slot": 11,
+     "name": "CancelRequestPlayersForGame",
+     "bytes": 4
+    },
+    {
+     "slot": 12,
+     "name": "SubmitPlayerResult",
+     "bytes": 24
+    },
+    {
+     "slot": 13,
+     "name": "EndGame",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 14
+  },
+  "SteamMatchMaking009": {
+   "source": "winISteamMatchmaking.c",
+   "tag": "winISteamMatchmaking_SteamMatchMaking009",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetFavoriteGameCount",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "GetFavoriteGame",
+     "bytes": 32
+    },
+    {
+     "slot": 2,
+     "name": "AddFavoriteGame",
+     "bytes": 28
+    },
+    {
+     "slot": 3,
+     "name": "RemoveFavoriteGame",
+     "bytes": 24
+    },
+    {
+     "slot": 4,
+     "name": "RequestLobbyList",
+     "bytes": 4
+    },
+    {
+     "slot": 5,
+     "name": "AddRequestLobbyListStringFilter",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "AddRequestLobbyListNumericalFilter",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "AddRequestLobbyListNearValueFilter",
+     "bytes": 12
+    },
+    {
+     "slot": 8,
+     "name": "AddRequestLobbyListFilterSlotsAvailable",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "AddRequestLobbyListDistanceFilter",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "AddRequestLobbyListResultCountFilter",
+     "bytes": 8
+    },
+    {
+     "slot": 11,
+     "name": "AddRequestLobbyListCompatibleMembersFilter",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "GetLobbyByIndex",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "CreateLobby",
+     "bytes": 12
+    },
+    {
+     "slot": 14,
+     "name": "JoinLobby",
+     "bytes": 12
+    },
+    {
+     "slot": 15,
+     "name": "LeaveLobby",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "InviteUserToLobby",
+     "bytes": 20
+    },
+    {
+     "slot": 17,
+     "name": "GetNumLobbyMembers",
+     "bytes": 12
+    },
+    {
+     "slot": 18,
+     "name": "GetLobbyMemberByIndex",
+     "bytes": 20
+    },
+    {
+     "slot": 19,
+     "name": "GetLobbyData",
+     "bytes": 16
+    },
+    {
+     "slot": 20,
+     "name": "SetLobbyData",
+     "bytes": 20
+    },
+    {
+     "slot": 21,
+     "name": "GetLobbyDataCount",
+     "bytes": 12
+    },
+    {
+     "slot": 22,
+     "name": "GetLobbyDataByIndex",
+     "bytes": 32
+    },
+    {
+     "slot": 23,
+     "name": "DeleteLobbyData",
+     "bytes": 16
+    },
+    {
+     "slot": 24,
+     "name": "GetLobbyMemberData",
+     "bytes": 24
+    },
+    {
+     "slot": 25,
+     "name": "SetLobbyMemberData",
+     "bytes": 20
+    },
+    {
+     "slot": 26,
+     "name": "SendLobbyChatMsg",
+     "bytes": 20
+    },
+    {
+     "slot": 27,
+     "name": "GetLobbyChatEntry",
+     "bytes": 32
+    },
+    {
+     "slot": 28,
+     "name": "RequestLobbyData",
+     "bytes": 12
+    },
+    {
+     "slot": 29,
+     "name": "SetLobbyGameServer",
+     "bytes": 28
+    },
+    {
+     "slot": 30,
+     "name": "GetLobbyGameServer",
+     "bytes": 24
+    },
+    {
+     "slot": 31,
+     "name": "SetLobbyMemberLimit",
+     "bytes": 16
+    },
+    {
+     "slot": 32,
+     "name": "GetLobbyMemberLimit",
+     "bytes": 12
+    },
+    {
+     "slot": 33,
+     "name": "SetLobbyType",
+     "bytes": 16
+    },
+    {
+     "slot": 34,
+     "name": "SetLobbyJoinable",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "GetLobbyOwner",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "SetLobbyOwner",
+     "bytes": 20
+    },
+    {
+     "slot": 37,
+     "name": "SetLinkedLobby",
+     "bytes": 20
+    }
+   ],
+   "alloc_vtable_count": 38
+  },
+  "SteamMatchMakingServers002": {
+   "source": "winISteamMatchmakingServers.c",
+   "tag": "winISteamMatchmakingServers_SteamMatchMakingServers002",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "RequestInternetServerList",
+     "bytes": 20
+    },
+    {
+     "slot": 1,
+     "name": "RequestLANServerList",
+     "bytes": 12
+    },
+    {
+     "slot": 2,
+     "name": "RequestFriendsServerList",
+     "bytes": 20
+    },
+    {
+     "slot": 3,
+     "name": "RequestFavoritesServerList",
+     "bytes": 20
+    },
+    {
+     "slot": 4,
+     "name": "RequestHistoryServerList",
+     "bytes": 20
+    },
+    {
+     "slot": 5,
+     "name": "RequestSpectatorServerList",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "ReleaseRequest",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "GetServerDetails",
+     "bytes": 12
+    },
+    {
+     "slot": 8,
+     "name": "CancelQuery",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "RefreshQuery",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "IsRefreshing",
+     "bytes": 8
+    },
+    {
+     "slot": 11,
+     "name": "GetServerCount",
+     "bytes": 8
+    },
+    {
+     "slot": 12,
+     "name": "RefreshServer",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "PingServer",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "PlayerDetails",
+     "bytes": 16
+    },
+    {
+     "slot": 15,
+     "name": "ServerRules",
+     "bytes": 16
+    },
+    {
+     "slot": 16,
+     "name": "CancelServerQuery",
+     "bytes": 8
+    }
+   ],
+   "alloc_vtable_count": 17
+  },
+  "SteamNetworking006": {
+   "source": "winISteamNetworking.c",
+   "tag": "winISteamNetworking_SteamNetworking006",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "SendP2PPacket",
+     "bytes": 28
+    },
+    {
+     "slot": 1,
+     "name": "IsP2PPacketAvailable",
+     "bytes": 12
+    },
+    {
+     "slot": 2,
+     "name": "ReadP2PPacket",
+     "bytes": 24
+    },
+    {
+     "slot": 3,
+     "name": "AcceptP2PSessionWithUser",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "CloseP2PSessionWithUser",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "CloseP2PChannelWithUser",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "GetP2PSessionState",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "AllowP2PPacketRelay",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "CreateListenSocket",
+     "bytes": 36
+    },
+    {
+     "slot": 9,
+     "name": "CreateP2PConnectionSocket",
+     "bytes": 24
+    },
+    {
+     "slot": 10,
+     "name": "CreateConnectionSocket",
+     "bytes": 32
+    },
+    {
+     "slot": 11,
+     "name": "DestroySocket",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "DestroyListenSocket",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "SendDataOnSocket",
+     "bytes": 20
+    },
+    {
+     "slot": 14,
+     "name": "IsDataAvailableOnSocket",
+     "bytes": 12
+    },
+    {
+     "slot": 15,
+     "name": "RetrieveDataFromSocket",
+     "bytes": 20
+    },
+    {
+     "slot": 16,
+     "name": "IsDataAvailable",
+     "bytes": 16
+    },
+    {
+     "slot": 17,
+     "name": "RetrieveData",
+     "bytes": 24
+    },
+    {
+     "slot": 18,
+     "name": "GetSocketInfo",
+     "bytes": 24
+    },
+    {
+     "slot": 19,
+     "name": "GetListenSocketInfo",
+     "bytes": 16
+    },
+    {
+     "slot": 20,
+     "name": "GetSocketConnectionType",
+     "bytes": 8
+    },
+    {
+     "slot": 21,
+     "name": "GetMaxPacketSize",
+     "bytes": 8
+    }
+   ],
+   "alloc_vtable_count": 22
+  },
+  "SteamNetworkingMessages002": {
+   "source": "winISteamNetworkingMessages.c",
+   "tag": "winISteamNetworkingMessages_SteamNetworkingMessages002",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "SendMessageToUser",
+     "bytes": 24
+    },
+    {
+     "slot": 1,
+     "name": "ReceiveMessagesOnChannel",
+     "bytes": 16
+    },
+    {
+     "slot": 2,
+     "name": "AcceptSessionWithUser",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "CloseSessionWithUser",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "CloseChannelWithUser",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "GetSessionConnectionInfo",
+     "bytes": 16
+    }
+   ],
+   "alloc_vtable_count": 6
+  },
+  "SteamNetworkingSockets009": {
+   "source": "winISteamNetworkingSockets.c",
+   "tag": "winISteamNetworkingSockets_SteamNetworkingSockets009",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "CreateListenSocketIP",
+     "bytes": 16
+    },
+    {
+     "slot": 1,
+     "name": "ConnectByIPAddress",
+     "bytes": 16
+    },
+    {
+     "slot": 2,
+     "name": "CreateListenSocketP2P",
+     "bytes": 16
+    },
+    {
+     "slot": 3,
+     "name": "ConnectP2P",
+     "bytes": 20
+    },
+    {
+     "slot": 4,
+     "name": "AcceptConnection",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "CloseConnection",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "CloseListenSocket",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "SetConnectionUserData",
+     "bytes": 16
+    },
+    {
+     "slot": 8,
+     "name": "GetConnectionUserData",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "SetConnectionName",
+     "bytes": 12
+    },
+    {
+     "slot": 10,
+     "name": "GetConnectionName",
+     "bytes": 16
+    },
+    {
+     "slot": 11,
+     "name": "SendMessageToConnection",
+     "bytes": 24
+    },
+    {
+     "slot": 12,
+     "name": "SendMessages",
+     "bytes": 16
+    },
+    {
+     "slot": 13,
+     "name": "FlushMessagesOnConnection",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "ReceiveMessagesOnConnection",
+     "bytes": 16
+    },
+    {
+     "slot": 15,
+     "name": "GetConnectionInfo",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "GetQuickConnectionStatus",
+     "bytes": 12
+    },
+    {
+     "slot": 17,
+     "name": "GetDetailedConnectionStatus",
+     "bytes": 16
+    },
+    {
+     "slot": 18,
+     "name": "GetListenSocketAddress",
+     "bytes": 12
+    },
+    {
+     "slot": 19,
+     "name": "CreateSocketPair",
+     "bytes": 24
+    },
+    {
+     "slot": 20,
+     "name": "GetIdentity",
+     "bytes": 8
+    },
+    {
+     "slot": 21,
+     "name": "InitAuthentication",
+     "bytes": 4
+    },
+    {
+     "slot": 22,
+     "name": "GetAuthenticationStatus",
+     "bytes": 8
+    },
+    {
+     "slot": 23,
+     "name": "CreatePollGroup",
+     "bytes": 4
+    },
+    {
+     "slot": 24,
+     "name": "DestroyPollGroup",
+     "bytes": 8
+    },
+    {
+     "slot": 25,
+     "name": "SetConnectionPollGroup",
+     "bytes": 12
+    },
+    {
+     "slot": 26,
+     "name": "ReceiveMessagesOnPollGroup",
+     "bytes": 16
+    },
+    {
+     "slot": 27,
+     "name": "ReceivedRelayAuthTicket",
+     "bytes": 16
+    },
+    {
+     "slot": 28,
+     "name": "FindRelayAuthTicketForServer",
+     "bytes": 16
+    },
+    {
+     "slot": 29,
+     "name": "ConnectToHostedDedicatedServer",
+     "bytes": 20
+    },
+    {
+     "slot": 30,
+     "name": "GetHostedDedicatedServerPort",
+     "bytes": 4
+    },
+    {
+     "slot": 31,
+     "name": "GetHostedDedicatedServerPOPID",
+     "bytes": 4
+    },
+    {
+     "slot": 32,
+     "name": "GetHostedDedicatedServerAddress",
+     "bytes": 8
+    },
+    {
+     "slot": 33,
+     "name": "CreateHostedDedicatedServerListenSocket",
+     "bytes": 16
+    },
+    {
+     "slot": 34,
+     "name": "GetGameCoordinatorServerLogin",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "ConnectP2PCustomSignaling",
+     "bytes": 24
+    },
+    {
+     "slot": 36,
+     "name": "ReceivedP2PCustomSignal",
+     "bytes": 16
+    },
+    {
+     "slot": 37,
+     "name": "GetCertificateRequest",
+     "bytes": 16
+    },
+    {
+     "slot": 38,
+     "name": "SetCertificate",
+     "bytes": 16
+    },
+    {
+     "slot": 39,
+     "name": "RunCallbacks",
+     "bytes": 4
+    },
+    {
+     "slot": 40,
+     "name": "destructor",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 41
+  },
+  "SteamNetworkingSockets012": {
+   "source": "winISteamNetworkingSockets.c",
+   "tag": "winISteamNetworkingSockets_SteamNetworkingSockets012",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "CreateListenSocketIP",
+     "bytes": 16
+    },
+    {
+     "slot": 1,
+     "name": "ConnectByIPAddress",
+     "bytes": 16
+    },
+    {
+     "slot": 2,
+     "name": "CreateListenSocketP2P",
+     "bytes": 16
+    },
+    {
+     "slot": 3,
+     "name": "ConnectP2P",
+     "bytes": 20
+    },
+    {
+     "slot": 4,
+     "name": "AcceptConnection",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "CloseConnection",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "CloseListenSocket",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "SetConnectionUserData",
+     "bytes": 16
+    },
+    {
+     "slot": 8,
+     "name": "GetConnectionUserData",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "SetConnectionName",
+     "bytes": 12
+    },
+    {
+     "slot": 10,
+     "name": "GetConnectionName",
+     "bytes": 16
+    },
+    {
+     "slot": 11,
+     "name": "SendMessageToConnection",
+     "bytes": 24
+    },
+    {
+     "slot": 12,
+     "name": "SendMessages",
+     "bytes": 16
+    },
+    {
+     "slot": 13,
+     "name": "FlushMessagesOnConnection",
+     "bytes": 8
+    },
+    {
+     "slot": 14,
+     "name": "ReceiveMessagesOnConnection",
+     "bytes": 16
+    },
+    {
+     "slot": 15,
+     "name": "GetConnectionInfo",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "GetConnectionRealTimeStatus",
+     "bytes": 20
+    },
+    {
+     "slot": 17,
+     "name": "GetDetailedConnectionStatus",
+     "bytes": 16
+    },
+    {
+     "slot": 18,
+     "name": "GetListenSocketAddress",
+     "bytes": 12
+    },
+    {
+     "slot": 19,
+     "name": "CreateSocketPair",
+     "bytes": 24
+    },
+    {
+     "slot": 20,
+     "name": "ConfigureConnectionLanes",
+     "bytes": 20
+    },
+    {
+     "slot": 21,
+     "name": "GetIdentity",
+     "bytes": 8
+    },
+    {
+     "slot": 22,
+     "name": "InitAuthentication",
+     "bytes": 4
+    },
+    {
+     "slot": 23,
+     "name": "GetAuthenticationStatus",
+     "bytes": 8
+    },
+    {
+     "slot": 24,
+     "name": "CreatePollGroup",
+     "bytes": 4
+    },
+    {
+     "slot": 25,
+     "name": "DestroyPollGroup",
+     "bytes": 8
+    },
+    {
+     "slot": 26,
+     "name": "SetConnectionPollGroup",
+     "bytes": 12
+    },
+    {
+     "slot": 27,
+     "name": "ReceiveMessagesOnPollGroup",
+     "bytes": 16
+    },
+    {
+     "slot": 28,
+     "name": "ReceivedRelayAuthTicket",
+     "bytes": 16
+    },
+    {
+     "slot": 29,
+     "name": "FindRelayAuthTicketForServer",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "ConnectToHostedDedicatedServer",
+     "bytes": 20
+    },
+    {
+     "slot": 31,
+     "name": "GetHostedDedicatedServerPort",
+     "bytes": 4
+    },
+    {
+     "slot": 32,
+     "name": "GetHostedDedicatedServerPOPID",
+     "bytes": 4
+    },
+    {
+     "slot": 33,
+     "name": "GetHostedDedicatedServerAddress",
+     "bytes": 8
+    },
+    {
+     "slot": 34,
+     "name": "CreateHostedDedicatedServerListenSocket",
+     "bytes": 16
+    },
+    {
+     "slot": 35,
+     "name": "GetGameCoordinatorServerLogin",
+     "bytes": 16
+    },
+    {
+     "slot": 36,
+     "name": "ConnectP2PCustomSignaling",
+     "bytes": 24
+    },
+    {
+     "slot": 37,
+     "name": "ReceivedP2PCustomSignal",
+     "bytes": 16
+    },
+    {
+     "slot": 38,
+     "name": "GetCertificateRequest",
+     "bytes": 16
+    },
+    {
+     "slot": 39,
+     "name": "SetCertificate",
+     "bytes": 16
+    },
+    {
+     "slot": 40,
+     "name": "ResetIdentity",
+     "bytes": 8
+    },
+    {
+     "slot": 41,
+     "name": "RunCallbacks",
+     "bytes": 4
+    },
+    {
+     "slot": 42,
+     "name": "BeginAsyncRequestFakeIP",
+     "bytes": 8
+    },
+    {
+     "slot": 43,
+     "name": "GetFakeIP",
+     "bytes": 12
+    },
+    {
+     "slot": 44,
+     "name": "CreateListenSocketP2PFakeIP",
+     "bytes": 16
+    },
+    {
+     "slot": 45,
+     "name": "GetRemoteFakeIPForConnection",
+     "bytes": 12
+    },
+    {
+     "slot": 46,
+     "name": "CreateFakeUDPPort",
+     "bytes": 8
+    },
+    {
+     "slot": 47,
+     "name": "destructor",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 48
+  },
+  "SteamNetworkingUtils003": {
+   "source": "winISteamNetworkingUtils.c",
+   "tag": "winISteamNetworkingUtils_SteamNetworkingUtils003",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "AllocateMessage",
+     "bytes": 8
+    },
+    {
+     "slot": 1,
+     "name": "GetRelayNetworkStatus",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "GetLocalPingLocation",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "EstimatePingTimeBetweenTwoLocations",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "EstimatePingTimeFromLocalHost",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "ConvertPingLocationToString",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "ParsePingLocationString",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "CheckPingDataUpToDate",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "GetPingToDataCenter",
+     "bytes": 12
+    },
+    {
+     "slot": 9,
+     "name": "GetDirectPingToPOP",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "GetPOPCount",
+     "bytes": 4
+    },
+    {
+     "slot": 11,
+     "name": "GetPOPList",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "GetLocalTimestamp",
+     "bytes": 4
+    },
+    {
+     "slot": 13,
+     "name": "SetDebugOutputFunction",
+     "bytes": 12
+    },
+    {
+     "slot": 14,
+     "name": "SetConfigValue",
+     "bytes": 24
+    },
+    {
+     "slot": 15,
+     "name": "GetConfigValue",
+     "bytes": 28
+    },
+    {
+     "slot": 16,
+     "name": "GetConfigValueInfo",
+     "bytes": 24
+    },
+    {
+     "slot": 17,
+     "name": "GetFirstConfigValue",
+     "bytes": 4
+    },
+    {
+     "slot": 18,
+     "name": "SteamNetworkingIPAddr_ToString",
+     "bytes": 20
+    },
+    {
+     "slot": 19,
+     "name": "SteamNetworkingIPAddr_ParseString",
+     "bytes": 12
+    },
+    {
+     "slot": 20,
+     "name": "SteamNetworkingIdentity_ToString",
+     "bytes": 16
+    },
+    {
+     "slot": 21,
+     "name": "SteamNetworkingIdentity_ParseString",
+     "bytes": 12
+    },
+    {
+     "slot": 22,
+     "name": "destructor",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 23
+  },
+  "SteamNetworkingUtils004": {
+   "source": "winISteamNetworkingUtils.c",
+   "tag": "winISteamNetworkingUtils_SteamNetworkingUtils004",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "AllocateMessage",
+     "bytes": 8
+    },
+    {
+     "slot": 1,
+     "name": "GetRelayNetworkStatus",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "GetLocalPingLocation",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "EstimatePingTimeBetweenTwoLocations",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "EstimatePingTimeFromLocalHost",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "ConvertPingLocationToString",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "ParsePingLocationString",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "CheckPingDataUpToDate",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "GetPingToDataCenter",
+     "bytes": 12
+    },
+    {
+     "slot": 9,
+     "name": "GetDirectPingToPOP",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "GetPOPCount",
+     "bytes": 4
+    },
+    {
+     "slot": 11,
+     "name": "GetPOPList",
+     "bytes": 12
+    },
+    {
+     "slot": 12,
+     "name": "GetLocalTimestamp",
+     "bytes": 4
+    },
+    {
+     "slot": 13,
+     "name": "SetDebugOutputFunction",
+     "bytes": 12
+    },
+    {
+     "slot": 14,
+     "name": "GetIPv4FakeIPType",
+     "bytes": 8
+    },
+    {
+     "slot": 15,
+     "name": "GetRealIdentityForFakeIP",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "SetConfigValue",
+     "bytes": 24
+    },
+    {
+     "slot": 17,
+     "name": "GetConfigValue",
+     "bytes": 28
+    },
+    {
+     "slot": 18,
+     "name": "GetConfigValueInfo",
+     "bytes": 16
+    },
+    {
+     "slot": 19,
+     "name": "IterateGenericEditableConfigValues",
+     "bytes": 12
+    },
+    {
+     "slot": 20,
+     "name": "SteamNetworkingIPAddr_ToString",
+     "bytes": 20
+    },
+    {
+     "slot": 21,
+     "name": "SteamNetworkingIPAddr_ParseString",
+     "bytes": 12
+    },
+    {
+     "slot": 22,
+     "name": "SteamNetworkingIPAddr_GetFakeIPType",
+     "bytes": 8
+    },
+    {
+     "slot": 23,
+     "name": "SteamNetworkingIdentity_ToString",
+     "bytes": 16
+    },
+    {
+     "slot": 24,
+     "name": "SteamNetworkingIdentity_ParseString",
+     "bytes": 12
+    },
+    {
+     "slot": 25,
+     "name": "destructor",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 26
+  },
+  "SteamParties002": {
+   "source": "winISteamParties.c",
+   "tag": "winISteamParties_SteamParties002",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetNumActiveBeacons",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "GetBeaconByIndex",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "GetBeaconDetails",
+     "bytes": 28
+    },
+    {
+     "slot": 3,
+     "name": "JoinParty",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "GetNumAvailableBeaconLocations",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "GetAvailableBeaconLocations",
+     "bytes": 12
+    },
+    {
+     "slot": 6,
+     "name": "CreateBeacon",
+     "bytes": 20
+    },
+    {
+     "slot": 7,
+     "name": "OnReservationCompleted",
+     "bytes": 20
+    },
+    {
+     "slot": 8,
+     "name": "CancelReservation",
+     "bytes": 20
+    },
+    {
+     "slot": 9,
+     "name": "ChangeNumOpenSlots",
+     "bytes": 16
+    },
+    {
+     "slot": 10,
+     "name": "DestroyBeacon",
+     "bytes": 12
+    },
+    {
+     "slot": 11,
+     "name": "GetBeaconLocationData",
+     "bytes": 28
+    }
+   ],
+   "alloc_vtable_count": 12
+  },
+  "SteamUser021": {
+   "source": "winISteamUser.c",
+   "tag": "winISteamUser_SteamUser021",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetHSteamUser",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "BLoggedOn",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "GetSteamID",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "InitiateGameConnection_DEPRECATED",
+     "bytes": 32
+    },
+    {
+     "slot": 4,
+     "name": "TerminateGameConnection_DEPRECATED",
+     "bytes": 12
+    },
+    {
+     "slot": 5,
+     "name": "TrackAppUsageEvent",
+     "bytes": 20
+    },
+    {
+     "slot": 6,
+     "name": "GetUserDataFolder",
+     "bytes": 12
+    },
+    {
+     "slot": 7,
+     "name": "StartVoiceRecording",
+     "bytes": 4
+    },
+    {
+     "slot": 8,
+     "name": "StopVoiceRecording",
+     "bytes": 4
+    },
+    {
+     "slot": 9,
+     "name": "GetAvailableVoice",
+     "bytes": 16
+    },
+    {
+     "slot": 10,
+     "name": "GetVoice",
+     "bytes": 40
+    },
+    {
+     "slot": 11,
+     "name": "DecompressVoice",
+     "bytes": 28
+    },
+    {
+     "slot": 12,
+     "name": "GetVoiceOptimalSampleRate",
+     "bytes": 4
+    },
+    {
+     "slot": 13,
+     "name": "GetAuthSessionTicket",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "BeginAuthSession",
+     "bytes": 20
+    },
+    {
+     "slot": 15,
+     "name": "EndAuthSession",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "CancelAuthTicket",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "UserHasLicenseForApp",
+     "bytes": 16
+    },
+    {
+     "slot": 18,
+     "name": "BIsBehindNAT",
+     "bytes": 4
+    },
+    {
+     "slot": 19,
+     "name": "AdvertiseGame",
+     "bytes": 20
+    },
+    {
+     "slot": 20,
+     "name": "RequestEncryptedAppTicket",
+     "bytes": 12
+    },
+    {
+     "slot": 21,
+     "name": "GetEncryptedAppTicket",
+     "bytes": 16
+    },
+    {
+     "slot": 22,
+     "name": "GetGameBadgeLevel",
+     "bytes": 12
+    },
+    {
+     "slot": 23,
+     "name": "GetPlayerSteamLevel",
+     "bytes": 4
+    },
+    {
+     "slot": 24,
+     "name": "RequestStoreAuthURL",
+     "bytes": 8
+    },
+    {
+     "slot": 25,
+     "name": "BIsPhoneVerified",
+     "bytes": 4
+    },
+    {
+     "slot": 26,
+     "name": "BIsTwoFactorEnabled",
+     "bytes": 4
+    },
+    {
+     "slot": 27,
+     "name": "BIsPhoneIdentifying",
+     "bytes": 4
+    },
+    {
+     "slot": 28,
+     "name": "BIsPhoneRequiringVerification",
+     "bytes": 4
+    },
+    {
+     "slot": 29,
+     "name": "GetMarketEligibility",
+     "bytes": 4
+    },
+    {
+     "slot": 30,
+     "name": "GetDurationControl",
+     "bytes": 4
+    },
+    {
+     "slot": 31,
+     "name": "BSetDurationControlOnlineState",
+     "bytes": 8
+    }
+   ],
+   "alloc_vtable_count": 32
+  },
+  "SteamUtils010": {
+   "source": "winISteamUtils.c",
+   "tag": "winISteamUtils_SteamUtils010",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetSecondsSinceAppActive",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "GetSecondsSinceComputerActive",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "GetConnectedUniverse",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "GetServerRealTime",
+     "bytes": 4
+    },
+    {
+     "slot": 4,
+     "name": "GetIPCountry",
+     "bytes": 4
+    },
+    {
+     "slot": 5,
+     "name": "GetImageSize",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "GetImageRGBA",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "GetCSERIPPort",
+     "bytes": 12
+    },
+    {
+     "slot": 8,
+     "name": "GetCurrentBatteryPower",
+     "bytes": 4
+    },
+    {
+     "slot": 9,
+     "name": "GetAppID",
+     "bytes": 4
+    },
+    {
+     "slot": 10,
+     "name": "SetOverlayNotificationPosition",
+     "bytes": 8
+    },
+    {
+     "slot": 11,
+     "name": "IsAPICallCompleted",
+     "bytes": 16
+    },
+    {
+     "slot": 12,
+     "name": "GetAPICallFailureReason",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "GetAPICallResult",
+     "bytes": 28
+    },
+    {
+     "slot": 14,
+     "name": "RunFrame",
+     "bytes": 4
+    },
+    {
+     "slot": 15,
+     "name": "GetIPCCallCount",
+     "bytes": 4
+    },
+    {
+     "slot": 16,
+     "name": "SetWarningMessageHook",
+     "bytes": 8
+    },
+    {
+     "slot": 17,
+     "name": "IsOverlayEnabled",
+     "bytes": 4
+    },
+    {
+     "slot": 18,
+     "name": "BOverlayNeedsPresent",
+     "bytes": 4
+    },
+    {
+     "slot": 19,
+     "name": "CheckFileSignature",
+     "bytes": 8
+    },
+    {
+     "slot": 20,
+     "name": "ShowGamepadTextInput",
+     "bytes": 24
+    },
+    {
+     "slot": 21,
+     "name": "GetEnteredGamepadTextLength",
+     "bytes": 4
+    },
+    {
+     "slot": 22,
+     "name": "GetEnteredGamepadTextInput",
+     "bytes": 12
+    },
+    {
+     "slot": 23,
+     "name": "GetSteamUILanguage",
+     "bytes": 4
+    },
+    {
+     "slot": 24,
+     "name": "IsSteamRunningInVR",
+     "bytes": 4
+    },
+    {
+     "slot": 25,
+     "name": "SetOverlayNotificationInset",
+     "bytes": 12
+    },
+    {
+     "slot": 26,
+     "name": "IsSteamInBigPictureMode",
+     "bytes": 4
+    },
+    {
+     "slot": 27,
+     "name": "StartVRDashboard",
+     "bytes": 4
+    },
+    {
+     "slot": 28,
+     "name": "IsVRHeadsetStreamingEnabled",
+     "bytes": 4
+    },
+    {
+     "slot": 29,
+     "name": "SetVRHeadsetStreamingEnabled",
+     "bytes": 8
+    },
+    {
+     "slot": 30,
+     "name": "IsSteamChinaLauncher",
+     "bytes": 4
+    },
+    {
+     "slot": 31,
+     "name": "InitFilterText",
+     "bytes": 8
+    },
+    {
+     "slot": 32,
+     "name": "FilterText",
+     "bytes": 28
+    },
+    {
+     "slot": 33,
+     "name": "GetIPv6ConnectivityState",
+     "bytes": 8
+    },
+    {
+     "slot": 34,
+     "name": "IsSteamRunningOnSteamDeck",
+     "bytes": 4
+    },
+    {
+     "slot": 35,
+     "name": "ShowFloatingGamepadTextInput",
+     "bytes": 24
+    },
+    {
+     "slot": 36,
+     "name": "SetGameLauncherMode",
+     "bytes": 8
+    },
+    {
+     "slot": 37,
+     "name": "DismissFloatingGamepadTextInput",
+     "bytes": 4
+    },
+    {
+     "slot": 38,
+     "name": "DismissGamepadTextInput",
+     "bytes": 4
+    }
+   ],
+   "alloc_vtable_count": 39
+  },
+  "STEAMHTMLSURFACE_INTERFACE_VERSION_005": {
+   "source": "winISteamHTMLSurface.c",
+   "tag": "winISteamHTMLSurface_STEAMHTMLSURFACE_INTERFACE_VERSION_005",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "destructor",
+     "bytes": 4
+    },
+    {
+     "slot": 1,
+     "name": "Init",
+     "bytes": 4
+    },
+    {
+     "slot": 2,
+     "name": "Shutdown",
+     "bytes": 4
+    },
+    {
+     "slot": 3,
+     "name": "CreateBrowser",
+     "bytes": 12
+    },
+    {
+     "slot": 4,
+     "name": "RemoveBrowser",
+     "bytes": 8
+    },
+    {
+     "slot": 5,
+     "name": "LoadURL",
+     "bytes": 16
+    },
+    {
+     "slot": 6,
+     "name": "SetSize",
+     "bytes": 16
+    },
+    {
+     "slot": 7,
+     "name": "StopLoad",
+     "bytes": 8
+    },
+    {
+     "slot": 8,
+     "name": "Reload",
+     "bytes": 8
+    },
+    {
+     "slot": 9,
+     "name": "GoBack",
+     "bytes": 8
+    },
+    {
+     "slot": 10,
+     "name": "GoForward",
+     "bytes": 8
+    },
+    {
+     "slot": 11,
+     "name": "AddHeader",
+     "bytes": 16
+    },
+    {
+     "slot": 12,
+     "name": "ExecuteJavascript",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "MouseUp",
+     "bytes": 12
+    },
+    {
+     "slot": 14,
+     "name": "MouseDown",
+     "bytes": 12
+    },
+    {
+     "slot": 15,
+     "name": "MouseDoubleClick",
+     "bytes": 12
+    },
+    {
+     "slot": 16,
+     "name": "MouseMove",
+     "bytes": 16
+    },
+    {
+     "slot": 17,
+     "name": "MouseWheel",
+     "bytes": 12
+    },
+    {
+     "slot": 18,
+     "name": "KeyDown",
+     "bytes": 20
+    },
+    {
+     "slot": 19,
+     "name": "KeyUp",
+     "bytes": 16
+    },
+    {
+     "slot": 20,
+     "name": "KeyChar",
+     "bytes": 16
+    },
+    {
+     "slot": 21,
+     "name": "SetHorizontalScroll",
+     "bytes": 12
+    },
+    {
+     "slot": 22,
+     "name": "SetVerticalScroll",
+     "bytes": 12
+    },
+    {
+     "slot": 23,
+     "name": "SetKeyFocus",
+     "bytes": 12
+    },
+    {
+     "slot": 24,
+     "name": "ViewSource",
+     "bytes": 8
+    },
+    {
+     "slot": 25,
+     "name": "CopyToClipboard",
+     "bytes": 8
+    },
+    {
+     "slot": 26,
+     "name": "PasteFromClipboard",
+     "bytes": 8
+    },
+    {
+     "slot": 27,
+     "name": "Find",
+     "bytes": 20
+    },
+    {
+     "slot": 28,
+     "name": "StopFind",
+     "bytes": 8
+    },
+    {
+     "slot": 29,
+     "name": "GetLinkAtPosition",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "SetCookie",
+     "bytes": 32
+    },
+    {
+     "slot": 31,
+     "name": "SetPageScaleFactor",
+     "bytes": 20
+    },
+    {
+     "slot": 32,
+     "name": "SetBackgroundMode",
+     "bytes": 12
+    },
+    {
+     "slot": 33,
+     "name": "SetDPIScalingFactor",
+     "bytes": 12
+    },
+    {
+     "slot": 34,
+     "name": "OpenDeveloperTools",
+     "bytes": 8
+    },
+    {
+     "slot": 35,
+     "name": "AllowStartRequest",
+     "bytes": 12
+    },
+    {
+     "slot": 36,
+     "name": "JSDialogResponse",
+     "bytes": 12
+    },
+    {
+     "slot": 37,
+     "name": "FileLoadDialogResponse",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 38
+  },
+  "STEAMINVENTORY_INTERFACE_V003": {
+   "source": "winISteamInventory.c",
+   "tag": "winISteamInventory_STEAMINVENTORY_INTERFACE_V003",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetResultStatus",
+     "bytes": 8
+    },
+    {
+     "slot": 1,
+     "name": "GetResultItems",
+     "bytes": 16
+    },
+    {
+     "slot": 2,
+     "name": "GetResultItemProperty",
+     "bytes": 24
+    },
+    {
+     "slot": 3,
+     "name": "GetResultTimestamp",
+     "bytes": 8
+    },
+    {
+     "slot": 4,
+     "name": "CheckResultSteamID",
+     "bytes": 16
+    },
+    {
+     "slot": 5,
+     "name": "DestroyResult",
+     "bytes": 8
+    },
+    {
+     "slot": 6,
+     "name": "GetAllItems",
+     "bytes": 8
+    },
+    {
+     "slot": 7,
+     "name": "GetItemsByID",
+     "bytes": 16
+    },
+    {
+     "slot": 8,
+     "name": "SerializeResult",
+     "bytes": 16
+    },
+    {
+     "slot": 9,
+     "name": "DeserializeResult",
+     "bytes": 20
+    },
+    {
+     "slot": 10,
+     "name": "GenerateItems",
+     "bytes": 20
+    },
+    {
+     "slot": 11,
+     "name": "GrantPromoItems",
+     "bytes": 8
+    },
+    {
+     "slot": 12,
+     "name": "AddPromoItem",
+     "bytes": 12
+    },
+    {
+     "slot": 13,
+     "name": "AddPromoItems",
+     "bytes": 16
+    },
+    {
+     "slot": 14,
+     "name": "ConsumeItem",
+     "bytes": 20
+    },
+    {
+     "slot": 15,
+     "name": "ExchangeItems",
+     "bytes": 32
+    },
+    {
+     "slot": 16,
+     "name": "TransferItemQuantity",
+     "bytes": 28
+    },
+    {
+     "slot": 17,
+     "name": "SendItemDropHeartbeat",
+     "bytes": 4
+    },
+    {
+     "slot": 18,
+     "name": "TriggerItemDrop",
+     "bytes": 12
+    },
+    {
+     "slot": 19,
+     "name": "TradeItems",
+     "bytes": 40
+    },
+    {
+     "slot": 20,
+     "name": "LoadItemDefinitions",
+     "bytes": 4
+    },
+    {
+     "slot": 21,
+     "name": "GetItemDefinitionIDs",
+     "bytes": 12
+    },
+    {
+     "slot": 22,
+     "name": "GetItemDefinitionProperty",
+     "bytes": 20
+    },
+    {
+     "slot": 23,
+     "name": "RequestEligiblePromoItemDefinitionsIDs",
+     "bytes": 12
+    },
+    {
+     "slot": 24,
+     "name": "GetEligiblePromoItemDefinitionIDs",
+     "bytes": 20
+    },
+    {
+     "slot": 25,
+     "name": "StartPurchase",
+     "bytes": 16
+    },
+    {
+     "slot": 26,
+     "name": "RequestPrices",
+     "bytes": 4
+    },
+    {
+     "slot": 27,
+     "name": "GetNumItemsWithPrices",
+     "bytes": 4
+    },
+    {
+     "slot": 28,
+     "name": "GetItemsWithPrices",
+     "bytes": 20
+    },
+    {
+     "slot": 29,
+     "name": "GetItemPrice",
+     "bytes": 16
+    },
+    {
+     "slot": 30,
+     "name": "StartUpdateProperties",
+     "bytes": 4
+    },
+    {
+     "slot": 31,
+     "name": "RemoveProperty",
+     "bytes": 24
+    },
+    {
+     "slot": 32,
+     "name": "SetProperty_4",
+     "bytes": 28
+    },
+    {
+     "slot": 33,
+     "name": "SetProperty_3",
+     "bytes": 32
+    },
+    {
+     "slot": 34,
+     "name": "SetProperty_2",
+     "bytes": 28
+    },
+    {
+     "slot": 35,
+     "name": "SetProperty",
+     "bytes": 28
+    },
+    {
+     "slot": 36,
+     "name": "SubmitUpdateProperties",
+     "bytes": 16
+    },
+    {
+     "slot": 37,
+     "name": "InspectItem",
+     "bytes": 12
+    }
+   ],
+   "alloc_vtable_count": 38
+  },
+  "STEAMVIDEO_INTERFACE_V002": {
+   "source": "winISteamVideo.c",
+   "tag": "winISteamVideo_STEAMVIDEO_INTERFACE_V002",
+   "slots": [
+    {
+     "slot": 0,
+     "name": "GetVideoURL",
+     "bytes": 8
+    },
+    {
+     "slot": 1,
+     "name": "IsBroadcasting",
+     "bytes": 8
+    },
+    {
+     "slot": 2,
+     "name": "GetOPFSettings",
+     "bytes": 8
+    },
+    {
+     "slot": 3,
+     "name": "GetOPFStringForApp",
+     "bytes": 16
+    }
+   ],
+   "alloc_vtable_count": 4
+  }
+ },
+ "problems": []
+}
