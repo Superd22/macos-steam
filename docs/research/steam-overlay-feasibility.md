@@ -1042,3 +1042,142 @@ Stated plainly, because a labelled unknown is worth more than a guess.
 6. **Whether any of this survives a CrossOver update.** CrossOver has already moved from 25.1.1 /
    wine-10.0 (the version the earlier research documents were written against) to 26.2 / wine-11.0
    during this project's life [V]. The mirror root must be rebuilt on every such move.
+
+---
+
+# Addendum — measured 2026-08-23, session of #22 and #24
+
+Everything below was measured on this machine after the study above was written. Three of its
+conclusions are **corrected**; two of its unknowns are **closed**; one new blocker is identified that
+the study did not anticipate and that decides how, or whether, this can ship.
+
+CrossOver 26.2.0.39821, wine-11.0-8723-g7e8a47752e3, bottle `steam-shim`.
+
+## A1. Arming passes — the study's biggest risk is retired [V]
+
+S-3 asked whether the native client will start `gameoverlayui` for a Windows-platform app. It does
+better than that: it arms the overlay for a process it has **no relationship with**. `metalprobe`
+(`tools/overlay-probe/`) is a plain unsigned Metal binary — not launched by Steam, never calling
+Steamworks — and with `SteamOverlayGameId` set to a real appid, `DYLD_INSERT_LIBRARIES` pointing at
+`gameoverlayrenderer.dylib`, and `SteamNoOverlayUIDrawing` unset, Shift+Tab draws the real overlay
+over its `CAMetalLayer`.
+
+This retires the risk that could have degraded (a1) to (c). Graphics and arming are both settled;
+only injection remains.
+
+## A2. (a2) is dead — load order, not interposition [V]
+
+Same harness, same environment, only load time varies: inserted at launch the overlay draws;
+`dlopen`'d it does not, with 13 of 15 interposes rebound making no difference. The interpose-recovery
+mechanism itself works exactly as §3.4 predicted — parsing `__DATA,__interpose` and matching each
+entry's dyld-bound `original` against `dlsym` identifies **15/15** and hands back Valve's own
+replacements — it simply is not what `dlopen` loses. `CFRunLoopRun`/`InMode` could not be tested:
+Valve's replacements do not pump a run loop they did not set up. Detail in #22.
+
+## A3. §5(a1) step 1 re-signs the wrong binary [V] — correction
+
+The study has us re-signing `bin/wineloader`. That is only the **first stage**. The binary that
+becomes the game process is reached by a second exec and lives in the lib tree:
+
+```
+game process → /var/folders/…/winetemp-174243904-…/wineloader
+inode 174243904 → …/CrossOver/lib/wine/x86_64-unix/wine
+```
+
+`bin/wineloader` is a different inode (174242871) and is irrelevant to injection. Note also
+`CrossOver-Hosted Application/wineloader` is a **hard link to `bin/wineloader`** (same inode), so it
+is not a third variant and not the differentiator it looked like.
+
+## A4. Relocation preserves entitlements [V] — correction, and it is good news
+
+The study's §3 reasoning assumed the relocated loader is a rewritten copy. It is not. The `winetemp`
+path in `ntdll.so` (single xref to `/winetemp-%llu-%llu-%lu-%lu/` at `0x22648`) runs:
+
+```
+asprintf → strlcat → mkdir → symlink("<dir>/ntdll.so") → stat → link → symlink (fallback) → posix_spawn
+```
+
+`link()` is a **hard link**: same inode, therefore the same signature and entitlements as the source.
+An earlier reading of "three different sha256s" as evidence of rewriting was wrong — the differing
+hashes were three *different files* (stock, our re-signed copy, and a link to stock), not three
+versions of one. **An entitled source yields an entitled game process.** This is what keeps (a1)
+alive at all.
+
+## A5. The front door is fully steerable — and it is not enough [V]
+
+Three mechanisms, all confirmed:
+
+- **`[Wine] BinPath`** is a bottle config key (`bin/wine:654`), takes a `:`-separated list
+  (`cxwhich`, `bin/wine:25`), and steers `WINELOADER` — proven with a planted marker loader. `LibPath`
+  is its sibling.
+- **`DYLD_*` cannot be passed in from outside.** `/usr/bin/perl` is SIP-restricted and dyld
+  *removes* `DYLD_*` from the environment, so nothing survives the front door from the caller's
+  shell. `[EnvironmentVariables]` in `cxbottle.conf` sets them **inside** perl before the exec
+  (`CXBottle.pm:9-29`); only `CX_BOTTLE` and `WINEPREFIX` are rejected.
+- **`CX_ROOT` cannot be set from the environment** — `locate_cx_root` (`bin/wine:45-82`) computes it
+  from `cxwhich($ENV{PATH}, $0)` and overwrites `$ENV{CX_ROOT}`. Only invoking a `wine` inside a
+  mirror root steers it; the symlink-following loop short-circuits once `bin/cxmenu` exists beside it.
+
+A mirror root was built and **`CX_LOG` confirms all three take effect**:
+
+```
+CX_ROOT    = …/steam-shim/drive_c/cxroot
+WINELOADER = …/cxroot/bin/wineloader
+WINESERVER = …/cxroot/bin/wineserver
+```
+
+**And the game still relocates from the stock loader.** So `ntdll` ignores both `CX_ROOT` and
+`WINELOADER` and resolves the real loader **relative to its own path** — consistent with the
+disassembly, which symlinks `<tempdir>/ntdll.so` → `dirname(source)/ntdll.so`.
+
+**[I] That defeats the mirror-root family**, because `ntdll.so` cannot be given a mirror-side path:
+
+| `ntdll.so` in the mirror | result |
+|---|---|
+| symlink | works, but resolves back into CrossOver's tree — stock sibling wins |
+| copy | **SIGSEGV** (exit 139, no output) — signature verifies clean, so not a signing fault |
+| hard link | `Operation not permitted` across the app bundle |
+
+## A6. `codesign` on the shipped loader fails — sign a copy instead [V]
+
+`codesign --force --sign -` directly on `lib/wine/x86_64-unix/wine` returns **`internal error in
+Code Signing subsystem`**. The inode had 19 links — one real path plus 18 accumulated `winetemp`
+dirs. The failure is atomic: signature, inode, size and validity all unchanged afterwards, and
+CrossOver still runs. Signing a copy in `/tmp` (one link) succeeds and yields a correctly entitled
+binary.
+
+## A7. The blocker that decides shippability: App Management [V]
+
+Installing that entitled binary over CrossOver's own fails:
+
+```
+cp /tmp/wine.entitled "$W"
+→ Operation not permitted
+```
+
+Not POSIX permissions and not `schg` — `ls -lO` shows no flags, and even `touch` of a *new* file in
+that directory fails. CrossOver.app is a signed, notarized third-party bundle
+(`TeamIdentifier=9C6B7X7Z8E`), and since macOS 14 modifying another app's bundle requires the
+**App Management** TCC grant for the writing process.
+
+**[I] This reframes the whole approach.** Shipping the in-place re-sign means an installer that (1)
+prompts the user to grant App Management over CrossOver, (2) rewrites a CodeWeavers binary inside
+their signed bundle, and (3) silently re-does it after every CrossOver update. That is a great deal
+of fragile, user-visible surface for a feature.
+
+The study treated "ask CodeWeavers to add `com.apple.security.cs.allow-dyld-environment-variables`"
+as step 0, a courtesy before the real engineering. On this evidence it is not a courtesy — it is the
+only route that avoids a TCC prompt, a vendor-bundle modification, and per-update repair
+simultaneously, and CrossOver already ships the harder-to-justify half
+(`disable-library-validation`). Valve's own documentation names both entitlements as the macOS
+overlay's requirement, so the ask has a citable rationale.
+
+## A8. Where (a1) stands
+
+Unresolved, by one test. With App Management granted, `cp /tmp/wine.entitled "$W"` and a launch would
+prove or kill (a1) outright — everything else in the chain is measured and works. Until then:
+
+- **(a1)** viable, injection unproven end-to-end, and its shipping story depends on the CodeWeavers ask.
+- **(a2)** closed (A2).
+- **(c)** unchanged, and now the fallback of record if (a1)'s injection cannot be made to ship.
+- **(d)** unchanged and still worth shipping first (#23).
