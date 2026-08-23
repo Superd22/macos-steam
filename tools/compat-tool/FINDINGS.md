@@ -126,3 +126,134 @@ if needed, as this session did).
    `BLoggedOn=1` (online, not offline false-negative).
 
 Done when steps 5–7 pass and the DRM question (Risk 1) is answered in writing.
+
+---
+
+# 2026-08-23 — the Play button works: Steam launches Mars through the tool
+
+Second measurement pass for [#12](https://github.com/Superd22/macos-steam/issues/12), on
+**CrossOver 26.2**, client build `1785799196`, bottle `steam-shim`, native macOS Steam
+running and online. **Zero Windows Steam processes** before, during and after
+(`ps aux | grep -i steam.exe` empty at every checkpoint).
+
+Everything above this line was measured by invoking the launch script **by hand**. This pass
+closes that gap: the launch is driven by **Steam's own `LaunchApp` action**, and the
+difference immediately exposed two bugs the hand-driven proofs could never have found.
+
+## Result
+
+`steam://rungameid/3215050` (what the Play button issues) drives the full chain:
+
+```
+GameAction [AppID 3215050, ActionID 3] : LaunchApp changed task to CreatingProcess
+  .../crossover-steam-shim/./steamclient-shim-launch.sh
+  .../steamapps/common/Project Spark/Mars.exe
+Game process added : AppID 3215050 "...steamclient-shim-launch.sh '...Mars.exe'", ProcID 39396
+GameAction [AppID 3215050, ActionID 3] : LaunchApp changed task to Completed
+```
+
+and the shim answers for the real title:
+
+```
+CreateInterface("SteamClient020") -> ...      GetAppID() -> 3215050
+SteamUser021  SteamUtils010  SteamInput006  SteamFriends017
+STEAMAPPS_INTERFACE_VERSION008   STEAMUGC_INTERFACE_VERSION016
+STEAMUSERSTATS_INTERFACE_VERSION012
+BIsSubscribedApp(3889420) -> 1
+```
+
+Mars reaches gameplay. **Half A and Half B are joined through the product vehicle, driven by
+Steam, with no hand-run command anywhere in the path.**
+
+## Bug 1 — the manifest dropped `%verb%`, and the launch died in two seconds
+
+Steam invoked the tool as `steamclient-shim-launch.sh <exe>` — **no verb**:
+
+```
+.../steamclient-shim-launch.sh\0.../Mars.exe\0
+```
+
+The verb is not something Steam always supplies; it is substituted into the manifest's
+`commandline` where `%verb%` appears. Our `toolmanifest.vdf` read
+`"commandline" "/steamclient-shim-launch.sh"`, so nothing was substituted. The script
+unconditionally treated `$1` as the verb, shifted it away, found `$2` empty, and exited 2.
+
+**What this looked like:** `LaunchApp … Completed`, `Game process added`, then
+`Game process removed` two seconds later. Steam reported a *successful* launch. Nothing
+appeared in any log, because the script's only diagnostics went to a stderr Steam detaches.
+A silent, near-instant, success-shaped failure.
+
+Both halves are fixed, deliberately redundantly:
+
+- `toolmanifest.vdf` now reads `"commandline" "/steamclient-shim-launch.sh %verb%"`.
+- The script no longer *assumes* `$1` is a verb — it **sniffs** it, consuming `$1` only when
+  it is literally `run` or `waitforexitandrun`, and otherwise defaults to
+  `waitforexitandrun` and logs that it did so.
+
+The redundancy earned its keep within the same session: **Steam caches the manifest from
+registration time**, so the corrected `commandline` did *not* take effect on the next launch
+(the log still says `argv[1] is not a verb`). The launch succeeded anyway, because the script
+tolerates it. A manifest edit needs a Steam restart to be picked up; a tool that only works
+after a restart is a tool that fails on first install.
+
+## Bug 2 — the launch script logged only to a stderr Steam throws away
+
+Diagnosing bug 1 required reconstructing the argv from Steam's own console log, because the
+script's `log()` wrote to stderr only. It now tees every line to `/tmp/shim-launch.log`
+(`SHIM_LAUNCH_LOG` to override). This is the file to look at first when a Play click does
+nothing — it is the only place the tool's own view of a launch is recorded.
+
+Also fixed: the "native macOS Steam does not appear to be running" warning fired on **every**
+launch, including this successful one. Steam hands the tool a scrubbed `PATH`, so the bare
+`pgrep` was simply not resolvable. Now called as `/usr/bin/pgrep`. A check that cries wolf on
+every run is worse than no check — it trains you to read past the one time it is right.
+
+## Bug 3 — the deployed payload had silently drifted three commits behind
+
+The live payload under `~/Library/Application Support/macos-steam-shim/` still held the
+**2026-08-14** build: the pre-#19 launch script (raw `wineloader`, no CWD fix, no front door)
+and pre-#18 shim binaries (before the full vtable transcription). It had been hand-assembled
+once and never re-synced, so the registered production tool was one that #18/#19 had already
+proven *would crash*, while the repo looked correct.
+
+Deployment is now one reproducible command, `tools/installer/install.sh`, which builds what is
+missing and copies the built artifacts into both shipped surfaces — the external payload dir
+and the `Steam (macOS Play).app` launcher (previously hand-made and not in the repo at all).
+`--uninstall` removes both; Valve's files are never touched, so there is nothing else to undo.
+
+## The install-script evaluator fails, and it does not matter (yet)
+
+Every launch routes Valve's `iscriptevaluator.exe` through our tool first and ends in:
+
+```
+src/clientdll/installscript_posix.cpp (525) : Assertion Failed:
+  Standalone evaluator returned error code for app 3215050
+```
+
+`LaunchApp` proceeds to `Completed` regardless and the game runs, so this is **non-fatal** for
+Mars. It is not understood, and a title whose install script actually matters may not be so
+forgiving. Recorded, not resolved.
+
+## What is still NOT proven — the honest gap
+
+**No fresh Surviving Mars achievement has unlocked through this stack.**
+
+On both of today's runs the shim logged `SetAchievement(...) -> 1` for
+`FirstAnalyzedAnomaly`, `FirstRefueledRocket` and `FirstHarvest`. That is **not** evidence:
+the web profile shows all three were unlocked on **2026-08-02**, before any of this existed.
+The game re-asserts already-earned achievements on save load, and `SetAchievement` returns 1
+for an achievement that was already set. It is a textbook false pass of exactly the kind this
+map has been bitten by twice before — and the same trap the `atime` oracle and Steam's
+offline mode each sprang earlier.
+
+The write path *is* proven end-to-end on Spacewar 480 (#11), with a real unlock and a real
+reset. What is unproven is that a **retail, DRM'd** title unlocks a **new** achievement
+through the shim. Only a human playing Mars to one of its 61 still-locked achievements
+answers that, and the oracle must be the **public web profile** (server-side record), not a
+local read — a local cache cannot distinguish "stored on Valve's servers" from "written to
+disk here".
+
+**Deliberately not done:** setting an unearned Mars achievement to manufacture the proof. It
+would write a permanent, publicly-visible falsehood to a real account's profile, and the only
+way to undo it is `ResetAllStats`, which would destroy the four genuine achievements. The
+proof is worth less than the account.

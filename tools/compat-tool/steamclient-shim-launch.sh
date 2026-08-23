@@ -45,11 +45,28 @@
 #   CX_APP           CrossOver.app path                     (default: ~/Applications/CrossOver.app)
 set -eu
 
-log() { printf '[shim-launch] %s\n' "$*" >&2; }
+# Steam invokes us with stderr detached, so a stderr-only log is invisible when
+# a launch fails from the Play button. Tee to a file as well (#12).
+SHIM_LAUNCH_LOG="${SHIM_LAUNCH_LOG:-/tmp/shim-launch.log}"
+log() {
+    printf '[shim-launch %s] %s\n' "$(date +%H:%M:%S)" "$*" >&2
+    printf '[shim-launch %s] %s\n' "$(date +%H:%M:%S)" "$*" >>"$SHIM_LAUNCH_LOG" 2>/dev/null || true
+}
 
-# --- parse Valve's contract: <verb> <exe> [args...] ---------------------------
-VERB="${1:-waitforexitandrun}"
-[ $# -ge 1 ] && shift || true
+# --- parse Valve's contract: [verb] <exe> [args...] ---------------------------
+# The verb reaches us only because toolmanifest.vdf's commandline ends in
+# "%verb%". It is NOT guaranteed: a manifest that omits %verb% (ours did, until
+# the #12 Play-button run exposed it) makes Steam pass the .exe as argv[1]. A
+# script that blindly shifts then dies with "no executable given" — two seconds
+# after Play, with nothing in any log but a vanished process. So sniff argv[1]
+# rather than assuming it: consume it only when it really is a verb.
+VERB=waitforexitandrun
+case "${1:-}" in
+    run|waitforexitandrun)
+        VERB="$1"; shift ;;
+    *)
+        log "argv[1] is not a verb (manifest missing %verb%?) — assuming $VERB" ;;
+esac
 EXE="${1:-}"
 [ $# -ge 1 ] && shift || true
 [ -n "$EXE" ] || { log "no executable given (verb=$VERB)"; exit 2; }
@@ -82,7 +99,9 @@ APPID="${STEAM_COMPAT_APP_ID:-${SteamAppId:-0}}"
 log "appid=$APPID bottle=$BOTTLE_NAME"
 
 # --- native macOS Steam must be running and online (map trap #1) --------------
-if ! pgrep -qx steam_osx && ! pgrep -q "Steam.AppBundle"; then
+# Absolute path: Steam hands the tool a scrubbed PATH, so a bare `pgrep` is not
+# resolvable and the check used to warn on every launch even with Steam running.
+if ! /usr/bin/pgrep -qx steam_osx && ! /usr/bin/pgrep -q "Steam.AppBundle"; then
     log "WARNING: native macOS Steam.app does not appear to be running — the shim will fail to connect."
 fi
 
