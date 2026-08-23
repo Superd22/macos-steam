@@ -54,6 +54,39 @@ enum shim_call
     C_Stats_ResetAllStats,
     C_Stats_GetAchievementDisplayAttribute,
 
+    /* ISteamApps (VERSION008 leading block, slots 0-9) — appended AFTER the
+     * stats block so existing opcode indices are undisturbed. */
+    C_Apps_BIsSubscribed,
+    C_Apps_BIsLowViolence,
+    C_Apps_BIsCybercafe,
+    C_Apps_BIsVACBanned,
+    C_Apps_GetCurrentGameLanguage,
+    C_Apps_GetAvailableGameLanguages,
+    C_Apps_BIsSubscribedApp,
+    C_Apps_BIsDlcInstalled,
+    C_Apps_GetEarliestPurchaseUnixTime,
+    C_Apps_BIsSubscribedFromFreeWeekend,
+
+    /* Appended after the Apps block; opcode indices above are undisturbed. */
+    C_Apps_GetAppOwner,
+    C_Apps_GetLaunchQueryParam,
+
+    C_User_GetUserDataFolder,
+
+    /* ISteamUtils VERSION010 beyond GetAppID. */
+    C_Utils_GetSecondsSinceAppActive,
+    C_Utils_GetSecondsSinceComputerActive,
+    C_Utils_GetConnectedUniverse,
+    C_Utils_GetServerRealTime,
+    C_Utils_GetIPCountry,
+    C_Utils_GetCurrentBatteryPower,
+    C_Utils_IsAPICallCompleted,
+    C_Utils_GetAPICallFailureReason,
+    C_Utils_GetAPICallResult,
+    C_Utils_RunFrame,
+    C_Utils_GetIPCCallCount,
+    C_Utils_GetSteamUILanguage,
+
     C_COUNT
 };
 
@@ -90,3 +123,25 @@ struct sp_stats_u32ret     { uint64_t handle; uint32_t ret; };            /* Get
 struct sp_stats_nameidx    { uint64_t handle; uint64_t ret; uint32_t idx; }; /* GetAchievementName -> const char* */
 struct sp_stats_reset      { uint64_t handle; int32_t achievements_too; int32_t ret; };
 struct sp_stats_dispattr   { uint64_t handle; uint64_t name; uint64_t key; uint64_t ret; };
+
+/* ---- ISteamApps (VERSION008) ---- */
+struct sp_apps_bool        { uint64_t handle; int32_t ret; };                     /* BIsSubscribed/LowViolence/Cybercafe/VACBanned/FreeWeekend */
+struct sp_apps_str         { uint64_t handle; uint64_t ret; };                    /* GetCurrentGameLanguage/GetAvailableGameLanguages -> const char* */
+struct sp_apps_appid_bool  { uint64_t handle; uint32_t appid; int32_t ret; };     /* BIsSubscribedApp/BIsDlcInstalled */
+struct sp_apps_appid_u32   { uint64_t handle; uint32_t appid; uint32_t ret; };    /* GetEarliestPurchaseUnixTime */
+struct sp_apps_u64         { uint64_t handle; uint64_t ret; };                    /* GetAppOwner -> CSteamID by value */
+struct sp_apps_qparam      { uint64_t handle; uint64_t key; uint64_t ret; };      /* GetLaunchQueryParam -> const char* */
+
+/* ---- ISteamUser (appended) ---- */
+struct sp_user_datafolder  { uint64_t handle; uint64_t buf; int32_t len; int32_t ret; }; /* GetUserDataFolder */
+
+/* ---- ISteamUtils (VERSION010) ---- */
+/* sp_utils_u32 (declared above for GetAppID) also carries every no-arg uint32
+ * getter: GetSecondsSinceAppActive/ComputerActive, GetServerRealTime,
+ * GetIPCCallCount, GetCurrentBatteryPower. */
+struct sp_utils_i32        { uint64_t handle; int32_t ret; };                     /* GetConnectedUniverse */
+struct sp_utils_str        { uint64_t handle; uint64_t ret; };                    /* GetIPCountry/GetSteamUILanguage -> const char* */
+struct sp_utils_call       { uint64_t handle; uint64_t call; uint64_t failed; int32_t ret; }; /* IsAPICallCompleted */
+struct sp_utils_callfail   { uint64_t handle; uint64_t call; int32_t ret; };      /* GetAPICallFailureReason */
+struct sp_utils_callres    { uint64_t handle; uint64_t call; uint64_t buf; int32_t cub; int32_t expected; uint64_t failed; int32_t ret; }; /* GetAPICallResult */
+struct sp_utils_void       { uint64_t handle; };                                  /* RunFrame */

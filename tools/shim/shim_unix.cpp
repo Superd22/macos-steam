@@ -208,6 +208,83 @@ static NTSTATUS u_stats_dispattr(void *args)
 { auto *p = (sp_stats_dispattr *)args;
   p->ret = (uint64_t)STATS(p->handle)->GetAchievementDisplayAttribute((const char*)p->name, (const char*)p->key); return 0; }
 
+/* ---- ISteamApps (VERSION008) — forwarded so Mars gets real ownership/language
+ * answers instead of NULL/0 stubs (the #12 boot crash). ------------------------ */
+#define APPS(h) ((ISteamApps008 *)(h))
+static NTSTATUS u_apps_bissubscribed(void *args)
+{ auto *p = (sp_apps_bool *)args; p->ret = APPS(p->handle)->BIsSubscribed() ? 1 : 0;
+  ulog("BIsSubscribed() -> %d", p->ret); return 0; }
+static NTSTATUS u_apps_bislowviolence(void *args)
+{ auto *p = (sp_apps_bool *)args; p->ret = APPS(p->handle)->BIsLowViolence() ? 1 : 0; return 0; }
+static NTSTATUS u_apps_biscybercafe(void *args)
+{ auto *p = (sp_apps_bool *)args; p->ret = APPS(p->handle)->BIsCybercafe() ? 1 : 0; return 0; }
+static NTSTATUS u_apps_bisvacbanned(void *args)
+{ auto *p = (sp_apps_bool *)args; p->ret = APPS(p->handle)->BIsVACBanned() ? 1 : 0; return 0; }
+static NTSTATUS u_apps_getlang(void *args)
+{ auto *p = (sp_apps_str *)args; p->ret = (uint64_t)APPS(p->handle)->GetCurrentGameLanguage();
+  ulog("GetCurrentGameLanguage() -> %s", p->ret ? (const char*)p->ret : "(null)"); return 0; }
+static NTSTATUS u_apps_getlangs(void *args)
+{ auto *p = (sp_apps_str *)args; p->ret = (uint64_t)APPS(p->handle)->GetAvailableGameLanguages(); return 0; }
+static NTSTATUS u_apps_bissubscribedapp(void *args)
+{ auto *p = (sp_apps_appid_bool *)args; p->ret = APPS(p->handle)->BIsSubscribedApp(p->appid) ? 1 : 0;
+  ulog("BIsSubscribedApp(%u) -> %d", p->appid, p->ret); return 0; }
+static NTSTATUS u_apps_bisdlcinstalled(void *args)
+{ auto *p = (sp_apps_appid_bool *)args; p->ret = APPS(p->handle)->BIsDlcInstalled(p->appid) ? 1 : 0; return 0; }
+static NTSTATUS u_apps_earliest(void *args)
+{ auto *p = (sp_apps_appid_u32 *)args; p->ret = APPS(p->handle)->GetEarliestPurchaseUnixTime(p->appid); return 0; }
+static NTSTATUS u_apps_freeweekend(void *args)
+{ auto *p = (sp_apps_bool *)args; p->ret = APPS(p->handle)->BIsSubscribedFromFreeWeekend() ? 1 : 0; return 0; }
+static NTSTATUS u_apps_getappowner(void *args)
+{ auto *p = (sp_apps_u64 *)args; p->ret = (uint64_t)APPS(p->handle)->GetAppOwner(); return 0; }
+static NTSTATUS u_apps_launchqueryparam(void *args)
+{ auto *p = (sp_apps_qparam *)args;
+  p->ret = (uint64_t)(uintptr_t)APPS(p->handle)->GetLaunchQueryParam((const char *)p->key); return 0; }
+
+/* ---- ISteamUser (appended) ---------------------------------------------- */
+static NTSTATUS u_user_getuserdatafolder(void *args)
+{ auto *p = (sp_user_datafolder *)args;
+  p->ret = ((ISteamUser *)p->handle)->GetUserDataFolder((char *)p->buf, p->len) ? 1 : 0; return 0; }
+
+/* ---- ISteamUtils (VERSION010) — the rest of the interface. GetIPCountry and
+ * GetSteamUILanguage are the const char* returns Mars dereferences; the numeric
+ * getters are forwarded because a real value costs the same as a fake one.
+ * Deliberately NOT forwarded: SetWarningMessageHook (16) takes a PE function
+ * pointer, which would need Proton's deferred-upcall queue to call back safely,
+ * and the overlay/VR/Deck predicates, where our honest answer is the stub's
+ * false. --------------------------------------------------------------------- */
+#define UTILS(h) ((ISteamUtils010 *)(h))
+static NTSTATUS u_utils_secsappactive(void *args)
+{ auto *p = (sp_utils_u32 *)args; p->ret = UTILS(p->handle)->GetSecondsSinceAppActive(); return 0; }
+static NTSTATUS u_utils_secscomputeractive(void *args)
+{ auto *p = (sp_utils_u32 *)args; p->ret = UTILS(p->handle)->GetSecondsSinceComputerActive(); return 0; }
+static NTSTATUS u_utils_connecteduniverse(void *args)
+{ auto *p = (sp_utils_i32 *)args; p->ret = UTILS(p->handle)->GetConnectedUniverse(); return 0; }
+static NTSTATUS u_utils_serverrealtime(void *args)
+{ auto *p = (sp_utils_u32 *)args; p->ret = UTILS(p->handle)->GetServerRealTime(); return 0; }
+static NTSTATUS u_utils_ipcountry(void *args)
+{ auto *p = (sp_utils_str *)args; p->ret = (uint64_t)(uintptr_t)UTILS(p->handle)->GetIPCountry();
+  ulog("GetIPCountry() -> %s", p->ret ? (const char *)(uintptr_t)p->ret : "(null)"); return 0; }
+static NTSTATUS u_utils_batterypower(void *args)
+{ auto *p = (sp_utils_u32 *)args; p->ret = UTILS(p->handle)->GetCurrentBatteryPower(); return 0; }
+static NTSTATUS u_utils_apicallcompleted(void *args)
+{ auto *p = (sp_utils_call *)args;
+  p->ret = UTILS(p->handle)->IsAPICallCompleted(p->call, (bool *)p->failed) ? 1 : 0; return 0; }
+static NTSTATUS u_utils_apicallfailure(void *args)
+{ auto *p = (sp_utils_callfail *)args; p->ret = UTILS(p->handle)->GetAPICallFailureReason(p->call); return 0; }
+/* Callback payloads are byte-identical macOS<->Windows x64 (#11), so the result
+ * buffer crosses verbatim — no struct conversion, unlike Proton's generated path. */
+static NTSTATUS u_utils_apicallresult(void *args)
+{ auto *p = (sp_utils_callres *)args;
+  p->ret = UTILS(p->handle)->GetAPICallResult(p->call, (void *)p->buf, p->cub, p->expected,
+                                              (bool *)p->failed) ? 1 : 0; return 0; }
+static NTSTATUS u_utils_runframe(void *args)
+{ auto *p = (sp_utils_void *)args; UTILS(p->handle)->RunFrame(); return 0; }
+static NTSTATUS u_utils_ipccallcount(void *args)
+{ auto *p = (sp_utils_u32 *)args; p->ret = UTILS(p->handle)->GetIPCCallCount(); return 0; }
+static NTSTATUS u_utils_uilanguage(void *args)
+{ auto *p = (sp_utils_str *)args; p->ret = (uint64_t)(uintptr_t)UTILS(p->handle)->GetSteamUILanguage();
+  ulog("GetSteamUILanguage() -> %s", p->ret ? (const char *)(uintptr_t)p->ret : "(null)"); return 0; }
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -225,6 +302,15 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_stats_request, u_stats_getstati, u_stats_setstati, u_stats_getach, u_stats_setach,
     u_stats_clearach, u_stats_getachtime, u_stats_store, u_stats_numach, u_stats_achname,
     u_stats_reset, u_stats_dispattr,
+    u_apps_bissubscribed, u_apps_bislowviolence, u_apps_biscybercafe, u_apps_bisvacbanned,
+    u_apps_getlang, u_apps_getlangs, u_apps_bissubscribedapp, u_apps_bisdlcinstalled,
+    u_apps_earliest, u_apps_freeweekend,
+    u_apps_getappowner, u_apps_launchqueryparam,
+    u_user_getuserdatafolder,
+    u_utils_secsappactive, u_utils_secscomputeractive, u_utils_connecteduniverse,
+    u_utils_serverrealtime, u_utils_ipcountry, u_utils_batterypower,
+    u_utils_apicallcompleted, u_utils_apicallfailure, u_utils_apicallresult,
+    u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -234,5 +320,21 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_stats_request, u_stats_getstati, u_stats_setstati, u_stats_getach, u_stats_setach,
     u_stats_clearach, u_stats_getachtime, u_stats_store, u_stats_numach, u_stats_achname,
     u_stats_reset, u_stats_dispattr,
+    u_apps_bissubscribed, u_apps_bislowviolence, u_apps_biscybercafe, u_apps_bisvacbanned,
+    u_apps_getlang, u_apps_getlangs, u_apps_bissubscribedapp, u_apps_bisdlcinstalled,
+    u_apps_earliest, u_apps_freeweekend,
+    u_apps_getappowner, u_apps_launchqueryparam,
+    u_user_getuserdatafolder,
+    u_utils_secsappactive, u_utils_secscomputeractive, u_utils_connecteduniverse,
+    u_utils_serverrealtime, u_utils_ipcountry, u_utils_batterypower,
+    u_utils_apicallcompleted, u_utils_apicallfailure, u_utils_apicallresult,
+    u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
 };
+
+/* A short array silently maps every opcode past the end onto garbage, and a
+ * long one hides a missing handler — both look like a hang, not an error (#11). */
+static_assert(sizeof(__wine_unix_call_funcs) / sizeof(*__wine_unix_call_funcs) == C_COUNT,
+              "__wine_unix_call_funcs is out of step with enum shim_call");
+static_assert(sizeof(__wine_unix_call_wow64_funcs) / sizeof(*__wine_unix_call_wow64_funcs) == C_COUNT,
+              "__wine_unix_call_wow64_funcs is out of step with enum shim_call");
 } /* extern "C" */

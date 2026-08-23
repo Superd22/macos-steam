@@ -84,6 +84,7 @@ static uint64_t clientstub_impl(int n){dbg("shim: ISteamClient slot %d (unmapped
 static uint64_t utilsstub_impl(int n){dbg("shim: ISteamUtils slot %d (unmapped)",n);return 0;}
 static uint64_t userstub_impl(int n){dbg("shim: ISteamUser slot %d (unmapped)",n);return 0;}
 static uint64_t statsstub_impl(int n){dbg("shim: ISteamUserStats slot %d (unmapped)",n);return 0;}
+static uint64_t appsstub_impl(int n){dbg("shim: ISteamApps slot %d (unmapped)",n);return 0;}
 #define X(n) static uint64_t cstub_##n(void){return clientstub_impl(n);}
 SLOTLIST
 #undef X
@@ -94,6 +95,9 @@ SLOTLIST
 SLOTLIST
 #undef X
 #define X(n) static uint64_t sstub_##n(void){return statsstub_impl(n);}
+SLOTLIST
+#undef X
+#define X(n) static uint64_t astub_##n(void){return appsstub_impl(n);}
 SLOTLIST
 #undef X
 #define X(n) (const void *)cstub_##n,
@@ -108,7 +112,9 @@ static const void *usrstubs[64] = { SLOTLIST };
 #define X(n) (const void *)sstub_##n,
 static const void *sstubs[64]   = { SLOTLIST };
 #undef X
-static uint64_t stub_apps(void)    { dbg("shim: ISteamApps    UNKNOWN slot");  return 0; }
+#define X(n) (const void *)astub_##n,
+static const void *astubs[64]   = { SLOTLIST };
+#undef X
 static uint64_t stub_friends(void) { dbg("shim: ISteamFriends UNKNOWN slot");  return 0; }
 static uint64_t stub_generic(void) { dbg("shim: generic iface UNKNOWN slot");  return 0; }
 
@@ -189,6 +195,38 @@ static uint64_t *iu_GetSteamID(struct w_iface *s, uint64_t *sret)
 static uint32_t iut_GetAppID(struct w_iface *s)
 { struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetAppID, &p);
   dbg("shim: GetAppID() -> %u", p.ret); return p.ret; }
+static uint32_t iut_GetSecondsSinceAppActive(struct w_iface *s)
+{ struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetSecondsSinceAppActive, &p); return p.ret; }
+static uint32_t iut_GetSecondsSinceComputerActive(struct w_iface *s)
+{ struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetSecondsSinceComputerActive, &p); return p.ret; }
+static int32_t iut_GetConnectedUniverse(struct w_iface *s)
+{ struct sp_utils_i32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetConnectedUniverse, &p); return p.ret; }
+static uint32_t iut_GetServerRealTime(struct w_iface *s)
+{ struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetServerRealTime, &p); return p.ret; }
+static const char *iut_GetIPCountry(struct w_iface *s)
+{ struct sp_utils_str p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetIPCountry, &p);
+  dbg("shim: GetIPCountry() -> %s", p.ret ? (const char*)(uintptr_t)p.ret : "(null)");
+  return (const char *)(uintptr_t)p.ret; }
+static uint8_t iut_GetCurrentBatteryPower(struct w_iface *s)
+{ struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetCurrentBatteryPower, &p); return (uint8_t)p.ret; }
+static uint8_t iut_IsAPICallCompleted(struct w_iface *s, uint64_t call, void *failed)
+{ struct sp_utils_call p; p.handle = s->handle; p.call = call; p.failed = (uint64_t)(uintptr_t)failed; p.ret = 0;
+  seam(C_Utils_IsAPICallCompleted, &p); return (uint8_t)p.ret; }
+static int32_t iut_GetAPICallFailureReason(struct w_iface *s, uint64_t call)
+{ struct sp_utils_callfail p; p.handle = s->handle; p.call = call; p.ret = 0;
+  seam(C_Utils_GetAPICallFailureReason, &p); return p.ret; }
+static uint8_t iut_GetAPICallResult(struct w_iface *s, uint64_t call, void *buf, int32_t cub, int32_t expected, void *failed)
+{ struct sp_utils_callres p; p.handle = s->handle; p.call = call; p.buf = (uint64_t)(uintptr_t)buf;
+  p.cub = cub; p.expected = expected; p.failed = (uint64_t)(uintptr_t)failed; p.ret = 0;
+  seam(C_Utils_GetAPICallResult, &p); return (uint8_t)p.ret; }
+static void iut_RunFrame(struct w_iface *s)
+{ struct sp_utils_void p; p.handle = s->handle; seam(C_Utils_RunFrame, &p); }
+static uint32_t iut_GetIPCCallCount(struct w_iface *s)
+{ struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetIPCCallCount, &p); return p.ret; }
+static const char *iut_GetSteamUILanguage(struct w_iface *s)
+{ struct sp_utils_str p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetSteamUILanguage, &p);
+  dbg("shim: GetSteamUILanguage() -> %s", p.ret ? (const char*)(uintptr_t)p.ret : "(null)");
+  return (const char *)(uintptr_t)p.ret; }
 
 /* ---- ISteamUserStats (v012) thunks -------------------------------------- */
 static uint8_t is_RequestCurrentStats(struct w_iface *s)
@@ -219,6 +257,46 @@ static const char *is_GetAchievementDisplayAttribute(struct w_iface *s, const ch
 { struct sp_stats_dispattr p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.key = (uint64_t)(uintptr_t)key; p.ret = 0;
   seam(C_Stats_GetAchievementDisplayAttribute, &p); return (const char *)(uintptr_t)p.ret; }
 
+/* ---- ISteamApps (VERSION008, slots 0-9) thunks -------------------------- */
+static uint8_t ia_BIsSubscribed(struct w_iface *s)
+{ struct sp_apps_bool p; p.handle = s->handle; p.ret = 0; seam(C_Apps_BIsSubscribed, &p);
+  dbg("shim: BIsSubscribed() -> %d", p.ret); return (uint8_t)p.ret; }
+static uint8_t ia_BIsLowViolence(struct w_iface *s)
+{ struct sp_apps_bool p; p.handle = s->handle; p.ret = 0; seam(C_Apps_BIsLowViolence, &p); return (uint8_t)p.ret; }
+static uint8_t ia_BIsCybercafe(struct w_iface *s)
+{ struct sp_apps_bool p; p.handle = s->handle; p.ret = 0; seam(C_Apps_BIsCybercafe, &p); return (uint8_t)p.ret; }
+static uint8_t ia_BIsVACBanned(struct w_iface *s)
+{ struct sp_apps_bool p; p.handle = s->handle; p.ret = 0; seam(C_Apps_BIsVACBanned, &p); return (uint8_t)p.ret; }
+static const char *ia_GetCurrentGameLanguage(struct w_iface *s)
+{ struct sp_apps_str p; p.handle = s->handle; p.ret = 0; seam(C_Apps_GetCurrentGameLanguage, &p);
+  dbg("shim: GetCurrentGameLanguage() -> %s", p.ret ? (const char*)(uintptr_t)p.ret : "(null)");
+  return (const char *)(uintptr_t)p.ret; }
+static const char *ia_GetAvailableGameLanguages(struct w_iface *s)
+{ struct sp_apps_str p; p.handle = s->handle; p.ret = 0; seam(C_Apps_GetAvailableGameLanguages, &p);
+  return (const char *)(uintptr_t)p.ret; }
+static uint8_t ia_BIsSubscribedApp(struct w_iface *s, uint32_t appid)
+{ struct sp_apps_appid_bool p; p.handle = s->handle; p.appid = appid; p.ret = 0; seam(C_Apps_BIsSubscribedApp, &p);
+  dbg("shim: BIsSubscribedApp(%u) -> %d", appid, p.ret); return (uint8_t)p.ret; }
+static uint8_t ia_BIsDlcInstalled(struct w_iface *s, uint32_t appid)
+{ struct sp_apps_appid_bool p; p.handle = s->handle; p.appid = appid; p.ret = 0; seam(C_Apps_BIsDlcInstalled, &p); return (uint8_t)p.ret; }
+static uint32_t ia_GetEarliestPurchaseUnixTime(struct w_iface *s, uint32_t appid)
+{ struct sp_apps_appid_u32 p; p.handle = s->handle; p.appid = appid; p.ret = 0; seam(C_Apps_GetEarliestPurchaseUnixTime, &p); return p.ret; }
+static uint8_t ia_BIsSubscribedFromFreeWeekend(struct w_iface *s)
+{ struct sp_apps_bool p; p.handle = s->handle; p.ret = 0; seam(C_Apps_BIsSubscribedFromFreeWeekend, &p); return (uint8_t)p.ret; }
+/* GetAppOwner returns CSteamID BY VALUE — same MSVC sret ABI as iu_GetSteamID
+ * below: fill the caller's hidden buffer and return that pointer, not the value. */
+static uint64_t *ia_GetAppOwner(struct w_iface *s, uint64_t *sret)
+{ struct sp_apps_u64 p; p.handle = s->handle; p.ret = 0; seam(C_Apps_GetAppOwner, &p);
+  *sret = p.ret; return sret; }
+static const char *ia_GetLaunchQueryParam(struct w_iface *s, const char *key)
+{ struct sp_apps_qparam p; p.handle = s->handle; p.key = (uint64_t)(uintptr_t)key; p.ret = 0;
+  seam(C_Apps_GetLaunchQueryParam, &p); return (const char *)(uintptr_t)p.ret; }
+
+/* ---- ISteamUser (appended) ---------------------------------------------- */
+static uint8_t iu_GetUserDataFolder(struct w_iface *s, char *buf, int32_t len)
+{ struct sp_user_datafolder p; p.handle = s->handle; p.buf = (uint64_t)(uintptr_t)buf; p.len = len; p.ret = 0;
+  seam(C_User_GetUserDataFolder, &p); return (uint8_t)p.ret; }
+
 static void build_vtables(void)
 {
     int i;
@@ -227,7 +305,7 @@ static void build_vtables(void)
         vt_user[i]    = usrstubs[i];
         vt_stats[i]   = sstubs[i];
         vt_utils[i]   = ustubs[i];
-        vt_apps[i]    = (const void *)stub_apps;
+        vt_apps[i]    = astubs[i];
         vt_friends[i] = (const void *)stub_friends;
         vt_generic[i] = (const void *)stub_generic;
     }
@@ -248,8 +326,24 @@ static void build_vtables(void)
     vt_user[1] = (const void *)iu_BLoggedOn;
     vt_user[2] = (const void *)iu_GetSteamID;
 
-    /* ISteamUtils VERSION010: GetAppID at slot 9 (observed from init) */
-    vt_utils[9] = (const void *)iut_GetAppID;
+    /* ISteamUtils VERSION010 — full 39-slot layout from Proton's generated MSVC
+     * vtable (winISteamUtils.c). Slots left on the numbered stub are deliberate:
+     * SetWarningMessageHook (16) would hand the native client a PE function
+     * pointer, and the overlay/VR/BigPicture/Deck predicates (17,18,24,26,28,30,
+     * 34) are honestly false for us — the overlay is out of scope on the map. */
+    vt_utils[0]  = (const void *)iut_GetSecondsSinceAppActive;
+    vt_utils[1]  = (const void *)iut_GetSecondsSinceComputerActive;
+    vt_utils[2]  = (const void *)iut_GetConnectedUniverse;
+    vt_utils[3]  = (const void *)iut_GetServerRealTime;
+    vt_utils[4]  = (const void *)iut_GetIPCountry;          /* const char* */
+    vt_utils[8]  = (const void *)iut_GetCurrentBatteryPower;
+    vt_utils[9]  = (const void *)iut_GetAppID;
+    vt_utils[11] = (const void *)iut_IsAPICallCompleted;
+    vt_utils[12] = (const void *)iut_GetAPICallFailureReason;
+    vt_utils[13] = (const void *)iut_GetAPICallResult;
+    vt_utils[14] = (const void *)iut_RunFrame;
+    vt_utils[15] = (const void *)iut_GetIPCCallCount;
+    vt_utils[23] = (const void *)iut_GetSteamUILanguage;    /* const char* */
 
     /* ISteamUserStats VERSION012 — MSVC order. Overloaded GetStat/SetStat
      * (slots 1-4) stay stubs; only the achievement path is wired. */
@@ -263,6 +357,26 @@ static void build_vtables(void)
     vt_stats[14] = (const void *)is_GetNumAchievements;
     vt_stats[15] = (const void *)is_GetAchievementName;
     vt_stats[21] = (const void *)is_ResetAllStats;
+
+    /* ISteamApps VERSION008 (33 slots). Beyond the leading block, only the two
+     * returns a game dereferences are wired: GetAppOwner (20, CSteamID by value
+     * -> sret) and GetLaunchQueryParam (21, const char*). */
+    vt_apps[0] = (const void *)ia_BIsSubscribed;
+    vt_apps[1] = (const void *)ia_BIsLowViolence;
+    vt_apps[2] = (const void *)ia_BIsCybercafe;
+    vt_apps[3] = (const void *)ia_BIsVACBanned;
+    vt_apps[4] = (const void *)ia_GetCurrentGameLanguage;
+    vt_apps[5] = (const void *)ia_GetAvailableGameLanguages;
+    vt_apps[6] = (const void *)ia_BIsSubscribedApp;
+    vt_apps[7] = (const void *)ia_BIsDlcInstalled;
+    vt_apps[8] = (const void *)ia_GetEarliestPurchaseUnixTime;
+    vt_apps[9]  = (const void *)ia_BIsSubscribedFromFreeWeekend;
+    vt_apps[20] = (const void *)ia_GetAppOwner;
+    vt_apps[21] = (const void *)ia_GetLaunchQueryParam;
+
+    /* ISteamUser: GetUserDataFolder (6) writes into a caller buffer that stays
+     * uninitialised under the stub. */
+    vt_user[6] = (const void *)iu_GetUserDataFolder;
 }
 
 /* ---- flat exports ------------------------------------------------------- */

@@ -1,0 +1,21 @@
+"compatibilitytools"
+{
+	"compat_tools"
+	{
+		"crossover-steam-shim"
+		{
+			"install_path"	"."
+			"display_name"	"CrossOver Steam Shim"
+			"from_oslist"	"windows"
+			"to_oslist"	"macos"
+			"app_mappings"
+			{
+				"0"
+				{
+					"config"	""
+					"priority"	"100"
+				}
+			}
+		}
+	}
+}

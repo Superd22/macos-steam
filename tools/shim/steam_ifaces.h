@@ -27,7 +27,11 @@ class ISteamUser {
  public:
   virtual HSteamUser GetHSteamUser() = 0;
   virtual bool       BLoggedOn() = 0;
-  virtual CSteamID_t GetSteamID() = 0;
+  virtual CSteamID_t GetSteamID() = 0;                                          // 2
+  virtual int  InitiateGameConnection_DEPRECATED(void*, int, CSteamID_t, uint32_t, uint16_t, bool) = 0; // 3
+  virtual void TerminateGameConnection_DEPRECATED(uint32_t, uint16_t) = 0;      // 4
+  virtual void TrackAppUsageEvent(uint64_t, int, const char*) = 0;              // 5
+  virtual bool GetUserDataFolder(char*, int) = 0;                               // 6
   // ... truncated
 };
 
@@ -58,9 +62,11 @@ class ISteamUserStats012 {
   // ... truncated
 };
 
-// ISteamUtils VERSION010: GetAppID sits at slot 9 (steam_api64.dll's init calls
-// it to validate the app context against steam_appid.txt). No overloads, so the
+// ISteamUtils VERSION010, transcribed in full (39 slots, 0-38) from Proton's
+// generated MSVC vtable, lsteamclient/winISteamUtils.c. No overloads, so the
 // dylib's Itanium order equals the MSVC order steam_api64.dll expects.
+// GetIPCountry (4) and GetSteamUILanguage (23) are the only const char* returns:
+// stubbed they hand the game NULL, which it dereferences.
 class ISteamUtils010 {
  public:
   virtual uint32_t GetSecondsSinceAppActive() = 0;                  // 0
@@ -73,7 +79,35 @@ class ISteamUtils010 {
   virtual bool     GetCSERIPPort(uint32_t*, uint16_t*) = 0;         // 7
   virtual uint8_t  GetCurrentBatteryPower() = 0;                    // 8
   virtual AppId_t  GetAppID() = 0;                                  // 9
-  // ... truncated
+  virtual void     SetOverlayNotificationPosition(int32_t) = 0;      // 10
+  virtual bool     IsAPICallCompleted(SteamAPICall_t, bool*) = 0;    // 11
+  virtual int32_t  GetAPICallFailureReason(SteamAPICall_t) = 0;      // 12
+  virtual bool     GetAPICallResult(SteamAPICall_t, void*, int, int, bool*) = 0; // 13
+  virtual void     RunFrame() = 0;                                  // 14
+  virtual uint32_t GetIPCCallCount() = 0;                           // 15
+  virtual void     SetWarningMessageHook(void*) = 0;                // 16
+  virtual bool     IsOverlayEnabled() = 0;                          // 17
+  virtual bool     BOverlayNeedsPresent() = 0;                      // 18
+  virtual SteamAPICall_t CheckFileSignature(const char*) = 0;       // 19
+  virtual bool     ShowGamepadTextInput(int32_t, int32_t, const char*, uint32_t, const char*) = 0; // 20
+  virtual uint32_t GetEnteredGamepadTextLength() = 0;               // 21
+  virtual bool     GetEnteredGamepadTextInput(char*, uint32_t) = 0; // 22
+  virtual const char* GetSteamUILanguage() = 0;                     // 23
+  virtual bool     IsSteamRunningInVR() = 0;                        // 24
+  virtual void     SetOverlayNotificationInset(int, int) = 0;       // 25
+  virtual bool     IsSteamInBigPictureMode() = 0;                   // 26
+  virtual void     StartVRDashboard() = 0;                          // 27
+  virtual bool     IsVRHeadsetStreamingEnabled() = 0;               // 28
+  virtual void     SetVRHeadsetStreamingEnabled(bool) = 0;          // 29
+  virtual bool     IsSteamChinaLauncher() = 0;                      // 30
+  virtual bool     InitFilterText(uint32_t) = 0;                    // 31
+  virtual int      FilterText(int32_t, CSteamID_t, const char*, char*, uint32_t) = 0; // 32
+  virtual int32_t  GetIPv6ConnectivityState(int32_t) = 0;           // 33
+  virtual bool     IsSteamRunningOnSteamDeck() = 0;                 // 34
+  virtual bool     ShowFloatingGamepadTextInput(int32_t, int, int, int, int) = 0;     // 35
+  virtual void     SetGameLauncherMode(bool) = 0;                   // 36
+  virtual bool     DismissFloatingGamepadTextInput() = 0;           // 37
+  virtual bool     DismissGamepadTextInput() = 0;                   // 38
 };
 
 class ISteamClient {
@@ -92,6 +126,38 @@ class ISteamClient {
   virtual void*      GetISteamMatchmakingServers(HSteamUser, HSteamPipe, const char*) = 0; // 11
   virtual void*      GetISteamGenericInterface(HSteamUser, HSteamPipe, const char*) = 0;    // 12
   virtual void*      GetISteamUserStats(HSteamUser, HSteamPipe, const char*) = 0; // 13
+  // ... truncated
+};
+
+// ISteamApps VERSION008 leading block (slots 0-9). No same-name overloads here,
+// so the dylib's Itanium order equals the MSVC order steam_api64.dll expects, and
+// this block is identical across ISteamApps 006-008. Games call these at init
+// (ownership + language); a stubbed const-char* return (GetCurrentGameLanguage)
+// hands the game NULL and it faults — the #12 Mars-boot crash. Tail truncated.
+class ISteamApps008 {
+ public:
+  virtual bool BIsSubscribed() = 0;                                    // 0
+  virtual bool BIsLowViolence() = 0;                                   // 1
+  virtual bool BIsCybercafe() = 0;                                     // 2
+  virtual bool BIsVACBanned() = 0;                                     // 3
+  virtual const char* GetCurrentGameLanguage() = 0;                    // 4
+  virtual const char* GetAvailableGameLanguages() = 0;                 // 5
+  virtual bool BIsSubscribedApp(AppId_t) = 0;                          // 6
+  virtual bool BIsDlcInstalled(AppId_t) = 0;                           // 7
+  virtual uint32_t GetEarliestPurchaseUnixTime(AppId_t) = 0;           // 8
+  virtual bool BIsSubscribedFromFreeWeekend() = 0;                     // 9
+  virtual int  GetDLCCount() = 0;                                      // 10
+  virtual bool BGetDLCDataByIndex(int, AppId_t*, bool*, char*, int) = 0; // 11
+  virtual void InstallDLC(AppId_t) = 0;                                // 12
+  virtual void UninstallDLC(AppId_t) = 0;                              // 13
+  virtual void RequestAppProofOfPurchaseKey(AppId_t) = 0;              // 14
+  virtual bool GetCurrentBetaName(char*, int) = 0;                     // 15
+  virtual bool MarkContentCorrupt(bool) = 0;                           // 16
+  virtual uint32_t GetInstalledDepots(AppId_t, uint32_t*, uint32_t) = 0; // 17
+  virtual uint32_t GetAppInstallDir(AppId_t, char*, uint32_t) = 0;     // 18
+  virtual bool BIsAppInstalled(AppId_t) = 0;                           // 19
+  virtual CSteamID_t GetAppOwner() = 0;                                // 20
+  virtual const char* GetLaunchQueryParam(const char*) = 0;            // 21
   // ... truncated
 };
 

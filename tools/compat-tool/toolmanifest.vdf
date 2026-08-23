@@ -1,0 +1,10 @@
+"manifest"
+{
+	// Valve compat-tool runtime manifest (version 2). Steam invokes
+	//   <install_path>/<commandline> <verb> <path-to-exe> [args...]
+	// with the STEAM_COMPAT_* environment. See steam-compat-tool-interface.md.
+	"version"		"2"
+	"commandline"		"/steamclient-shim-launch.sh"
+	"use_sessions"		"1"
+	"require_tool_appid"	""
+}

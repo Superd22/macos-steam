@@ -36,3 +36,4 @@ tools/harness/build/
 
 tools/shimprobe/steamclient64.dll
 tools/shimprobe/shimprobe.log
+tools/shim/dist/
