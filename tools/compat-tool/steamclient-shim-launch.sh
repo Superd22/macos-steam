@@ -14,11 +14,28 @@
 # steamclient64.dll and answers Steamworks against the native macOS client —
 # with zero Windows Steam.
 #
+# Launch vehicle (#19): CrossOver's FRONT DOOR — `bin/wine --bottle` — not a
+# raw wineloader exec. The perl launcher is what wires the per-title tweak
+# database (CX_HOME -> compatdb.dat -> cxcompatdb.so), the D3DMetal/GPTK dylib
+# preload (CX_APPLEGPTK_LIBD3DSHARED_PATH consumed by ntdll.so), GStreamer,
+# and whatever CodeWeavers add next; replicating it means maintaining a copy
+# of their launch logic against every update. Requiring CrossOver is fine.
+#
+# Two launch facts the front door does NOT cover, which this script owns:
+#   1. CWD must be the game dir. Mars resolves pack files ("Packs/Lua.fpk")
+#      relative to the working directory and DELIBERATELY crashes (null write
+#      at a fixed address in Mars.exe) when a mount fails — the #18/#19
+#      "graphics" crash was this, not D3D12.
+#   2. WINEDLLPATH must include the shim dir so ntdll finds steamclient64.so
+#      beside the builtin-marked PE (#8/#10). The perl launcher rebuilds
+#      WINEDLLPATH, so the shim dir rides in via the bottle's cxbottle.conf
+#      "[Wine] DllPath" — planted idempotently below.
+#
 # The load-bearing wiring, all from #11/#13:
 #   - SteamClientDll64 registry value  -> the ONLY hook that makes steam_api64
 #     load our PE (#13; the beside-the-EXE path never fires).
-#   - WINEDLLPATH contains the shim dir -> so ntdll finds steamclient64.so
-#     beside the builtin-marked steamclient64.dll (#8/#10).
+#   - cxbottle.conf [Wine] DllPath     -> shim dir on WINEDLLPATH through the
+#     front door (#19).
 #   - SteamAppId / SteamGameId          -> gives the dylib's ISteamUserStats its
 #     app context; taken from Valve's STEAM_COMPAT_APP_ID (#11).
 #
@@ -42,8 +59,8 @@ log "verb=$VERB exe=$EXE args=$*"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CX_APP="${CX_APP:-$HOME/Applications/CrossOver.app}"
 CXROOT="$CX_APP/Contents/SharedSupport/CrossOver"
-WL="$CXROOT/CrossOver-Hosted Application/wineloader"
-[ -x "$WL" ] || { log "wineloader not found at $WL"; exit 2; }
+CXWINE="$CXROOT/bin/wine"
+[ -x "$CXWINE" ] || { log "CrossOver front door not found at $CXWINE"; exit 2; }
 
 # Shim location: env override, else the deployed copy beside this script
 # (payload layout, ADR 0002), else the repo dev tree.
@@ -74,20 +91,29 @@ mkdir -p "$SHIMDIR"
 cp -f "$SHIM_DIST/steamclient64.dll" "$SHIMDIR/steamclient64.dll"
 cp -f "$SHIM_DIST/steamclient64.so"  "$SHIMDIR/steamclient64.so"
 
-export WINEPREFIX="$BOTTLE"
-export CX_ROOT="$CXROOT"
-export WINEDLLPATH="$CXROOT/lib/wine/x86_64-windows:$SHIMDIR"
+# Shim dir on WINEDLLPATH through the front door: cxbottle.conf [Wine] DllPath.
+# The perl launcher rebuilds WINEDLLPATH from this key (#19); default win64
+# path first, shim dir after, trailing lib/wine as the launcher's own default.
+CONF="$BOTTLE/cxbottle.conf"
+if ! grep -q '^"DllPath"' "$CONF" 2>/dev/null; then
+    printf '\n[Wine]\n"DllPath" = "${CX_ROOT}/lib/wine/x86_64-windows:${WINEPREFIX}/drive_c/shim:${CX_ROOT}/lib/wine"\n' >> "$CONF"
+    log "planted [Wine] DllPath in cxbottle.conf"
+fi
+
 export SteamAppId="$APPID"
 export SteamGameId="$APPID"
 export SteamNoOverlayUIDrawing=1
 export SteamOverlayGameId=0
+export CX_BOTTLE="$BOTTLE_NAME"
 
 # The single load-bearing registry value (#13): point steam_api64.dll at our PE.
-"$WL" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
+"$CXWINE" --bottle "$BOTTLE_NAME" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
     /v SteamClientDll64 /t REG_SZ /d "C:\\shim\\steamclient64.dll" /f >/dev/null 2>&1
 
-# --- run the title's .exe through CrossOver -----------------------------------
-# wineloader accepts a unix path to the .exe. For "run" (a short-lived helper
-# Steam spins off) we do the same wiring; only "waitforexitandrun" is the title.
-log "launching: wine $EXE $*"
-exec "$WL" "$EXE" "$@"
+# --- run the title's .exe through CrossOver's front door ----------------------
+# CWD must be the game dir (#19): the engine mounts pack files relative to it.
+# For "run" (a short-lived helper Steam spins off) we do the same wiring; only
+# "waitforexitandrun" is the title.
+cd "$(dirname "$EXE")"
+log "launching (front door, cwd=$PWD): wine --bottle $BOTTLE_NAME $EXE $*"
+exec "$CXWINE" --bottle "$BOTTLE_NAME" "$EXE" "$@"
