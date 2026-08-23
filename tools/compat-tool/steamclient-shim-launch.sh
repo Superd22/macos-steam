@@ -152,8 +152,18 @@ fi
 
 export SteamAppId="$APPID"
 export SteamGameId="$APPID"
-export SteamNoOverlayUIDrawing=1
-export SteamOverlayGameId=0
+# Overlay (#21/#24). Off by default: without an inserted gameoverlayrenderer.dylib
+# there is no compositor, and a title that believes an overlay exists can wait on
+# one forever. SHIM_OVERLAY=1 flips it for the spike — the renderer checks BOTH of
+# these and bails on SteamNoOverlayUIDrawing, so it must be unset, not just empty.
+if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
+    unset SteamNoOverlayUIDrawing
+    export SteamOverlayGameId="$APPID"
+    log "overlay ENABLED: SteamOverlayGameId=$APPID, SteamNoOverlayUIDrawing unset"
+else
+    export SteamNoOverlayUIDrawing=1
+    export SteamOverlayGameId=0
+fi
 export CX_BOTTLE="$BOTTLE_NAME"
 
 # The load-bearing registry values (#13): point steam_api at our PE. There are
