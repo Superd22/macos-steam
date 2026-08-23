@@ -54,6 +54,9 @@ fi
     || { log "building injector"; "$REPO/tools/compat-enabler/build.sh"; }
 [ -f "$REPO/tools/shim/dist/steamclient64.dll" ] && [ -f "$REPO/tools/shim/dist/steamclient.dll" ] \
     || { log "building shim (both bitnesses)"; "$REPO/tools/shim/build.sh"; }
+[ -f "$REPO/tools/overlay-inject/dist/overlayinject64.exe" ] \
+    && [ -f "$REPO/tools/overlay-inject/dist/overlayinject32.exe" ] \
+    || { log "building overlay injector"; "$REPO/tools/overlay-inject/build.sh"; }
 
 # --- payload ------------------------------------------------------------------
 mkdir -p "$TOOLDIR/dist"
@@ -69,6 +72,11 @@ cp -f "$REPO/tools/shim/dist/steamclient64.so"             "$TOOLDIR/dist/"
 # "Could not sign in to your Steam account".
 cp -f "$REPO/tools/shim/dist/steamclient.dll"              "$TOOLDIR/dist/"
 cp -f "$REPO/tools/shim/dist/steamclient.so"               "$TOOLDIR/dist/"
+# The overlay injector (#25, ADR 0003) — the launch script plants it in the
+# bottle and routes through it when SHIM_OVERLAY=1. Without both bitnesses the
+# script leaves the overlay off rather than arming an env it cannot deliver.
+cp -f "$REPO/tools/overlay-inject/dist/overlayinject64.exe" "$TOOLDIR/dist/"
+cp -f "$REPO/tools/overlay-inject/dist/overlayinject32.exe" "$TOOLDIR/dist/"
 chmod +x "$TOOLDIR/steamclient-shim-launch.sh"
 log "payload -> $PAYLOAD"
 

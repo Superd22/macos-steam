@@ -716,6 +716,39 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         if (g_tls == TLS_OUT_OF_INDEXES) dbg("shim: TlsAlloc failed");
 #endif
         build_vtables();
+        /* Overlay (#25 / ADR 0003). When the injector puts us into a process at
+         * creation, merely being loaded must be enough — nothing here will ever
+         * call a seam entry point, because the title may not use Steam at all.
+         * Binding the seam is what makes ntdll dlopen our unixlib, and the
+         * unixlib's constructor is what dlopens Valve's renderer, so this one
+         * call is the whole payload.
+         *
+         * It has to happen in DllMain, under loader lock, because the deadline
+         * is the process's first USER call (winemac.so is demand-loaded — see
+         * the study's Addendum 2 B7). ensure_seam only does GetModuleHandle,
+         * GetProcAddress and NtQueryVirtualMemory: no LoadLibrary, so it is not
+         * the loader-lock hazard that a LoadLibrary here would be. */
+        if (GetEnvironmentVariableA("SHIM_OVERLAY", NULL, 0) > 0) {
+            int rc = ensure_seam();
+            /* Diagnostic for #25: whether the title's own startup has already
+             * run by the time we initialise. user32 loaded here means the PE
+             * loader has already processed the title's static imports — and if
+             * any of those touched USER, winemac.so (and NSApp) beat us. */
+            dbg("shim: overlay pre-bind, ensure_seam=%d user32=%s d3d12=%s dxgi=%s", rc,
+                GetModuleHandleA("user32.dll") ? "LOADED" : "no",
+                GetModuleHandleA("d3d12.dll") ? "LOADED" : "no",
+                GetModuleHandleA("dxgi.dll") ? "LOADED" : "no");
+            {
+                FILE *f = fopen("C:\\overlayinject.log", "a");
+                if (f) {
+                    fprintf(f, "  payload DllMain: ensure_seam=%d user32=%s d3d12=%s dxgi=%s\n", rc,
+                            GetModuleHandleA("user32.dll") ? "LOADED" : "no",
+                            GetModuleHandleA("d3d12.dll") ? "LOADED" : "no",
+                            GetModuleHandleA("dxgi.dll") ? "LOADED" : "no");
+                    fclose(f);
+                }
+            }
+        }
         /* Base address is load-bearing diagnostics: a wine fault is reported as
          * an absolute address, and the only way to tell whether it is ours is to
          * subtract our base and disassemble the offset (#11's method). */

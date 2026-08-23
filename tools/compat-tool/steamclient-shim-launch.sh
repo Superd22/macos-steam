@@ -156,13 +156,23 @@ else
     fi
 fi
 
+# Overlay injector (#25, ADR 0003). Only the 64-bit one is ever invoked: it reads
+# the title's PE header and hands over to its 32-bit sibling when they disagree,
+# because CreateRemoteThread cannot cross a bitness boundary.
+HAVE_INJECT=0
+if [ -f "$SHIM_DIST/overlayinject64.exe" ] && [ -f "$SHIM_DIST/overlayinject32.exe" ]; then
+    cp -f "$SHIM_DIST/overlayinject64.exe" "$SHIMDIR/overlayinject64.exe"
+    cp -f "$SHIM_DIST/overlayinject32.exe" "$SHIMDIR/overlayinject32.exe"
+    HAVE_INJECT=1
+fi
+
 export SteamAppId="$APPID"
 export SteamGameId="$APPID"
 # Overlay (#21/#24). Off by default: without an inserted gameoverlayrenderer.dylib
 # there is no compositor, and a title that believes an overlay exists can wait on
 # one forever. SHIM_OVERLAY=1 flips it for the spike — the renderer checks BOTH of
 # these and bails on SteamNoOverlayUIDrawing, so it must be unset, not just empty.
-if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
+if [ "${SHIM_OVERLAY:-0}" = 1 ] && [ "$HAVE_INJECT" = 1 ]; then
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$APPID"
     # Export, not just read: the unixlib's constructor getenv()s this to decide
@@ -176,6 +186,9 @@ if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
     log "overlay ENABLED: SteamOverlayGameId=$APPID, SteamNoOverlayUIDrawing unset"
     log "      renderer log: /tmp/gameoverlayrenderer.<pid>.log"
 else
+    # Off, and off HARD: a title told an overlay exists can wait on one forever,
+    # so never arm the env without an injector to deliver the renderer.
+    [ "${SHIM_OVERLAY:-0}" = 1 ] && log "overlay requested but no injector in $SHIM_DIST — staying off"
     export SteamNoOverlayUIDrawing=1
     export SteamOverlayGameId=0
 fi
@@ -199,5 +212,24 @@ fi
 # For "run" (a short-lived helper Steam spins off) we do the same wiring; only
 # "waitforexitandrun" is the title.
 cd "$(dirname "$EXE")"
+# The injector is a PE and calls CreateProcess, which cannot open a UNIX path —
+# and Steam hands us one for its own helpers (iscriptevaluator.exe), which died
+# with "CreateProcess failed 2" when the first version of this routed them too.
+# The verb does not discriminate: our manifest omits %verb%, so those helper
+# invocations are ALSO seen as waitforexitandrun. The path shape is what tells
+# them apart, so convert it the way Wine does and let anything unconvertible go
+# down the direct path.
+EXE_WIN="$EXE"
+case "$EXE" in
+    /*) EXE_WIN="Z:$(printf '%s' "$EXE" | tr '/' '\\')" ;;
+esac
+if [ "${SHIM_OVERLAY:-0}" = 1 ] && [ "$HAVE_INJECT" = 1 ] && [ -f "$EXE" ]; then
+    # The injector creates the title suspended, puts the shim PE in before any of
+    # the title's own code runs, and resumes — that ordering is the whole overlay
+    # (ADR 0003). It stays for the title's lifetime and exits with the title's
+    # own code, which is what Steam reads back through this tool.
+    log "launching (front door, injected): wine --bottle $BOTTLE_NAME overlayinject64.exe $EXE $*"
+    exec "$CXWINE" --bottle "$BOTTLE_NAME" "$SHIMDIR/overlayinject64.exe" "$EXE_WIN" "$@"
+fi
 log "launching (front door, cwd=$PWD): wine --bottle $BOTTLE_NAME $EXE $*"
 exec "$CXWINE" --bottle "$BOTTLE_NAME" "$EXE" "$@"

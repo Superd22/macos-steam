@@ -45,3 +45,5 @@ tools/overlay-probe/*
 !tools/overlay-probe/*.h
 !tools/overlay-probe/*.md
 !tools/overlay-probe/build.sh
+
+tools/overlay-inject/dist/

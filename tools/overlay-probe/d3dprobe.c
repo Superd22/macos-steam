@@ -46,6 +46,13 @@ typedef void *(__cdecl *CreateInterfaceFn)(const char *, int *);
 static void pull_in_renderer(void)
 {
     const char *dll = "C:\\shim\\steamclient64.dll";
+    /* SHIM_NO_SELF_PULL=1 makes this an honest target for #25's injector: the
+     * probe then does nothing to help itself, so a Hooking line in the renderer
+     * log is the injector's doing and nobody else's. */
+    if (GetEnvironmentVariableA("SHIM_NO_SELF_PULL", NULL, 0) > 0) {
+        printf("self-pull disabled — renderer must arrive by injection\n");
+        return;
+    }
     HMODULE m = LoadLibraryA(dll);
     printf("LoadLibrary(%s) -> %p\n", dll, (void *)m);
     if (!m) { printf("  (no shim PE — renderer will NOT be loaded)\n"); return; }
