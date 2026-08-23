@@ -106,6 +106,15 @@ enum shim_call
     C_CopyMem,                  /* memcpy(dst, src, len)                        */
     C_CopyStr,                  /* strlcpy(dst, src, cap) -> ret = source length */
 
+    /* ISteamUser encrypted app ticket (#20). Among Us does not use Steam for
+     * its own account: it authenticates to Epic Online Services, and EOS's
+     * "Auth with Steam" path asks Steam for an ENCRYPTED APP TICKET. Left
+     * stubbed, RequestEncryptedAppTicket returns 0, no SteamAPICall_t is ever
+     * issued, the EncryptedAppTicketResponse_t never arrives, and the game
+     * sits on its loading screen until EOSManager::ShowTimeout() fires. */
+    C_User_RequestEncryptedAppTicket,
+    C_User_GetEncryptedAppTicket,
+
     C_COUNT
 };
 
@@ -153,6 +162,11 @@ struct sp_apps_qparam      { uint64_t handle; uint64_t key; uint64_t ret; };    
 
 /* ---- ISteamUser (appended) ---- */
 struct sp_user_datafolder  { uint64_t handle; uint64_t buf; int32_t len; int32_t ret; }; /* GetUserDataFolder */
+/* ret is the SteamAPICall_t handle; `data` and `ticket`/`cbticket` are PE
+ * addresses the game supplies, so they zero-extend and the native side writes
+ * through them directly — the copy-down path is not involved. */
+struct sp_user_reqticket   { uint64_t handle; uint64_t data; uint64_t ret; int32_t cb; };
+struct sp_user_getticket   { uint64_t handle; uint64_t ticket; uint64_t cbticket; int32_t max; int32_t ret; };
 
 /* ---- ISteamUtils (VERSION010) ---- */
 /* sp_utils_u32 (declared above for GetAppID) also carries every no-arg uint32

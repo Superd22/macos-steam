@@ -112,14 +112,18 @@ static int seam(unsigned code, void *args)
  * gcc's __thread does NOT work here. This DLL is brought in by LoadLibrary at
  * runtime (steam_api resolves it from the SteamClientDll registry value), and a
  * thread that already existed when that happened has no slot for the module's
- * TLS block — reads come back as garbage. Under the harness that never showed:
- * one thread, created after the load. Under a Unity title, GetCurrentGameLanguage
- * is answered on an older thread, so the "string" handed back was a junk pointer
- * and the game faulted inside the CRT's strlen scanning it — three frames away
- * from anything that looked like ours.
+ * TLS block — reads come back as garbage. Explicit TlsAlloc/TlsGetValue has no
+ * such rule: the slot is per-thread and allocated on first touch, whenever the
+ * thread was born.
  *
- * Explicit TlsAlloc/TlsGetValue has no such rule: the slot is per-thread and
- * allocated on first touch, whenever the thread was born. */
+ * NOTE: an earlier revision of this comment credited the switch with fixing the
+ * Unity crash in GetCurrentGameLanguage. It did not, and the claim cost a lot of
+ * time. That crash was in the dbg() call one line below the copy-down, which
+ * formatted the RAW native pointer with %s instead of the copied-down string;
+ * on i386 that truncates a >4 GB macOS heap address to 32 bits and the CRT's
+ * strlen walks into it. The DLL that still crashed already had this TLS code in
+ * it. Two independent i386 pointer-width bugs on the same line of source, and
+ * fixing the harder one first hid the easier one — see FINDINGS-32BIT.md. */
 #ifdef __i386__          /* only the i386 copy-down paths need per-thread scratch */
 static DWORD g_tls = TLS_OUT_OF_INDEXES;
 
@@ -366,9 +370,10 @@ static int32_t THISCALL iut_GetConnectedUniverse(struct w_iface *s)
 static uint32_t THISCALL iut_GetServerRealTime(struct w_iface *s)
 { struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetServerRealTime, &p); return p.ret; }
 static const char * THISCALL iut_GetIPCountry(struct w_iface *s)
-{ struct sp_utils_str p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetIPCountry, &p);
-  dbg("shim: GetIPCountry() -> %s", p.ret ? native_str(p.ret) : "(null)");
-  return native_str(p.ret); }
+{ struct sp_utils_str p; const char *r; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetIPCountry, &p);
+  r = native_str(p.ret);
+  dbg("shim: GetIPCountry() -> %s", r ? r : "(null)");
+  return r; }
 static uint8_t THISCALL iut_GetCurrentBatteryPower(struct w_iface *s)
 { struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetCurrentBatteryPower, &p); return (uint8_t)p.ret; }
 static uint8_t THISCALL iut_IsAPICallCompleted(struct w_iface *s, uint64_t call, void *failed)
@@ -386,9 +391,10 @@ static void THISCALL iut_RunFrame(struct w_iface *s)
 static uint32_t THISCALL iut_GetIPCCallCount(struct w_iface *s)
 { struct sp_utils_u32 p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetIPCCallCount, &p); return p.ret; }
 static const char * THISCALL iut_GetSteamUILanguage(struct w_iface *s)
-{ struct sp_utils_str p; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetSteamUILanguage, &p);
-  dbg("shim: GetSteamUILanguage() -> %s", p.ret ? (const char*)(uintptr_t)p.ret : "(null)");
-  return native_str(p.ret); }
+{ struct sp_utils_str p; const char *r; p.handle = s->handle; p.ret = 0; seam(C_Utils_GetSteamUILanguage, &p);
+  r = native_str(p.ret);
+  dbg("shim: GetSteamUILanguage() -> %s", r ? r : "(null)");
+  return r; }
 
 /* ---- ISteamUserStats (v012) thunks -------------------------------------- */
 static uint8_t THISCALL is_RequestCurrentStats(struct w_iface *s)
@@ -430,9 +436,10 @@ static uint8_t THISCALL ia_BIsCybercafe(struct w_iface *s)
 static uint8_t THISCALL ia_BIsVACBanned(struct w_iface *s)
 { struct sp_apps_bool p; p.handle = s->handle; p.ret = 0; seam(C_Apps_BIsVACBanned, &p); return (uint8_t)p.ret; }
 static const char * THISCALL ia_GetCurrentGameLanguage(struct w_iface *s)
-{ struct sp_apps_str p; p.handle = s->handle; p.ret = 0; seam(C_Apps_GetCurrentGameLanguage, &p);
-  dbg("shim: GetCurrentGameLanguage() -> %s", p.ret ? (const char*)(uintptr_t)p.ret : "(null)");
-  return native_str(p.ret); }
+{ struct sp_apps_str p; const char *r; p.handle = s->handle; p.ret = 0; seam(C_Apps_GetCurrentGameLanguage, &p);
+  r = native_str(p.ret);
+  dbg("shim: GetCurrentGameLanguage() -> %s", r ? r : "(null)");
+  return r; }
 static const char * THISCALL ia_GetAvailableGameLanguages(struct w_iface *s)
 { struct sp_apps_str p; p.handle = s->handle; p.ret = 0; seam(C_Apps_GetAvailableGameLanguages, &p);
   return native_str(p.ret); }
@@ -455,6 +462,22 @@ static const char * THISCALL ia_GetLaunchQueryParam(struct w_iface *s, const cha
   seam(C_Apps_GetLaunchQueryParam, &p); return native_str(p.ret); }
 
 /* ---- ISteamUser (appended) ---------------------------------------------- */
+/* EOS "Auth with Steam" (#20). Async: the SteamAPICall_t comes back here and the
+ * ticket itself arrives later via EncryptedAppTicketResponse_t (1466) on the
+ * existing pump, whereupon the game calls GetEncryptedAppTicket. Both buffers
+ * belong to the game, so they are PE addresses that zero-extend across the
+ * seam — no copy-down. Proton: slot 20 pops 12 bytes, slot 21 pops 16. */
+static uint64_t THISCALL iu_RequestEncryptedAppTicket(struct w_iface *s, void *data, int32_t cb)
+{ struct sp_user_reqticket p; p.handle = s->handle; p.data = (uint64_t)(uintptr_t)data;
+  p.cb = cb; p.ret = 0; seam(C_User_RequestEncryptedAppTicket, &p);
+  dbg("shim: RequestEncryptedAppTicket(cb=%d) -> call=%llu", cb, (unsigned long long)p.ret);
+  return p.ret; }
+static uint8_t THISCALL iu_GetEncryptedAppTicket(struct w_iface *s, void *ticket, int32_t max, uint32_t *cbticket)
+{ struct sp_user_getticket p; p.handle = s->handle; p.ticket = (uint64_t)(uintptr_t)ticket;
+  p.cbticket = (uint64_t)(uintptr_t)cbticket; p.max = max; p.ret = 0;
+  seam(C_User_GetEncryptedAppTicket, &p);
+  dbg("shim: GetEncryptedAppTicket(max=%d) -> %d (%u bytes)", max, p.ret, cbticket ? *cbticket : 0u);
+  return (uint8_t)p.ret; }
 static uint8_t THISCALL iu_GetUserDataFolder(struct w_iface *s, char *buf, int32_t len)
 { struct sp_user_datafolder p; p.handle = s->handle; p.buf = (uint64_t)(uintptr_t)buf; p.len = len; p.ret = 0;
   seam(C_User_GetUserDataFolder, &p); return (uint8_t)p.ret; }
@@ -523,6 +546,8 @@ static void build_vtables(void)
     wire("SteamUser021", "BLoggedOn", (const void *)iu_BLoggedOn);
     wire("SteamUser021", "GetSteamID", (const void *)iu_GetSteamID);
     wire("SteamUser021", "GetUserDataFolder", (const void *)iu_GetUserDataFolder);
+    wire("SteamUser021", "RequestEncryptedAppTicket", (const void *)iu_RequestEncryptedAppTicket);
+    wire("SteamUser021", "GetEncryptedAppTicket", (const void *)iu_GetEncryptedAppTicket);
 
     /* ISteamUtils -> SteamUtils010 */
     wire("SteamUtils010", "GetSecondsSinceAppActive", (const void *)iut_GetSecondsSinceAppActive);

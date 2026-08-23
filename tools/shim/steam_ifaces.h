@@ -32,6 +32,29 @@ class ISteamUser {
   virtual void TerminateGameConnection_DEPRECATED(uint32_t, uint16_t) = 0;      // 4
   virtual void TrackAppUsageEvent(uint64_t, int, const char*) = 0;              // 5
   virtual bool GetUserDataFolder(char*, int) = 0;                               // 6
+  /* Slots 7-21 transcribed for #20: EOS "Auth with Steam" (Among Us) needs
+   * RequestEncryptedAppTicket at 20. SteamUser021 has NO overloaded method
+   * names, so MSVC order == declaration order == this native Itanium order —
+   * checked against Proton's __ASM_BLOCK(winISteamUser_SteamUser021_vtables),
+   * and slots 0-6 above already agree with it. The voice/auth slots below are
+   * declared only to place slots 20-21 correctly; none of them is called. */
+  virtual void StartVoiceRecording() = 0;                                       // 7
+  virtual void StopVoiceRecording() = 0;                                        // 8
+  virtual uint32_t GetAvailableVoice(uint32_t*, uint32_t*, uint32_t) = 0;       // 9
+  virtual uint32_t GetVoice(bool, void*, uint32_t, uint32_t*, bool, void*,
+                            uint32_t, uint32_t*, uint32_t) = 0;                 // 10
+  virtual uint32_t DecompressVoice(const void*, uint32_t, void*, uint32_t,
+                                   uint32_t*, uint32_t) = 0;                    // 11
+  virtual uint32_t GetVoiceOptimalSampleRate() = 0;                             // 12
+  virtual uint32_t GetAuthSessionTicket(void*, int, uint32_t*) = 0;             // 13
+  virtual uint32_t BeginAuthSession(const void*, int, CSteamID_t) = 0;          // 14
+  virtual void EndAuthSession(CSteamID_t) = 0;                                  // 15
+  virtual void CancelAuthTicket(uint32_t) = 0;                                  // 16
+  virtual uint32_t UserHasLicenseForApp(CSteamID_t, uint32_t) = 0;              // 17
+  virtual bool BIsBehindNAT() = 0;                                              // 18
+  virtual void AdvertiseGame(CSteamID_t, uint32_t, uint16_t) = 0;               // 19
+  virtual SteamAPICall_t RequestEncryptedAppTicket(void*, int) = 0;             // 20
+  virtual bool GetEncryptedAppTicket(void*, int, uint32_t*) = 0;                // 21
   // ... truncated
 };
 

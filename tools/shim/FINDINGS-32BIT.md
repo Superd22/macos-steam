@@ -5,7 +5,7 @@ Findings for [#20](https://github.com/Superd22/macos-steam/issues/20). Measured 
 native Steam.app running and **online** (`Steam_BConnected = TRUE`, `BLoggedOn = 1`).
 **Zero Windows Steam processes** at any point.
 
-## Verdict: PASS on the reported bug. Among Us now fails later, for an unrelated reason.
+## Verdict: PASS. Among Us reaches its account-setup screen; the Steam path is done.
 
 The 32-bit harness, driven through the production compat-tool launch path, reproduces #11's
 result on i386:
@@ -28,8 +28,10 @@ shim and reads the real Among Us achievement list off the live server (`wins_ske
 Negative control (#13 protocol): remove `C:\shim\steamclient.dll` and delete
 `SteamClientDll` → `SteamAPI_Init() = 0` in **426 ms**. The shim is what answers.
 
-**The game itself still does not reach its menu**, but no longer for a Steam reason — see
-"Where Among Us actually dies" below.
+Among Us itself now boots to its **date-of-birth age gate** (`DOBEnterScreen`), blocked only
+on a human entering a date. Getting there took two more fixes found after the first write-up
+of this document — both ours, both i386 pointer-width — see "Two bugs this document originally
+got wrong" below.
 
 ## The bug, and why the error message pointed the wrong way
 
@@ -124,9 +126,10 @@ from the version's own table, telling the two shapes apart by Proton's byte coun
   `build.sh` now fails the build if any mingw runtime import reappears. The 64-bit build never
   needed this, which is exactly why it was easy to miss.
 - **`__thread` in a `LoadLibrary`'d DLL.** Unusable here: a thread that already existed when
-  the DLL was loaded has no slot for its TLS block. Replaced with fixed `.bss` storage of
-  **process** lifetime — `TlsAlloc` was tried and is worse, because freeing the block on
-  `DLL_THREAD_DETACH` pulls memory out from under a string the game still holds.
+  the DLL was loaded has no slot for its TLS block, so reads come back as garbage. Replaced
+  with explicit `TlsAlloc`/`TlsGetValue`, where the slot is allocated on first touch whenever
+  the thread was born. **This did not fix the Unity crash**, though the first version of this
+  document and the code comment both said it did; see below.
 - **Wine faults are reported as a bare absolute address**, and CrossOver strips the trace
   channels that would name the module (`+loaddll` produces nothing). The shim now logs its own
   base and, with `SHIM_PE_LOG` set, the whole module map — which is how `ucrtbase.dll+0x74666`
@@ -149,23 +152,102 @@ Both only visible on i386, both in code that **presents** a vtable to Steam:
 **Rule:** anything that presents a vtable to Steam must present it thiscall, in MSVC's order —
 test harnesses included.
 
-## Where Among Us actually dies now
+## Two bugs this document originally got wrong
 
-Not in Steam. `SteamAPI_Init` completes, all 25 interfaces resolve, and the only unmapped
-calls are `Set_SteamAPI_CCheckCallbackRegisteredInProcess` and `SetWarningMessageHook` — both
-of which hand Steam a **PE function pointer**, the deferred-upcall case #11 scoped out, and
-neither is on the sign-in path.
+The first version of this write-up said Among Us died in **Unity Addressables** fetching its
+content catalog, "a Unity/UnityWebRequest-under-CrossOver problem, not a bridge problem", and
+recommended splitting it out. That was wrong. Both remaining blockers were ours, and both were
+the same i386 pointer-width mistake wearing different clothes.
 
-The game then crashes in **Unity Addressables**, fetching its content catalog from
-`unity3dusercontent.com` (`Player.log`: `TextDataProvider:Provide` →
-`InternalOp:RequestOperation_completed` → `Crash!!!`), faulting inside `ucrtbase.dll+0x74666`
-— a `strlen`-family scan over a heap pointer that is **not one of ours** (our string pool is
-in the shim's `.bss` at base+; the faulting address is a game heap address, and its low 12
-bits are identical across every run, so it is a real pointer, not garbage we produced).
+### 1. The crash: a native pointer formatted with `%s`
 
-That is a Unity/UnityWebRequest-under-CrossOver problem, not a bridge problem, and it wants
-its own ticket. Retiring it needs a title whose first-run path does not depend on a remote
-Addressables catalog.
+The evidence was already on disk and went unread. **All seven** Unity crash dumps carry the
+same frame chain, across three different builds of the shim:
+
+```
+0x7A2C4666 (ucrtbase)      <- fault
+0x7A2B4943 (ucrtbase)
+0x7A2B6758 (ucrtbase)
+0x7A26F596 (ucrtbase)
+0x74045B54 (steamclient)   <- OURS. base 0x74030000, so RVA 0x15B54
+0x7617DE59 (gameassembly)
+```
+
+`GameAssembly` called *us*, and we called the CRT. Disassembling RVA `0x15B54` lands on the
+instruction immediately after `call ___stdio_common_vsprintf`, inside the shim's own
+`vsnprintf`. And the last line the unix half ever wrote was `GetCurrentGameLanguage() -> english`.
+
+Three sites logged the **raw native pointer** rather than the copied-down string:
+
+```c
+dbg("shim: GetCurrentGameLanguage() -> %s", p.ret ? (const char*)(uintptr_t)p.ret : "(null)");
+```
+
+`native_str()` (§3 above) exists precisely to copy that memory down, and the `return` on the
+next line used it — but the log line did not. On x86_64 the cast is a no-op, which is why it
+survived the entire 64-bit spike. On i386 it truncates a `0x7fce8305...` macOS heap address to
+32 bits and `%s` walks strlen into whatever is there.
+
+Two aggravating factors worth remembering:
+
+- **`dbg()` formats unconditionally.** It calls `vsnprintf` before it ever checks whether
+  `SHIM_PE_LOG` is set, so this faulted on every run, logged or not. A diagnostic that is
+  supposed to be inert when switched off was the thing doing the crashing.
+- **Fixing the harder bug first hid the easier one.** The TLS rework landed in the same commit,
+  aimed at this same crash, and was credited with fixing it. It never touched it: the DLL that
+  still crashed at 19:53 already contained the `TlsAlloc` code. One line of source held two
+  independent i386 pointer-width bugs, and repairing the subtle one left the blunt one in place.
+
+**Rule:** on a bitness seam, a value that needs conversion to be *returned* needs the same
+conversion to be *logged*. Log lines are code.
+
+### 2. The hang: EOS wanted a Steam encrypted app ticket
+
+With the crash gone the game reached its menu and then sat on "loading" until
+`EOSManager:ShowTimeout()` fired. Two lines explain it:
+
+```
+/tmp/au2.pe.log:  shim: SteamUser021 slot 20 RequestEncryptedAppTicket (unmapped)
+Player.log:       [Network] > [EOSManager] > Auth with Steam
+```
+
+**Among Us does not use Steam for its account.** It authenticates to Epic Online Services, and
+EOS's "Auth with Steam" path asks Steam for an **encrypted app ticket**. Left as a numbered
+stub, `RequestEncryptedAppTicket` returned 0, no `SteamAPICall_t` was ever issued, the
+`EncryptedAppTicketResponse_t` never arrived, and the game waited for a callback that could not
+come. A stub that returns 0 is not a no-op for an **async** method: the caller does not read a
+wrong answer, it waits forever for a right one.
+
+Slots 20 and 21 are now wired (`iu_RequestEncryptedAppTicket` / `iu_GetEncryptedAppTicket`).
+`steam_ifaces.h`'s `ISteamUser` is transcribed out to slot 21 to place them; SteamUser021 has
+**no overloaded method names**, so Proton's MSVC order is also the native Itanium order, and
+slots 0-6 already agreed with it — that cross-check is what makes the transcription safe
+(map trap 2). Both buffers belong to the game, so they are PE addresses that zero-extend
+across the seam; the copy-down path is not involved.
+
+The async round-trip works end to end:
+
+```
+RequestEncryptedAppTicket(cb=0) -> call=8863564181403634078
+GetEncryptedAppTicket(max=1024) -> 1 (159 bytes)
+```
+
+### The strongest end-to-end proof the bridge has had
+
+Epic's live backend then decrypted that ticket and read the right account out of it:
+
+```
+identityProviderId: steam  accountId: 76561198014230730
+errors.com.epicgames.eos.auth.user_not_found  (HTTP 404)
+```
+
+That is **not** a failure. It is a third party's servers cryptographically validating a Steam
+ticket our shim produced, resolving it to the correct SteamID, and reporting only that no Epic
+account is linked to it yet. Hence `DOBEnterScreen`: the game is asking for a date of birth so
+it can create one. No mock, no Windows Steam, no replayed capture could produce that response.
+
+Addressables, meanwhile, never was the problem — `Player.log` now reads
+`Addressables - We have the catalog cached so we don't need to download it again`.
 
 ## Reproduce
 
@@ -185,8 +267,25 @@ STEAM_COMPAT_APP_ID=480 SHIM_BOTTLE=steam-shim \
 # negative control: rm "$B/drive_c/shim/steamclient.dll" + delete SteamClientDll -> Init = 0
 ```
 
+And Among Us itself, through the same launch path:
+
+```sh
+AU="$HOME/Library/Application Support/Steam/steamapps/common/Among Us/Among Us.exe"
+rm -f "$B/drive_c/steam_appid.txt"          # let the title supply its own appid
+SHIM_UNIX_LOG=/tmp/au.unix.log SHIM_PE_LOG=/tmp/au.pe.log \
+STEAM_COMPAT_APP_ID=945360 SHIM_BOTTLE=steam-shim \
+  tools/compat-tool/steamclient-shim-launch.sh waitforexitandrun "$AU"
+# expect in /tmp/au.unix.log:
+#   RequestEncryptedAppTicket(cb=0) -> call=<nonzero>
+#   GetEncryptedAppTicket(max=1024) -> 1 (159 bytes)
+# expect on screen: the DOBEnterScreen age gate, and NO directory created under
+#   "$B/drive_c/users/crossover/AppData/Local/Temp/Innersloth/Among Us/Crashes"
+```
+
 `SHIM_PE_LOG=<path>` dumps the PE side, including the module map and every unmapped vtable
-slot by name — the fastest way to find what a new title wants.
+slot by name — the fastest way to find what a new title wants. Read it for `(unmapped)` lines
+**even when nothing has crashed**: a stubbed *async* method is an invisible hang, not a wrong
+answer (§2 above).
 
 ## Adding a title
 
@@ -194,3 +293,12 @@ slot by name — the fastest way to find what a new title wants.
    — mind the irregular suffixes (`..._VERSION_005`, `..._V003`), which a tighter pattern drops.
 2. Add any new versions to `tools/shim/interface-versions.txt`.
 3. `./build.sh --regen-vtables` (needs network + `gh`), then `./build.sh`.
+4. Run it with `SHIM_PE_LOG` set and grep the log for `(unmapped)`. Wire anything the title
+   actually calls — and treat every unmapped method that returns a `SteamAPICall_t` as a
+   blocker regardless of how harmless it looks, because the game will wait on its callback
+   forever rather than fail. `RequestEncryptedAppTicket` is the worked example: one stubbed
+   async slot, and a fully working game sits on a loading screen.
+
+Titles do not necessarily use Steam for their *account*. Among Us authenticates to Epic Online
+Services and only borrows Steam for identity, so its blocker was in `ISteamUser`, nowhere near
+the achievement path this shim was built for.

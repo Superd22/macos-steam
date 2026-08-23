@@ -331,6 +331,32 @@ static NTSTATUS u_copystr(void *args)
     return 0;
 }
 
+/* ---- ISteamUser encrypted app ticket (#20) --------------------------------
+ * EOS's "Auth with Steam" path. RequestEncryptedAppTicket is ASYNC: it returns
+ * a SteamAPICall_t and the answer arrives later as EncryptedAppTicketResponse_t
+ * (1466) through the existing callback pump, after which the game calls
+ * GetEncryptedAppTicket to collect the bytes. Both buffers are PE addresses the
+ * game supplies, so the native side writes through them with no copy-down. */
+static NTSTATUS u_user_reqencticket(void *args)
+{
+    auto *p = (sp_user_reqticket *)args;
+    p->ret = ((ISteamUser *)p->handle)->RequestEncryptedAppTicket(
+                 (void *)(uintptr_t)p->data, p->cb);
+    ulog("RequestEncryptedAppTicket(cb=%d) -> call=%llu", p->cb,
+         (unsigned long long)p->ret);
+    return 0;
+}
+static NTSTATUS u_user_getencticket(void *args)
+{
+    auto *p = (sp_user_getticket *)args;
+    p->ret = ((ISteamUser *)p->handle)->GetEncryptedAppTicket(
+                 (void *)(uintptr_t)p->ticket, p->max,
+                 (uint32_t *)(uintptr_t)p->cbticket) ? 1 : 0;
+    ulog("GetEncryptedAppTicket(max=%d) -> %d (%u bytes)", p->max, p->ret,
+         p->cbticket ? *(uint32_t *)(uintptr_t)p->cbticket : 0u);
+    return 0;
+}
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -359,6 +385,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
     u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
     u_copymem, u_copystr,
+    u_user_reqencticket, u_user_getencticket,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -379,6 +406,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_utils_runframe, u_utils_ipccallcount, u_utils_uilanguage,
     u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
     u_copymem, u_copystr,
+    u_user_reqencticket, u_user_getencticket,
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a
