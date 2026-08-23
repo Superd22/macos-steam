@@ -1262,3 +1262,39 @@ window exists on paper; it has not been measured. **Spike S-7.**
   one route with no shipping-story cost, and (a1) becomes its fallback with S-2/App Management still
   in the way.
 - Unchanged: **(d)** (#23) ships first regardless; **(c)** stays the fallback of record.
+
+## B6. (a2) from the shim's unixlib is too late — measured on Among Us [V]
+
+The constructor in `steamclient.so` fires, and Valve's renderer loads and attaches inside the real
+game process — `SHIM_OVERLAY=1`, Among Us (945360) through the compat tool:
+
+```
+GameID = 945360, AppID = 945360, OverlayGameID = 945360, PID: 10454 Executable: Among Us.exe
+Modules at GameOverlayRenderer.dll attach
+----------------------------
+                                        <- nothing. no Hooking lines.
+```
+
+Two things are settled by that log:
+
+- **Library validation lets the Valve dylib in.** A dylib signed by team `MXGJJ98X76` loads into the
+  CodeWeavers-signed, hardened game process. §3.1's reading of `disable-library-validation` holds in
+  practice, not just on paper.
+- **We are late.** Line 527 of the same module list is
+  `…/lib/wine/x86_64-unix/winemac.so` — the mac driver was **already loaded** when our constructor
+  ran, so `NSApplication` already existed, and by B2 that is exactly the state in which attach
+  installs nothing.
+
+The cause is structural, not a tuning problem: our unixlib is `dlopen`'d by ntdll when the PE
+`steamclient.dll` is loaded, and that happens when the title calls `SteamAPI_Init` — by which point
+the engine has long since brought up its window. No arrangement of the shim can move that earlier,
+because the trigger belongs to the game.
+
+**[I]** So (a2) needs a loader that does not depend on the title's own call order. The candidate
+that keeps (a2)'s "no entitlement, no bundle modification" property is a **mirror CrossOver root**
+(`SHIM_CXROOT`, already in the compat tool) holding a copy of `ntdll.so` with an added
+`LC_LOAD_DYLIB` for `gameoverlayrenderer.dylib` — dyld then loads the renderer as a dependency,
+before `ntdll.so`'s own initialiser and long before `winemac.so`. Nothing in CrossOver.app is
+touched, so App Management (A7) does not apply. Unverified: whether the mirror root's `wine` still
+needs A3/A4's entitlements to run at all, which §3.3 suggests an ad-hoc re-sign can supply.
+**Spike S-7.**

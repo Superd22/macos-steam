@@ -165,6 +165,10 @@ export SteamGameId="$APPID"
 if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$APPID"
+    # Export, not just read: the unixlib's constructor getenv()s this to decide
+    # whether to dlopen the renderer, and it runs in the process we are about to
+    # launch. Reading it here without exporting arms the env and nothing else.
+    export SHIM_OVERLAY=1
     # The renderer's own log is opt-in, and without it a failure is mute — which
     # is what made #22 misread (a2) as dead. It names the stage reached:
     # "Hooking ..." lines mean our unixlib's constructor beat NSApplication.
