@@ -1330,3 +1330,53 @@ What remains is purely a mechanism for getting a DLL of ours loaded at process i
 being absent, the candidates are an import-time sideload in the title's own directory (per-title,
 needs export forwarding) or `CREATE_SUSPENDED` + remote injection from the compat tool (title-
 agnostic, the shape Valve's own Windows overlay uses). **Spike S-8.**
+
+## B8. S-4 passes — the swizzles do see D3DMetal's frames [V]
+
+The last substantive unknown. Every prior measurement drew through a plain `CAMetalLayer`; a real
+title draws through Direct3D, which CrossOver translates to Metal. `tools/overlay-probe/d3dprobe.c`
+is a Windows D3D11 program run inside the bottle — `D3D11CreateDeviceAndSwapChain` (feature level
+`0xb000`), a real swap chain, `Present` in a loop:
+
+```
+GameID = 945360, AppID = 945360, OverlayGameID = 945360, PID: 40608 Executable: wineloader
+Modules at GameOverlayRenderer.dll attach          <- winemac.so NOT in the list
+----------------------------
+Hooking _MTLCommandBuffer::presentDrawable: for MTLCommandBuffer
+Hooking _MTLCommandBuffer::presentDrawable:atTime: for MTLCommandBuffer
+Hooking _MTLCommandBuffer::presentDrawable:afterMinimumDuration: for MTLCommandBuffer
+Hooking AGXG15XFamilyCommandBuffer::commit for MTLCommandBuffer
+Hooking _MTLCommandBuffer::addScheduledHandler: for MTLCommandBuffer
+ValveGetScreenSize( 640, 480 )
+ValveGetOutputBounds( 104, 130, 632, 446 )
+SetScaleFactors( 1.01, 1.08, 0.99, 0.93 )
+Detected hot-key via base input, now requesting overlay enable
+Enabling overlay
+```
+
+`ValveGetScreenSize( 640, 480 )` is the probe's client area and `ValveGetOutputBounds` its on-screen
+rectangle: the renderer is not merely loaded, it is tracking **the D3D window's own swapchain
+drawable** and computing overlay geometry from it. §2's argument holds — Valve hooks Apple's
+`MTLCommandBuffer`, and D3DMetal bottoms out into it like everything else.
+
+**No sideload was needed.** The rig #26 planned (shadow a DLL the title imports, forward its
+exports) was never built: we own the probe, so it pulls the renderer in from the top of `WinMain`,
+before it makes any USER call. That is the same ordering #25's injector will create for titles we do
+not own.
+
+**[I] Two build notes for #25, both learned the hard way here.** The first probe was a console exe
+with `printf` and a static `d3d11` import, and it found `winemac.so` **already loaded** at attach:
+
+- **A console attach reaches USER**, so a console process has lost the race before its first
+  statement. The injector's payload must not assume a quiet CRT.
+- **Static imports run their `DllMain` before `main`.** `d3d11.dll` is `LoadLibrary`d by hand here
+  for that reason. This is precisely why ADR 0003 specifies `CREATE_SUSPENDED` rather than the
+  initial debug breakpoint: at the breakpoint every static import has already initialised, and any
+  one of them touching USER ends it.
+
+### Where the overlay stands after B8
+
+Graphics (§1), arming (A1), load timing (B2), the Wine-side deadline (B7) and now D3DMetal (B8) are
+all measured and all pass. **Nothing unproven remains between here and an overlay over a Windows
+title except building the loader** — ADR 0003 / #25. The remaining known cost is input parity
+(§6.2), which B8 does not touch.
