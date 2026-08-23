@@ -1298,3 +1298,35 @@ before `ntdll.so`'s own initialiser and long before `winemac.so`. Nothing in Cro
 touched, so App Management (A7) does not apply. Unverified: whether the mirror root's `wine` still
 needs A3/A4's entitlements to run at all, which §3.3 suggests an ad-hoc re-sign can supply.
 **Spike S-7.**
+
+## B7. The Mac driver is lazy — an in-Wine hook can still win the race [V]
+
+B6 leaves one question: is there *any* point inside a Wine process early enough to beat
+`NSApplication`? Two mechanisms were checked.
+
+**`AppInit_DLLs` does not exist here.** The string appears nowhere in CrossOver's Wine tree —
+not in `user32.dll`, `win32u.dll`, `ntdll.dll`, nor anywhere under `lib/wine/`. Wine has never
+implemented it. Route dead; it is not a registry value we are failing to set.
+
+**But `winemac.so` loads far later than assumed.** `tools/overlay-probe/u32probe.c` holds at three
+stages while `vmmap` samples the process:
+
+| stage | `winemac.so` mapped? |
+|---|---|
+| A — process init, before `user32` is loaded | no |
+| B — `user32.dll` loaded, no USER call made | **no** |
+| C — after a single `GetDesktopWindow()` | **yes**, 7 mappings |
+
+C is the control that makes A and B mean something: `vmmap` can see the module, it simply is not
+there yet. **The display driver is demand-loaded on the first USER call**, not at `user32`
+initialisation.
+
+**[I]** That is the finding route 1 needed. Every PE `DllMain` in the process runs during loader
+init, before the title's entry point and therefore before its first USER call — so *any* DLL we can
+get loaded at process init beats `winemac.so`, and with it `NSApplication`. The race is winnable
+from inside Wine, with no entitlement, no bundle modification and no TCC prompt.
+
+What remains is purely a mechanism for getting a DLL of ours loaded at process init. `AppInit_DLLs`
+being absent, the candidates are an import-time sideload in the title's own directory (per-title,
+needs export forwarding) or `CREATE_SUSPENDED` + remote injection from the compat tool (title-
+agnostic, the shape Valve's own Windows overlay uses). **Spike S-8.**
