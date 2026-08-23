@@ -38,3 +38,10 @@ tools/harness/build32/
 tools/shimprobe/steamclient64.dll
 tools/shimprobe/shimprobe.log
 tools/shim/dist/
+
+tools/overlay-probe/*
+!tools/overlay-probe/*.m
+!tools/overlay-probe/*.c
+!tools/overlay-probe/*.h
+!tools/overlay-probe/*.md
+!tools/overlay-probe/build.sh

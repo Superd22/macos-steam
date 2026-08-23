@@ -7,4 +7,5 @@ FW="-framework Cocoa -framework Metal -framework QuartzCore"
 clang -c -arch "$ARCH" fishhook.c -o fishhook.o
 clang -arch "$ARCH" -fobjc-arc $FW -o metalprobe  metalprobe.m
 clang -arch "$ARCH" -fobjc-arc $FW fishhook.o -o metalprobe3 metalprobe3.m
-echo "built metalprobe, metalprobe3 ($ARCH)"
+clang -arch "$ARCH" -fobjc-arc $FW -o metalprobe5 metalprobe5.m
+echo "built metalprobe, metalprobe3, metalprobe5 ($ARCH)"

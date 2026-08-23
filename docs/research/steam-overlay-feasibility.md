@@ -1181,3 +1181,84 @@ prove or kill (a1) outright — everything else in the chain is measured and wor
 - **(a2)** closed (A2).
 - **(c)** unchanged, and now the fallback of record if (a1)'s injection cannot be made to ship.
 - **(d)** unchanged and still worth shipping first (#23).
+
+---
+
+# Addendum 2 — measured 2026-08-24, re-test of (a2)
+
+**A2 above is wrong, and A8's "(a2) closed" with it.** `dlopen` *is* a way in. The failure #22
+recorded was one of load *time*, and the timing it tested is not the timing (a2) would have.
+
+## B1. The renderer's log is opt-in — #22 ran blind [V]
+
+`STEAM_OVERLAY_LOGGING` (and `STEAM_OVERLAY_LOGGING_FLUSH`) are `getenv` calls in the dylib
+(`0x1e194`, `0x1e17e` in the x86_64 slice), gating `/tmp/gameoverlayrenderer.%d.log`. #22 concluded
+the renderer "writes no log in either case" and therefore could not name the stage the `dlopen` path
+reached. With the variable set, the log is written in every run and answers the question directly:
+
+```
+GameID = 3215050, AppID = 3215050, OverlayGameID = 3215050, PID: 98558 Executable: metalprobe5
+Modules at GameOverlayRenderer.dll attach
+----------------------------
+Hooking _MTLCommandBuffer::presentDrawable: for MTLCommandBuffer
+Hooking _MTLCommandBuffer::presentDrawable:atTime: for MTLCommandBuffer
+Hooking _MTLCommandBuffer::presentDrawable:afterMinimumDuration: for MTLCommandBuffer
+Hooking AGXG15XFamilyCommandBuffer::commit for MTLCommandBuffer
+Hooking _MTLCommandBuffer::addScheduledHandler: for MTLCommandBuffer
+ValveGetScreenSize( 640, 480 )
+Detected hot-key via base input, now requesting overlay enable
+Enabling overlay
+```
+
+**[I]** Any future overlay run should set it. A mute failure was what made A2's negative look
+structural.
+
+## B2. `dlopen` before `NSApplication` hooks and arms — overlay confirmed drawing [V]
+
+`tools/overlay-probe/metalprobe5.m` is `metalprobe` with the `dlopen` movable across startup by
+`DLOPEN_WHEN`. Renderer, environment and render loop are otherwise identical; the only variable is
+the call site.
+
+| `DLOPEN_WHEN` | dlopen happens | `Hooking` lines | overlay |
+|---|---|---|---|
+| `ctor`   | `__attribute__((constructor))`, before `main` | 5/5 | ✅ draws |
+| `main`   | first statement of `main`                     | 5/5 | ✅ draws |
+| `nsapp`  | after `[NSApplication sharedApplication]`      | 0 | ❌ |
+| `device` | after `MTLCreateSystemDefaultDevice()`        | 0 | ❌ |
+| `layer`  | after the `CAMetalLayer` is created and attached | 0 | ❌ |
+| `late`   | after the window is on screen (#22's row 2)   | 0 | ❌ |
+
+`ctor` reproduced across three runs. The overlay was visually confirmed over `metalprobe5`'s layer
+on Shift+Tab, and the log's `Enabling overlay` corroborates it.
+
+**The gate is `NSApplication` instantiation**, not `dyld`'s interposition window, not the Metal
+device, not the layer. Load before `NSApp` exists and attach installs the five `MTLCommandBuffer`
+hooks; load after and attach still runs and still prints its module list, but hooks nothing.
+
+## B3. The interposes are confirmed unnecessary [V]
+
+`metalprobe5` links no `fishhook`, parses no `__DATA,__interpose`, and rebinds nothing — and the
+overlay draws. §3.4's "precisely-known hole" and #21's GOT-rebinding plan are both moot for the
+Metal path. The recovery code in `metalprobe3` remains valid and remains useful only for #21's
+inserted-stub idea.
+
+## B4. What this changes
+
+(a2) needs **no entitlement, no re-signed loader, no mirror root, no App Management prompt, and no
+modification of CrossOver.app** — the three things A5–A7 identified as the shipping blockers for
+(a1) all belong to injection-at-launch, which this route does not use. It needs one thing instead:
+
+> our unixlib must `dlopen` `gameoverlayrenderer.dylib` before `winemac.so` instantiates
+> `NSApplication`.
+
+That is the remaining unknown, and it is a Wine-internal ordering question rather than a macOS
+platform one. `ntdll`'s unixlib initialises long before the graphics driver is loaded, so the
+window exists on paper; it has not been measured. **Spike S-7.**
+
+## B5. Standing corrections
+
+- **A2 is withdrawn.** (a2) is not closed; #22's rows 2–5 establish only that *late* `dlopen` fails.
+- **A8's ranking is superseded**: (a2) returns as the leading candidate precisely because it is the
+  one route with no shipping-story cost, and (a1) becomes its fallback with S-2/App Management still
+  in the way.
+- Unchanged: **(d)** (#23) ships first regardless; **(c)** stays the fallback of record.
