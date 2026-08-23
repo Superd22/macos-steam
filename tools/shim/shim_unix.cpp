@@ -81,6 +81,39 @@ static bool ensure_dylib()
     return n_CreateInterface != nullptr;
 }
 
+/* ---- overlay: load Valve's renderer while we are still early enough (#21) --
+ *
+ * (a2). The renderer must be in the process before winemac.so instantiates
+ * NSApplication — measured in tools/overlay-probe/, Addendum 2 §B2: load before
+ * NSApp and it installs its five MTLCommandBuffer hooks and arms; load after and
+ * it hooks nothing. A dylib constructor here is the earliest point we own: dyld
+ * runs it when ntdll.so dlopens this unixlib, which is what SHIM_OVERLAY=1 is
+ * betting happens before the display driver comes up.
+ *
+ * Deliberately not gated on anything else: no Steamworks call has been made yet,
+ * and must not be, or we are already too late.
+ */
+static void *g_overlay;
+static std::string renderer_path()
+{
+    const char *home = getenv("HOME");
+    if (!home) { struct passwd *pw = getpwuid(getuid()); home = pw ? pw->pw_dir : "/tmp"; }
+    return std::string(home) +
+        "/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/gameoverlayrenderer.dylib";
+}
+
+__attribute__((constructor)) static void overlay_load(void)
+{
+    const char *on = getenv("SHIM_OVERLAY");
+    if (!on || !*on || *on == '0') return;
+    std::string path = renderer_path();
+    g_overlay = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    ulog("overlay: dlopen(%s) -> %p pid=%d%s%s", path.c_str(), g_overlay, (int)getpid(),
+         g_overlay ? "" : " err=", g_overlay ? "" : dlerror());
+    ulog("overlay: set STEAM_OVERLAY_LOGGING=1 and read /tmp/gameoverlayrenderer.%d.log — "
+         "'Hooking ...' means we were early enough, its absence means we were not", (int)getpid());
+}
+
 /* ---- flat exports ------------------------------------------------------- */
 static NTSTATUS u_create_interface(void *args)
 {

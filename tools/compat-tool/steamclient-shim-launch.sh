@@ -165,7 +165,12 @@ export SteamGameId="$APPID"
 if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$APPID"
+    # The renderer's own log is opt-in, and without it a failure is mute — which
+    # is what made #22 misread (a2) as dead. It names the stage reached:
+    # "Hooking ..." lines mean our unixlib's constructor beat NSApplication.
+    export STEAM_OVERLAY_LOGGING=1 STEAM_OVERLAY_LOGGING_FLUSH=1
     log "overlay ENABLED: SteamOverlayGameId=$APPID, SteamNoOverlayUIDrawing unset"
+    log "      renderer log: /tmp/gameoverlayrenderer.<pid>.log"
 else
     export SteamNoOverlayUIDrawing=1
     export SteamOverlayGameId=0

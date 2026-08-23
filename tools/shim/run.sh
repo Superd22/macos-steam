@@ -36,8 +36,17 @@ export WINEDEBUG="${WINEDEBUG:-+debugstr}"
 export SHIM_UNIX_LOG="/tmp/shim_unix.log"
 export SteamAppId=480          # gives the dylib's ISteamUserStats its app context
 export SteamGameId=480
-export SteamNoOverlayUIDrawing=1
-export SteamOverlayGameId=0
+# Overlay (#21). SHIM_OVERLAY=1 arms it: the unixlib's constructor dlopens
+# Valve's renderer, and STEAM_OVERLAY_LOGGING makes it say whether that landed
+# before NSApplication (the gate measured in tools/overlay-probe/).
+if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
+    unset SteamNoOverlayUIDrawing
+    export SteamOverlayGameId="$SteamAppId"
+    export STEAM_OVERLAY_LOGGING=1 STEAM_OVERLAY_LOGGING_FLUSH=1
+else
+    export SteamNoOverlayUIDrawing=1
+    export SteamOverlayGameId=0
+fi
 : > "$SHIM_UNIX_LOG"
 
 # Plant the shim (both halves co-located; the .so is found here via WINEDLLPATH).

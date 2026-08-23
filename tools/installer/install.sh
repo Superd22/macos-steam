@@ -30,6 +30,15 @@ TOOLDIR="$PAYLOAD/compatibilitytools.d/crossover-steam-shim"
 
 log() { printf '[install] %s\n' "$*"; }
 
+# Overlay spike (#21). SHIM_OVERLAY=1 ./install.sh bakes the flag into the
+# launcher so the compat tool sees it — Steam does not forward arbitrary env to
+# a compat tool, so the launcher is where it has to live. Default off.
+OVERLAY_ENV=""
+if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
+    OVERLAY_ENV=1
+    log "SHIM_OVERLAY=1 baked into the launcher (overlay spike)"
+fi
+
 if [ "${1:-}" = "--uninstall" ]; then
     rm -rf "$APP" "$PAYLOAD"
     log "removed $APP"
@@ -78,7 +87,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSEnvironment</key>
   <dict>
     <key>DYLD_INSERT_LIBRARIES</key><string>$PAYLOAD/libcompat-enabler.dylib</string>
-    <key>STEAM_EXTRA_COMPAT_TOOLS_PATHS</key><string>$PAYLOAD/compatibilitytools.d</string>
+    <key>STEAM_EXTRA_COMPAT_TOOLS_PATHS</key><string>$PAYLOAD/compatibilitytools.d</string>${OVERLAY_ENV:+
+    <key>SHIM_OVERLAY</key><string>1</string>}
   </dict>
 </dict>
 </plist>
@@ -89,7 +99,8 @@ cat > "$APP/Contents/MacOS/launcher" <<LAUNCHER
 # them here too keeps a direct invocation of this script equivalent to a Finder
 # launch. Then hand off to Valve's own binary, unmodified.
 export DYLD_INSERT_LIBRARIES="$PAYLOAD/libcompat-enabler.dylib"
-export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$PAYLOAD/compatibilitytools.d"
+export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$PAYLOAD/compatibilitytools.d"${OVERLAY_ENV:+
+export SHIM_OVERLAY=1}
 exec "$STEAM_OSX" "\$@"
 LAUNCHER
 chmod +x "$APP/Contents/MacOS/launcher"
