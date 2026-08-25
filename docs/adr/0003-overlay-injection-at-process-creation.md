@@ -347,3 +347,34 @@ holds and the dylib's Itanium order cannot diverge.
 Unarmed, the activators still forward, and Valve's client brings the native
 macOS Steam window to the front on the right page. That is degraded, but it is
 a real answer where a stub was a dead button.
+
+### Confirmed on a real title, 2026-08-25
+
+Surviving Mars, launched through the compat tool with `SHIM_OVERLAY=1`. The
+trigger was not the one predicted — the Paradox promo link on the main menu
+(`ParadoxMenu.lua:419`, `OpenUrl(entry.url)` with no force flag) rather than the
+Workshop banner — which makes it better evidence, being a call site a player hits
+without looking for it.
+
+```
+overlay: dlopen(.../gameoverlayrenderer.dylib) -> 0x775e10 pid=48787
+overlay: predicates IsOverlayEnabled=0x21124c354 BOverlayNeedsPresent=0x21124c03c
+         SetNotificationPosition=0x21124bb19 (#23)
+IsOverlayEnabled() -> 1 (renderer loaded)
+ActivateGameOverlayToWebPage("https://www.paradoxinteractive.com/games/...", mode=0)
+         slot=30 fn=0x221953c06
+```
+
+`gameoverlayrenderer.<pid>.log` carries five `Hooking` lines for the title's own
+process. The page drew in the overlay.
+
+The `IsOverlayEnabled() -> 1` is the line that closes the argument, because the
+same code returns `0` in the harness. Nothing about the shim differs between the
+two runs; what differs is that Mars has a Metal swapchain to hook and a console
+exe does not. A boolean tracking `SHIM_OVERLAY` would have said `1` in both, and
+the harness case is exactly the shape of a title that would then have hung.
+
+One of the five renderer logs (a child process) has zero `Hooking` lines and did
+not arm. Consistent with #27: the injector covers the child, but a helper
+process with no swapchain has nothing to hook, and `IsOverlayEnabled` correctly
+answers `false` there rather than being forced true by the parent's state.
