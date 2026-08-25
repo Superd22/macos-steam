@@ -703,6 +703,15 @@ static NTSTATUS u_rs_setcloudforapp(void *args)
 { auto *p = (sp_rs_setcloud *)args; RS(p->handle)->SetCloudEnabledForApp(p->enabled != 0);
   ulog("SetCloudEnabledForApp(%d)", p->enabled); return 0; }
 
+/* ---- diagnostics (#45) — the PE half's one must-not-be-missed line ---------
+ *
+ * shim_pe.c's dbg() goes to OutputDebugStringA and, only when SHIM_PE_LOG is
+ * set, to a file: in a normal run, nowhere. An unmapped vtable slot needs to be
+ * louder than that, because its failure mode is a silent 0 that a title builds
+ * on (#43). This lands it in shim-unix.log beside everything else. */
+static NTSTATUS u_log(void *args)
+{ auto *p = (sp_log *)args; ulog("%s", (const char *)p->msg); return 0; }
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -744,6 +753,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_rs_getfiletimestamp, u_rs_getsyncplatforms, u_rs_getfilecount,
     u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
     u_rs_cloudforapp, u_rs_setcloudforapp,
+    u_log,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -777,6 +787,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_rs_getfiletimestamp, u_rs_getsyncplatforms, u_rs_getfilecount,
     u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
     u_rs_cloudforapp, u_rs_setcloudforapp,
+    u_log,
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a

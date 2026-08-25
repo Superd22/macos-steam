@@ -215,8 +215,51 @@ struct w_iface { const void **vtable; uint64_t handle; };
 static unsigned int vt_unmapped(const char *version, int slot, const char *name);
 #include "shim_vtables.h"
 
+/* A title just called a slot nothing is wired into, and got 0 back.
+ *
+ * That 0 is the most expensive value in this file. It is not an error the caller
+ * can see: FileExists answers "no such save", GetFileCount answers "no files",
+ * BIsSubscribed answers "not owned" — each a plausible answer the title acts on.
+ * Space Marine spent a whole session offering "New Campaign" over a complete
+ * cloud save because of exactly this, and nothing anywhere said why (#43).
+ *
+ * dbg() alone was not enough: it writes to OutputDebugStringA, and to a file
+ * only when SHIM_PE_LOG is set, so a normal run recorded nothing. So this also
+ * crosses the seam into shim-unix.log, unconditionally — the whole point is to
+ * be readable from a run nobody thought to instrument in advance.
+ *
+ * Once per (version, slot): a method called every frame would otherwise bury the
+ * log it is supposed to be found in. Both strings come from the generated tables
+ * and are static, so comparing pointers is the identity we want. Past the cap we
+ * stop recording rather than stop logging — a truncated diagnosis is worse than
+ * a repetitive one. */
 static unsigned int vt_unmapped(const char *version, int slot, const char *name)
-{ dbg("shim: %s slot %d %s (unmapped)", version, slot, name); return 0; }
+{
+    static const char *seen_ver[256];
+    static int seen_slot[256];
+    static int nseen;
+    struct sp_log p;
+    char msg[320];
+    int i;
+
+    dbg("shim: %s slot %d %s (unmapped)", version, slot, name);
+
+    for (i = 0; i < nseen; i++)
+        if (seen_ver[i] == version && seen_slot[i] == slot) return 0;
+    if (nseen < (int)(sizeof seen_ver / sizeof *seen_ver)) {
+        seen_ver[nseen] = version; seen_slot[nseen] = slot; nseen++;
+    }
+
+    snprintf(msg, sizeof msg,
+             "UNMAPPED %s::%s (slot %d) -> returned 0. The title called a method "
+             "this shim has a correct table for but no thunk behind. The 0 is not "
+             "an error it can see, so whatever it does next is built on a wrong "
+             "answer. Wire it in shim_pe.c (#45).",
+             version ? version : "(unknown)", name ? name : "(unknown)", slot);
+    p.msg = (uint64_t)(uintptr_t)msg;
+    seam(C_Log, &p);
+    return 0;
+}
 
 static const struct vt_desc *vt_find(const char *ver)
 {
