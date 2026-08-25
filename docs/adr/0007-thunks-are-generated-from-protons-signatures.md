@@ -187,9 +187,31 @@ return true, having written a float through an `int32_t *`.
   → **1,102**, slots wired 4,873 → **5,029**. 140 slots are reversed.
 - #52 ISteamInventory, #61 ISteamGameServerStats and #70 ISteamFriends have no
   residue left at all; #73 ISteamUserStats — the largest — goes from 13 to 1.
-- The `stats` mode added to `instruments/harness` is the runtime half: Spacewar
-  defines `NumGames`/`NumWins`/`NumLosses` as int32 and `FeetTraveled`/
-  `MaxFeetTraveled` as float against one interface, so a crossed pair shows up
-  immediately as float bits read as an integer. Nothing else in the harness can
-  see this — the achievement modes touch no overloaded method and pass either
-  way, which is the whole reason the mode exists.
+- The `stats` mode added to `instruments/harness` is the runtime half, and it
+  took two corrections to become one. Nothing else in the harness can see this:
+  the achievement modes touch no overloaded method and pass either way.
+
+  **Reading stats proves nothing.** The first version read Spacewar's int and
+  float stats and checked each for a plausible magnitude. On a fresh account
+  every one of them is 0 — and 0 is 0 in both int and float bits, so it passed
+  identically against a shim with the reversal removed. It had to WRITE.
+
+  **Set-and-restore does not restore.** The second version wrote fixed values and
+  put the originals back. Spacewar's schema makes these stats accumulate-only:
+  `SetStat("NumGames", 0)` from 7 returns FALSE. The mode reported that it had
+  tidied up while leaving the client's cache dirty, which is the same class of
+  untrue-but-plausible answer this whole ticket exists to stop. It now advances
+  the counter instead — what the stat is for — and leaves nothing it has lied
+  about. `run.sh reset` zeroes them.
+
+  Verified live against the running macOS client, both directions:
+
+  | | correct shim | reversal removed |
+  | --- | --- | --- |
+  | `SetStat<int32>` / `GetStat<int32>` | `ok=1`, exact round-trip | `ok=0` |
+  | `SetStat<float>` / `GetStat<float>` | `ok=1`, exact round-trip | `ok=0` |
+
+  On this interface the crossing surfaces as a refusal rather than as garbage,
+  because the client's own schema rejects a float write to an int stat. That is
+  a property of Spacewar's schema, not of the seam, so the mode checks the value
+  as well as the flag.

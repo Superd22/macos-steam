@@ -81,6 +81,8 @@ static uint32_t (*p_Stats_GetNumAchievements)(void *);
  * Proton's vtable with a `_2`. They are the reason this mode exists. */
 static int      (*p_Stats_GetStatI)(void *, const char *, int32_t *);
 static int      (*p_Stats_GetStatF)(void *, const char *, float *);
+static int      (*p_Stats_SetStatI)(void *, const char *, int32_t);
+static int      (*p_Stats_SetStatF)(void *, const char *, float);
 static const char *(*p_Stats_GetAchievementName)(void *, uint32_t);
 static const char *(*p_Stats_GetAchievementDisplayAttribute)(void *, const char *, const char *);
 
@@ -153,6 +155,8 @@ static int resolve_all(HMODULE dll)
     RESOLVE(p_Stats_GetNumAchievements,         "SteamAPI_ISteamUserStats_GetNumAchievements", 0);
     RESOLVE(p_Stats_GetStatI,                   "SteamAPI_ISteamUserStats_GetStatInt32", 0);
     RESOLVE(p_Stats_GetStatF,                   "SteamAPI_ISteamUserStats_GetStatFloat", 0);
+    RESOLVE(p_Stats_SetStatI,                   "SteamAPI_ISteamUserStats_SetStatInt32", 0);
+    RESOLVE(p_Stats_SetStatF,                   "SteamAPI_ISteamUserStats_SetStatFloat", 0);
     RESOLVE(p_Stats_GetAchievementName,         "SteamAPI_ISteamUserStats_GetAchievementName", 0);
     RESOLVE(p_Stats_GetAchievementDisplayAttribute, "SteamAPI_ISteamUserStats_GetAchievementDisplayAttribute", 0);
 
@@ -404,46 +408,72 @@ static int get_achieved(const char *name)
  */
 static int mode_stats(void)
 {
-    static const char *ints[]   = { "NumGames", "NumWins", "NumLosses" };
-    static const char *floats[] = { "FeetTraveled", "MaxFeetTraveled" };
+    int32_t orig_i = 0, got_i = 0;
+    float   orig_f = 0.0f, got_f = 0.0f;
     int bad = 0;
 
-    if (!p_Stats_GetStatI || !p_Stats_GetStatF) {
-        fprintf(stderr, "FATAL: stats mode needs both GetStat overloads; "
-                        "this redistributable exports only one.\n");
+    if (!p_Stats_GetStatI || !p_Stats_GetStatF || !p_Stats_SetStatI || !p_Stats_SetStatF) {
+        fprintf(stderr, "FATAL: stats mode needs all four GetStat/SetStat overloads; "
+                        "this redistributable exports only some.\n");
         return 1;
     }
 
-    for (size_t i = 0; i < sizeof ints / sizeof *ints; i++) {
-        int32_t v = -1;
-        int ok = p_Stats_GetStatI(g_stats, ints[i], &v);
-        tr("GetStat<int32>(\"%s\") ok=%d value=%d", ints[i], ok, (int)v);
-        /* A float read through an int32_t* is not a small error, it is a wild
-         * one: 3.5f reads as 1080033280. Spacewar's counters are small, so an
-         * implausible magnitude is the tell. */
-        if (ok && (v < 0 || v > 1000000)) {
-            tr("  ^ IMPLAUSIBLE for an int32 counter — this is what a crossed "
-               "overload looks like (float bits read as an integer)");
-            bad++;
-        }
+    /* Why a WRITE and not just a read: on a fresh account every one of these
+     * stats is 0, and 0 is 0 in both int and float bits. Reading them proves
+     * nothing about which overload answered — measured, the read-only version of
+     * this mode passed identically against a shim with the reversal removed.
+     *
+     * Why an INCREMENT and not a set-and-restore: Spacewar's schema makes these
+     * accumulate-only. `SetStat("NumGames", 0)` from 7 returns FALSE — measured —
+     * so a mode that set a fixed value and put the old one back would leave the
+     * client dirty while reporting that it had tidied up. Advancing the counter
+     * is what the stat is for, so this mode does that instead and leaves nothing
+     * it has lied about. `run.sh reset` (ResetAllStats) zeroes them.
+     *
+     * No StoreStats anywhere: SetStat writes the client's LOCAL cache and
+     * StoreStats is what uploads it. The round-trip crosses the seam in both
+     * directions either way, so committing to the account would buy nothing. */
+    p_Stats_GetStatI(g_stats, "NumGames", &orig_i);
+    p_Stats_GetStatF(g_stats, "FeetTraveled", &orig_f);
+    const int32_t want_i = orig_i + 1;
+    const float   want_f = orig_f + 1234.5f;
+
+    tr("round-trip through both overloads (local cache only, no StoreStats)");
+    tr("  before: NumGames=%d FeetTraveled=%f", (int)orig_i, (double)orig_f);
+    tr("  SetStat<int32>(\"NumGames\", %d) = %d", (int)want_i,
+       p_Stats_SetStatI(g_stats, "NumGames", want_i));
+    tr("  SetStat<float>(\"FeetTraveled\", %f) = %d", (double)want_f,
+       p_Stats_SetStatF(g_stats, "FeetTraveled", want_f));
+
+    int oki = p_Stats_GetStatI(g_stats, "NumGames", &got_i);
+    int okf = p_Stats_GetStatF(g_stats, "FeetTraveled", &got_f);
+    tr("  GetStat<int32>(\"NumGames\") ok=%d value=%d   (want %d)",
+       oki, (int)got_i, (int)want_i);
+    tr("  GetStat<float>(\"FeetTraveled\") ok=%d value=%f (want %f)",
+       okf, (double)got_f, (double)want_f);
+
+    /* Measured against a deliberately-sabotaged shim (reversal removed): all
+     * four calls come back ok=0, because the client's own schema refuses a float
+     * write to an int stat and vice versa. So on THIS interface the crossing
+     * surfaces as a refusal rather than as garbage. Both are checked, since an
+     * interface without that safety net would show the other. */
+    if (!oki || got_i != want_i) {
+        tr("  ^ int32 round-trip FAILED — the int32 pair dispatched to the float "
+           "pair's native slot (ok=0 is the client refusing the type; a wrong "
+           "value would be the same crossing where it does not check)");
+        bad++;
     }
-    for (size_t i = 0; i < sizeof floats / sizeof *floats; i++) {
-        float v = -1.0f;
-        int ok = p_Stats_GetStatF(g_stats, floats[i], &v);
-        tr("GetStat<float>(\"%s\") ok=%d value=%f", floats[i], ok, (double)v);
-        /* And an int32 read through a float* comes back denormal-small. */
-        if (ok && v != 0.0f && (v < 1e-30f && v > -1e-30f)) {
-            tr("  ^ IMPLAUSIBLE for a float stat — integer bits read as a float");
-            bad++;
-        }
+    if (!okf || got_f != want_f) {
+        tr("  ^ float round-trip FAILED — same crossing, other direction");
+        bad++;
     }
 
     if (bad) {
-        fprintf(stderr, "FATAL: %d stat(s) came back with the wrong overload's "
-                        "value. The MSVC overload reversal is wrong (#78).\n", bad);
+        fprintf(stderr, "FATAL: %d of 2 overload round-trips wrong. The MSVC "
+                        "overload reversal is broken (#78/#80).\n", bad);
         return 1;
     }
-    tr("both GetStat overloads returned plausible values for their own type");
+    tr("both GetStat/SetStat overloads round-tripped their own type exactly");
     return 0;
 }
 
