@@ -10,6 +10,10 @@
     "or 'posix' (slash). guard=true adds the value to check.py's drift guard: it may not",
     "appear as a literal in any source under src/ outside this file.",
     "",
+    "switches are the runtime policy half (#33): one env var, one default, one predicate name.",
+    "gen.py emits the predicate into gen/shim_policy.h and gen/shim_policy.sh, and check.py",
+    "guards the env var name the same way it guards a path -- no site may re-derive the rule.",
+    "",
     "Relative names (*_REL, *_SUBDIR) are relative to a root the caller supplies -- $HOME",
     "for the macOS ones, the bottle dir for the bottle ones. The manifest deliberately",
     "holds no absolute unix path: $HOME belongs to whoever is running, not to the contract."
@@ -25,6 +29,7 @@
     { "name": "ENABLER",       "value": "libcompat-enabler.dylib", "what": "the m_bCompatEnabled injector", "guard": true },
     { "name": "LAUNCH_SH",     "value": "steamclient-shim-launch.sh", "what": "the compat-tool launch script" },
     { "name": "PATHS_SH",      "value": "shim_paths.sh",       "what": "this manifest's sh fragment, deployed beside the launch script" },
+    { "name": "POLICY_SH",     "value": "shim_policy.sh",      "what": "this manifest's sh switch predicates, deployed beside the launch script" },
     { "name": "TOOL_VDF",      "value": "compatibilitytool.vdf",  "what": "Steam's compat-tool registration" },
     { "name": "TOOL_MANIFEST", "value": "toolmanifest.vdf",       "what": "Valve's compat-tool runtime manifest" },
     { "name": "TOOL_NAME",     "value": "crossover-steam-shim", "what": "compat-tool dir name; must match the vdf's tool key", "guard": true },
@@ -60,5 +65,16 @@
     { "name": "LOG_LAUNCH_REL",   "of": ["LOG_DIR_REL", "LOG_LAUNCH"], "sep": "posix", "what": "relative to $HOME" },
     { "name": "LOG_UNIX_REL",     "of": ["LOG_DIR_REL", "LOG_UNIX"], "sep": "posix", "what": "relative to $HOME" },
     { "name": "LOG_ENABLER_REL",  "of": ["LOG_DIR_REL", "LOG_ENABLER"], "sep": "posix", "what": "relative to $HOME" }
+  ],
+
+  "switches": [
+    {
+      "name": "OVERLAY",
+      "env": "SHIM_OVERLAY",
+      "predicate": "shim_overlay_enabled",
+      "default": "on",
+      "off_values": ["0", ""],
+      "what": "whether the Steam overlay is delivered: the unixlib dlopens Valve's renderer, the PE half binds the seam in DllMain and hooks CreateProcess, and the launch script routes through the injector (ADR 0003, ADR 0006)"
+    }
   ]
 }
