@@ -109,38 +109,16 @@ Two failure modes account for most confusion:
 ## Known limits
 
 - **Sources only:** no release artifact, no signed app, no Gatekeeper story yet.
-- The compat tool registers a catch-all mapping for Windows-only titles. macOS-native and
-  dual-platform titles should be untouched (they install as macOS), but this is the guard to
-  watch if a native title starts behaving oddly.
-- DRM'd titles work on the ones tested, but Steam DRM/CEG has not been characterised across
-  the catalogue.
-- The overlay renders through Valve's own renderer injected at process creation. Titles that
-  relaunch themselves are covered by hooking the parent's `CreateProcess`, but unusual
-  launchers may still slip past.
 - Anti-cheat is out of scope.
 
 ## Related projects
 
 The closest prior art, and the one this project is measured against, is
-[**natbro/kaon**](https://github.com/natbro/kaon): "tools, and instructions for more easily
-installing and launching Windows games via Wine or CrossOver directly in the macOS Steam
-client." It reaches a similar-looking destination by a different route, and the difference is
-the whole point of this repo. kaon forces the install with
-`@sSteamCmdForcePlatformType windows` in `steam_dev.cfg`, which re-platforms _every_ app
+[**natbro/kaon**](https://github.com/natbro/kaon): kaon forces re-platforming _every_ app
 globally and blocks the client's self-update; it merges the CrossOver bottle's Steam tree in
-as a second library folder; it intercepts Play by hand-editing a launch option into
-`appinfo.vdf` with a patched Steam-Metadata-Editor, per title; and Steamworks is answered by
-**a real Windows Steam client running inside the same bottle**. There is no bridge to the
-native `steamclient.dylib`. Its `lsteamclient/` subtree is unmodified Proton 9.0, and its
-README calls the compat-tool route registrable but unusable.
+as a second library folder; And Steamworks is answered by **a real Windows Steam client running inside the same bottle**.
 
-So kaon is a negative result for the compat-tool route and contributes nothing to the bridge,
-which is why this repo went the other way: a per-app compat tool instead of a global platform
-flag, and a shim that talks to the native macOS client instead of a Windows Steam in the
-bottle. It is still worth reading for the `steam_dev.cfg` recipe and for its
-`libraryfolders.vdf` warning, that Steam checksums the file and wipes library entries it did
-not write itself. The repo is one day of work from 2025-02-15, unmaintained since.
-`docs/research/macos-steamplay-chain.md` §9 has the full source-verified breakdown.
+Those limitations were the reason this project came to be
 
 Others that came up in the research:
 
