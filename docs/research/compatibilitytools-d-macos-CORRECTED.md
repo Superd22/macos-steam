@@ -6,7 +6,7 @@ superseded-by: compatibilitytools-d-macos.md
 # Merged into `compatibilitytools-d-macos.md`
 
 This file held the correction to the first, wrong answer on
-[#5](https://github.com/Superd22/macos-steam/issues/5) — that `compatibilitytools.d`
+[#5](https://github.com/Superd22/macos-steam/issues/5): `compatibilitytools.d`
 discovery *does* work on macOS, from the Steam install dir inside the app bundle rather than
 the data dir.
 

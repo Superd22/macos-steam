@@ -84,7 +84,7 @@ else if (GetAppPlatformOverride(appid, &dest, &src)
 So an entry reads: **"when the host is `dest`, tell this one app the host is `src`."** For a Windows
 title on macOS that is `dest "macos"`, `src "windows"`.
 
-This is confirmed by Valve's own writer, not just by reading: `YldCheckIfAppNeedsPlatformCompatibility`
+Valve's own writer confirms this: `YldCheckIfAppNeedsPlatformCompatibility`
 calls `SetAppPlatformOverride(appid, dest = <host oslist>, src = <tool/app platform>)`, and once the
 gate is open Steam writes the file itself in exactly that shape (see §4). It also reconciles the
 `additional_dependencies` schema, where `src_os`/`dest_os` mean game-platform/host-platform.
@@ -302,7 +302,7 @@ evaluation and a `SpecifyCompatTool` call. After patching, the same file produce
 
 ## 6. Consequence for the map
 
-Half A is **alive**, not dead — but it costs a patched client.
+Half A is **alive**, but it costs a patched client.
 
 - **Install**: a per-app override exists and works, so the global `@sSteamCmdForcePlatformType windows`
   convar (disqualified by map trap 3 for re-platforming dual-platform titles) is no longer needed.

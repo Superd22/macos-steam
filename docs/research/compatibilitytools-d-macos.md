@@ -1,6 +1,6 @@
 ---
 status: current
-re-verify-on: Steam client update — the scan root lives inside the Steam app bundle, so the bootstrapper can wipe a planted tool on upgrade
+re-verify-on: Steam client update, because the scan root lives inside the Steam app bundle, so the bootstrapper can wipe a planted tool on upgrade
 ---
 
 # `compatibilitytools.d` on macOS
@@ -20,7 +20,7 @@ The scan root is the Steam **install** dir, inside the app bundle:
 Not the Steam **data** dir (`~/Library/Application Support/Steam/compatibilitytools.d/`). The
 install dir is where `steam_osx` and `steamclient.dylib` live, and is the true macOS analogue of
 Linux's `~/.steam/root`; the dylib's `/compatibilitytools.d` string fragment is appended to it.
-Getting this wrong costs a whole round of research — see [Wrong turn](#wrong-turn-the-data-dir)
+Getting this wrong costs a whole round of research. See [Wrong turn](#wrong-turn-the-data-dir)
 at the bottom.
 
 ## Environment
@@ -87,7 +87,7 @@ Client API, via the CDP harness against `SharedJSContext`:
 ## Established
 
 - **Local discovery works** on client `1785187029`, from the in-bundle install dir.
-- **`to_oslist "macos"` is accepted.** Not `osx` — that yields
+- **`to_oslist "macos"` is accepted.** Not `osx`: that yields
   `Ignoring tool ... for a different target platform osx.`
 - **`app_mappings` works.** An undocumented `compatibilitytool.vdf` section mapping an
   appid to a tool at priority 100, with no console command needed. Confirmed by the
@@ -95,7 +95,7 @@ Client API, via the CDP harness against `SharedJSContext`:
   string in `steamclient.dylib`. Followed up in full in `app-mappings-self-contained.md`,
   which also establishes the `appid 0` global catch-all.
 - **Manifest version 2** with `commandline "/probe.sh %verb%"` loads cleanly.
-- **`STEAM_EXTRA_COMPAT_TOOLS_PATHS`** is present in the current dylib — an additional
+- **`STEAM_EXTRA_COMPAT_TOOLS_PATHS`** is present in the current dylib, an additional
   scan root via env var. Untested.
 - **Registration does not require `bCompatEnabled`.** The tool registered with the flag
   `false`, so the missing Steam Play settings page is not a prerequisite for registration.
@@ -104,7 +104,7 @@ Client API, via the CDP harness against `SharedJSContext`:
 
 `steamclient.dylib` is a universal x86_64+arm64 binary built by the
 `steam_rel_client_hotfix_osx` buildbot. It carries the **complete** compat-tool
-implementation — this is not a stripped-down macOS build:
+implementation. This is not a stripped-down macOS build:
 
 - Source paths: `clientdll/compatmanager.cpp`, `clientdll/compatmanager.h`
 - Scan roots: `/compatibilitytools.d` (relative to the Steam **install** root),
@@ -132,7 +132,7 @@ Ignoring tool %s as it's for a different target platform %s.
 Ignoring tool %s as it's for a different target platform %s arm64.
 ```
 
-Note the arch-aware variant — the filter compares target platform *and* arch.
+Note the arch-aware variant: the filter compares target platform *and* arch.
 
 The UI side exists too: `SteamClient.Apps.GetAvailableCompatTools`, `SpecifyCompatTool`,
 `SteamClient.Settings.GetGlobalCompatTools`, `SpecifyGlobalCompatTool`.
@@ -148,11 +148,11 @@ Steam_Settings_Compat_Title, _Enable, _Advanced_Title, _Default_Tool, _No_Defaul
 ```
 
 Only the launch-label keys (`Settings_Compat_Launch_*`) are compiled in. There is no UI path
-to turn Steam Play on — which is why the gate is flipped in the binary instead
+to turn Steam Play on, which is why the gate is flipped in the binary instead
 (`compat-vdf-platform-override.md`).
 
 The per-game **Properties → Compatibility** tab component *does* exist, but it renders
-nothing when the tool list is empty — the checkbox is behind `0 != a.length` and
+nothing when the tool list is empty: the checkbox is behind `0 != a.length` and
 `disabled: !bCompatEnabled || 0 === a.length`. An empty list means an empty tab, not a
 visible-but-disabled one.
 
@@ -169,20 +169,20 @@ visible-but-disabled one.
 That line appeared on every startup on client `1751405894` and never on `1785187029`.
 Somewhere between those builds the macOS client stopped receiving Valve's mappings, which
 matches the Nov 2024 community report of a `to_oslist "macos"` tool that worked and then
-silently stopped being discovered. Still a real observation — but it no longer gates
+silently stopped being discovered. Still a real observation, but it no longer gates
 anything, because `app_mappings` lets a tool supply its own.
 
 ## Reproducing the probe
 
 The CDP harness used here (`cdp.mjs`, ~20 lines, Node 24 built-in `WebSocket`):
 
-1. `touch "~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/.cef-enable-remote-debugging"`
-   — the **install** dir, same as `compatibilitytools.d`. Proven with the `atime` oracle: a
+1. `touch "~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/.cef-enable-remote-debugging"`,
+   the **install** dir, same as `compatibilitytools.d`. Proven with the `atime` oracle: a
    data-dir file is never read and no port opens; the install-dir file brings 8080 up within
    2s. The check lives in `steamui.dylib`; the default port `8080` and
    `--remote-debugging-port=%s` live in `steamclient.dylib`. The `-cef-enable-debugging`
    launch flag is an equivalent, per-run alternative.
-2. Restart Steam; `curl -s http://127.0.0.1:8080/json/list` within ~15s of UI paint — pick
+2. Restart Steam; `curl -s http://127.0.0.1:8080/json/list` within ~15s of UI paint; pick
    the `SharedJSContext` target
 3. `Runtime.evaluate` with `awaitPromise: true` against its `webSocketDebuggerUrl`
 
@@ -206,7 +206,7 @@ turns it on is `compat-vdf-platform-override.md`.
 The probe tool was left installed with its `app_mappings` block removed, so no real game is
 mapped to the no-op `probe.sh`. `.cef-enable-remote-debugging` removed; Steam relaunched with
 no flags. `config.vdf` and `registry.vdf` were backed up and verified to differ only by
-routine churn (CM server list, `SteamPID`) — no compat keys were written.
+routine churn (CM server list, `SteamPID`): no compat keys were written.
 
 Caveat: the tool lives inside the Steam app bundle, so the bootstrapper may wipe it on client
 update. `BootStrapperInhibitAll=enable` in `Steam.cfg` is the known counter (it is what
@@ -238,7 +238,7 @@ Retracted with the conclusion:
 
 - "The scan never runs." It runs, on every startup, over the install dir.
 - "This is not a `to_oslist` rejection, because `-compat-disable-filtering` changed nothing."
-  The flag experiment proved nothing — there was no tool anywhere the client looked, so
+  The flag experiment proved nothing. There was no tool anywhere the client looked, so
   filtering was never reached either way.
 - "`GetGlobalCompatTools()` is empty, therefore no tool can register."
 - "The Install half cannot ride on Steam Play." Never established.
@@ -249,6 +249,6 @@ Retracted with the conclusion:
 The correct path came from an r/macgaming thread that quoted a `compat_log.txt` excerpt
 showing the full scan path. The same install-vs-data-dir mistake was made a second time,
 independently, for `.cef-enable-remote-debugging`, and corrected on
-[#9](https://github.com/Superd22/macos-steam/issues/9) — which is the argument for stating
+[#9](https://github.com/Superd22/macos-steam/issues/9), which is the argument for stating
 the rule once, at the top: **anything the client scans for lives in the install dir, inside
 the app bundle.**

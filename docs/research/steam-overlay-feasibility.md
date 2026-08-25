@@ -720,7 +720,7 @@ texture source.)
 
 Effort: **2–4 months** for something that renders a browser panel on Shift+Tab; **6+ months** for
 anything resembling the real overlay. Risk of impossibility mid-way: **moderate** — the compositing
-half is genuinely de-risked (it is the same swizzle (a1) relies on), the content half is not.
+half is de-risked (it is the same swizzle (a1) relies on), the content half is not.
 
 **Its one advantage:** it does not depend on the native client agreeing to run an overlay instance for
 a Windows-platform app, which is (a1)'s single biggest unknown.

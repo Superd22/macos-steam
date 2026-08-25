@@ -1,11 +1,11 @@
-# `docs/research/` — what is still true
+# `docs/research/`: what is still true
 
 Every document here carries a `status:` block at its top. This page is the same information in
 one table, so nothing has to be opened to find out whether it can be trusted.
 
-**Read the status before the document.** These are dated measurements against a moving target —
-a Steam client that updates itself, a CrossOver that has already moved a major version during
-this project's life, and a Proton tree that is somebody else's branch.
+**Read the status before the document.** These are dated measurements against a moving target: a
+Steam client that updates itself, a CrossOver that has already moved a major version during this
+project's life, and a Proton tree that is somebody else's branch.
 
 ## The three statuses
 
@@ -15,9 +15,9 @@ this project's life, and a Proton tree that is somebody else's branch.
 | `superseded` | Another document replaced its verdict. `superseded-by:` names it. A superseded doc may still be the only source for some of its material — `still-cited-for:` says which part. |
 | `historical` | Kept for the record. Nothing depends on it, and it is not a place to look for an answer. |
 
-`re-verify-on:` names the event that would invalidate a `current` document — a Steam client
-update, a CrossOver upgrade, a Proton bump. It is a warning, not an expiry: the doc is accurate
-until that event happens, and stale claims are the ones that survive it unchecked.
+`re-verify-on:` names the event that would invalidate a `current` document: a Steam client
+update, a CrossOver upgrade, a Proton bump. It is a warning, not an expiry. The doc is accurate
+until that event happens; stale claims are the ones that survive it unchecked.
 
 ## The docs
 
@@ -44,11 +44,11 @@ The repo's rule is that a document reads as though it were written today, with t
 taken at the bottom under **Wrong turns**. A reader who stops at the top of a file should be
 right, not merely unsurprised. Two files carry substantial ones:
 
-- `compatibilitytools-d-macos.md` — the first answer tested the Steam **data** dir and concluded
+- `compatibilitytools-d-macos.md`: the first answer tested the Steam **data** dir and concluded
   discovery was broken on macOS. The same install-vs-data mistake was then made independently for
   `.cef-enable-remote-debugging`.
-- `steam-overlay-feasibility.md` and `overlay-injection.md` — the overlay was got wrong in both
-  directions: first that `dlopen` was structurally dead, then that a remote thread in a suspended
+- `steam-overlay-feasibility.md` and `overlay-injection.md`: the overlay was got wrong in both
+  directions, first that `dlopen` was structurally dead, then that a remote thread in a suspended
   process runs before the title's imports. Both were overturned by measurement.
 
 ## The re-verify list, by trigger
@@ -59,5 +59,5 @@ right, not merely unsurprised. Two files carry substantial ones:
 | **CrossOver upgrade** | `crossover-bridge-surface.md` (already behind) · `clean-bottle-provenance.md` · `overlay-injection.md` |
 | **Proton bump** | `lsteamclient-mechanics.md` · `steamworks-vtable-tables.md` |
 
-`instruments/` exists to answer exactly these — a module lives there because it would be *rerun*
+`instruments/` exists to answer exactly these. A module lives there because it would be *rerun*
 to re-establish a claim one of these documents makes.

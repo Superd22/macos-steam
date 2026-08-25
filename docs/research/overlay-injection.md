@@ -105,8 +105,8 @@ x86_64 slice) gating `/tmp/gameoverlayrenderer.%d.log`. [V] Set it on every over
 overlay draws. The "precisely-known hole" of `steam-overlay-feasibility.md` §3.4, and #21's
 GOT-rebinding plan with it, are moot for the Metal path.
 
-The recovery code in `metalprobe3` still works and is still correct; it is simply not on the
-path. It matters only if #21's inserted-stub idea comes back.
+The recovery code in `metalprobe3` still works and is still correct; it is not on the path. It
+matters only if #21's inserted-stub idea comes back.
 
 ## 4. The Wine-side deadline is winnable — the mac driver is lazy [V]
 
@@ -126,8 +126,8 @@ stages while `vmmap` samples the process:
 | B — `user32.dll` loaded, no USER call made | **no** |
 | C — after a single `GetDesktopWindow()` | **yes**, 7 mappings |
 
-C is the control that makes A and B mean something: `vmmap` can see the module, it simply is not
-there yet. **The display driver is demand-loaded on the first USER call.**
+C is the control that makes A and B mean something: `vmmap` can see the module, it is not there
+yet. **The display driver is demand-loaded on the first USER call.**
 
 **[I]** Every PE `DllMain` runs during loader init, before the title's entry point and therefore
 before its first USER call — so any DLL loaded at process init beats `winemac.so`, and with it
@@ -282,8 +282,8 @@ It is not. **The failure was load *time*, and the timing #22 tested is not the t
 would have** — every `dlopen` it tried happened after the window was on screen. §2's `ctor` and
 `main` rows are `dlopen` calls, and they hook 5/5.
 
-Two things made the wrong conclusion look solid. The interpose-recovery mechanism genuinely works
-as designed — parsing `__DATA,__interpose` and matching each entry's dyld-bound `original` against
+Two things made the wrong conclusion look solid. The interpose-recovery mechanism works as
+designed — parsing `__DATA,__interpose` and matching each entry's dyld-bound `original` against
 `dlsym` identifies 15/15 and hands back Valve's own replacements — so its failure to help read as
 evidence that something deeper was missing. And the renderer **ran mute**: without
 `STEAM_OVERLAY_LOGGING` there was no log at all, so no stage could be named and a structural
