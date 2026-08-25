@@ -23,6 +23,9 @@ cd "$(dirname "$0")"
 # keeps the acceptance run testing what ships.
 ../layout/build.sh
 . ../layout/gen/shim_paths.sh
+# And the switch predicates (#33): the negative control below asks the same
+# question the shipped launch script asks, in the same words.
+. ../layout/gen/shim_policy.sh
 
 MODE="${1:-loop}"
 ARG="${2:-}"
@@ -58,14 +61,14 @@ export SteamGameId=480
 # The harness is a console exe with no swapchain, so the renderer LOADS here and
 # never ARMS — IsOverlayEnabled() stays 0. That is the correct answer, and the
 # discriminator #23 turns on: a real title returns 1 from the same code.
-if [ "${SHIM_OVERLAY:-1}" = 1 ]; then
-    export SHIM_OVERLAY=1
+if shim_overlay_enabled; then
+    shim_overlay_export 1
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$SteamAppId"
     export STEAM_OVERLAY_LOGGING=1 STEAM_OVERLAY_LOGGING_FLUSH=1
 else
     # Explicit 0, not merely unset: unset means ON to the unixlib now.
-    export SHIM_OVERLAY=0
+    shim_overlay_export 0
     export SteamNoOverlayUIDrawing=1
     export SteamOverlayGameId=0
 fi

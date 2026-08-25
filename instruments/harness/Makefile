@@ -13,7 +13,10 @@
 # round-trip that needs no game installed and burns nothing.
 CC      := x86_64-w64-mingw32-gcc
 CC32    := i686-w64-mingw32-gcc
-CFLAGS  := -Wall -Wextra -O1 -static
+# -I on the layout manifest's generated dir: the overlay switch is a predicate
+# from src/layout/layout.json (#33), not a rule this instrument writes for
+# itself. `layout` below regenerates it, so a manifest edit reaches a make here.
+CFLAGS  := -Wall -Wextra -O1 -static -I../../src/layout/gen
 BOTTLE  := $(HOME)/Library/Application Support/CrossOver/Bottles/Steam-2
 MARSDIR := $(BOTTLE)/drive_c/Program Files (x86)/Steam/steamapps/common/Project Spark
 AUDIR   := $(HOME)/Library/Application Support/Steam/steamapps/common/Among Us/Among Us_Data/Plugins/x86
@@ -21,7 +24,7 @@ AUDIR   := $(HOME)/Library/Application Support/Steam/steamapps/common/Among Us/A
 all: build/harness.exe build/steam_api64.dll build/steam_appid.txt
 all32: build32/harness.exe build32/steam_api.dll build32/steam_appid.txt
 
-build/harness.exe: harness.c | build
+build/harness.exe: harness.c | build layout
 	$(CC) $(CFLAGS) -o $@ $<
 
 build/steam_api64.dll: | build
@@ -30,7 +33,7 @@ build/steam_api64.dll: | build
 build/steam_appid.txt: | build
 	printf '480' > $@
 
-build32/harness.exe: harness.c | build32
+build32/harness.exe: harness.c | build32 layout
 	$(CC32) $(CFLAGS) -o $@ $<
 
 build32/steam_api.dll: | build32
@@ -42,7 +45,10 @@ build32/steam_appid.txt: | build32
 build build32:
 	mkdir -p $@
 
+layout:
+	../../src/layout/build.sh
+
 clean:
 	rm -rf build build32
 
-.PHONY: all all32 clean
+.PHONY: all all32 clean layout

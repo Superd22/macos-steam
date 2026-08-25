@@ -21,6 +21,7 @@
 
 /* The deploy contract (#32) — generated from src/layout/layout.json. */
 #include "shim_paths.h"
+#include "shim_policy.h"
 
 #include "shim_abi.h"
 
@@ -1210,7 +1211,13 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
          * the study's Addendum 2 B7). ensure_seam only does GetModuleHandle,
          * GetProcAddress and NtQueryVirtualMemory: no LoadLibrary, so it is not
          * the loader-lock hazard that a LoadLibrary here would be. */
-        if (GetEnvironmentVariableA("SHIM_OVERLAY", NULL, 0) > 0) {
+        /* The predicate comes from the manifest (#33). What stood here was
+         * GetEnvironmentVariableA(..., NULL, 0) > 0, which asks whether the
+         * variable EXISTS — and it returns 2 for the string "0". The launch
+         * script's no-injector branch exports exactly that, and the installer
+         * bakes a literal 0 or 1 into the launcher, so the one configuration
+         * the comment above insists must not run this ran it. */
+        if (shim_overlay_enabled()) {
             int rc = ensure_seam();
             /* Cover a title that starts the real game in another process (#27).
              * Installed here, under loader lock, because that is still before

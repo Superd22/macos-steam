@@ -48,6 +48,12 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   restating the path. A module that types one of those literals again is drift, and the
   build says so.
 
+- **Switch** — a runtime policy with exactly one owner: an env var, a default, and a
+  generated predicate (`shim_overlay_enabled`) that every half of the stack calls instead
+  of testing the variable itself. Declared beside the deploy contract in
+  `src/layout/layout.json`. Asking a switch is reading policy; re-deriving it is drift, and
+  the build says so (ADR 0006).
+
 - **Level A** — making the native macOS Steam client *install and launch* a Windows title
   through a compatibility tool (the download + launch half of the destination).
 

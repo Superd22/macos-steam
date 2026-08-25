@@ -413,3 +413,10 @@ three are load-bearing:
 
 Verified both directions: unset → `overlay: dlopen(...) -> 0x1b3580`, and
 `SHIM_OVERLAY=0` → no `dlopen` line at all.
+
+**Superseded in mechanism by ADR 0006, not in policy.** The three load-bearing
+places above (and two more that were not listed) each wrote their own test for
+this rule, and one of them — the PE half's `GetEnvironmentVariableA(...,
+NULL, 0) > 0` — read an explicit `SHIM_OVERLAY=0` as ON. The rule now has an
+owner: one generated predicate, `shim_overlay_enabled`, declared in
+`src/layout/layout.json`. The default and the interlock are unchanged.

@@ -29,6 +29,13 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
+
+/* The overlay switch is one predicate, owned by src/layout/layout.json (#33).
+ * An instrument that re-derives the rule it is measuring can pass while the
+ * shipped stack is wrong, which is exactly the divergence #33 closed — so this
+ * asks the same generated function the two halves of the shim ask. */
+#include "shim_policy.h"
 
 typedef int32_t HSteamPipe;
 typedef int32_t HSteamUser;
@@ -399,8 +406,8 @@ static int mode_overlay(uint64_t sid, const char *which)
 {
     void *fr = p_SteamFriends_v017 ? p_SteamFriends_v017() : NULL;
     void *ut = p_SteamUtils_v010   ? p_SteamUtils_v010()   : NULL;
-    const char *env = getenv("SHIM_OVERLAY");
-    int armed_expected = env && *env && *env != '0';
+    const char *env = getenv(SHIM_ENV_OVERLAY);
+    int armed_expected = shim_overlay_enabled();
     int all = (strcmp(which, "all") == 0);
     int rc = 0;
 
@@ -414,7 +421,8 @@ static int mode_overlay(uint64_t sid, const char *which)
     /* Phase 1: the predicates. This is the load-bearing pair — a title that is
      * told the overlay exists will PAUSE and wait for a panel, so a false
      * `true` is a hang, not a cosmetic bug. */
-    tr("--- predicates (SHIM_OVERLAY=%s) ---", env && *env ? env : "(unset)");
+    tr("--- predicates (%s=%s, overlay %s) ---", SHIM_ENV_OVERLAY,
+       env && *env ? env : "(unset)", armed_expected ? "on" : "off");
     if (p_Ut_IsOverlayEnabled) {
         int on = p_Ut_IsOverlayEnabled(ut);
         tr("IsOverlayEnabled() = %d   [expected %s]", on,
@@ -425,7 +433,7 @@ static int mode_overlay(uint64_t sid, const char *which)
          * on, a `false` may simply mean injection lost its race — a real and
          * correctly-reported outcome, not a bug in this ticket. */
         if (!armed_expected && on) {
-            fprintf(stderr, "FAIL: IsOverlayEnabled()=true with SHIM_OVERLAY off — "
+            fprintf(stderr, "FAIL: IsOverlayEnabled()=true with " SHIM_ENV_OVERLAY " off — "
                             "a title that pauses on activation would hang forever.\n");
             rc = 8;
         }

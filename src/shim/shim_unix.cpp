@@ -29,6 +29,7 @@
 
 /* The deploy contract (#32) — generated from src/layout/layout.json. */
 #include "shim_paths.h"
+#include "shim_policy.h"
 
 #include "shim_abi.h"
 #include "steam_ifaces.h"
@@ -150,9 +151,12 @@ __attribute__((constructor)) static void overlay_load(void)
      * export a literal 0 rather than simply omit the variable. The compat-tool
      * launch script does exactly that in its no-injector branch, because
      * dlopening the renderer into a process with nothing to place it is the one
-     * state worse than not having an overlay at all. */
-    const char *on = getenv("SHIM_OVERLAY");
-    if (on && (!*on || *on == '0')) return;
+     * state worse than not having an overlay at all.
+     *
+     * The rule itself is not written here any more (#33): this half used to
+     * spell it out, the PE half spelled out a different one, and a reader had
+     * to compare them to find that out. One predicate, from the manifest. */
+    if (!shim_overlay_enabled()) return;
     std::string path = renderer_path();
     g_overlay = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
     ulog("overlay: dlopen(%s) -> %p pid=%d%s%s", path.c_str(), g_overlay, (int)getpid(),
@@ -587,7 +591,7 @@ static NTSTATUS u_overlay_isenabled(void *args)
     auto *p = (sp_overlay_bool *)args;
     p->ret = n_IsOverlayEnabled ? (n_IsOverlayEnabled() ? 1 : 0) : 0;
     ulog("IsOverlayEnabled() -> %d (renderer %s)", p->ret,
-         n_IsOverlayEnabled ? "loaded" : "not loaded — SHIM_OVERLAY off or dlopen failed");
+         n_IsOverlayEnabled ? "loaded" : "not loaded — " SHIM_ENV_OVERLAY " off or dlopen failed");
     return 0;
 }
 static NTSTATUS u_overlay_needspresent(void *args)

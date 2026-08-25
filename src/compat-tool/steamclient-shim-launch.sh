@@ -52,12 +52,17 @@ set -eu
 # It is sourced before anything else, including the log setup, because the log
 # path is part of the contract too.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-for _p in "$HERE/shim_paths.sh" "$HERE/../layout/gen/shim_paths.sh"; do
-    [ -f "$_p" ] && { . "$_p"; break; }
+for _f in shim_paths.sh shim_policy.sh; do
+    for _p in "$HERE/$_f" "$HERE/../layout/gen/$_f"; do
+        [ -f "$_p" ] && { . "$_p"; break; }
+    done
 done
-unset _p
-if [ -z "${SHIM_PATH_PE64:-}" ]; then
-    printf 'shim-launch: shim_paths.sh not found beside %s or in ../layout/gen — reinstall\n' "$HERE" >&2
+unset _f _p
+# shim_policy.sh (#33) carries the switch predicates — the overlay question below
+# is asked by a generated function, not by a test written here. Both fragments
+# are required: a payload with one and not the other is a partial install.
+if [ -z "${SHIM_PATH_PE64:-}" ] || ! command -v shim_overlay_enabled >/dev/null 2>&1; then
+    printf 'shim-launch: shim_paths.sh / shim_policy.sh not found beside %s or in ../layout/gen — reinstall\n' "$HERE" >&2
     exit 2
 fi
 
@@ -213,13 +218,15 @@ export SteamGameId="$APPID"
 # no injector means no compositor, and a title that believes an overlay exists
 # can wait on one forever. So "on by default" is still conditional on being able
 # to deliver, and the off branch says so out loud rather than defaulting quietly.
-if [ "${SHIM_OVERLAY:-1}" = 1 ] && [ "$HAVE_INJECT" = 1 ]; then
+if shim_overlay_enabled && [ "$HAVE_INJECT" = 1 ]; then
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$APPID"
-    # Export, not just read: the unixlib's constructor getenv()s this to decide
-    # whether to dlopen the renderer, and it runs in the process we are about to
-    # launch. Reading it here without exporting arms the env and nothing else.
-    export SHIM_OVERLAY=1
+    # Export, not just read: the unixlib's constructor asks the same predicate
+    # to decide whether to dlopen the renderer, and it runs in the process we
+    # are about to launch. Reading it here without exporting arms the env and
+    # nothing else — which is why setting it goes through the fragment's
+    # exporting helper rather than a bare assignment.
+    shim_overlay_export 1
     # The renderer's own log is opt-in, and without it a failure is mute — which
     # is what made #22 misread (a2) as dead. It names the stage reached:
     # "Hooking ..." lines mean our unixlib's constructor beat NSApplication.
@@ -230,15 +237,15 @@ else
     # Off, and off HARD: a title told an overlay exists can wait on one forever,
     # so never arm the env without an injector to deliver the renderer.
     #
-    # Exporting SHIM_OVERLAY=0 is load-bearing now that the unixlib's own default
-    # is ON. Leaving it merely unset used to mean "off" everywhere; since the
-    # flip it means "on", so this branch would have dlopened the renderer into a
+    # Exporting an explicit 0 is load-bearing now that the manifest's default is
+    # ON. Leaving it merely unset used to mean "off" everywhere; since the flip
+    # it means "on", so this branch would have dlopened the renderer into a
     # process with no injector to place it — the exact thing the interlock above
     # exists to prevent. Say 0, do not imply it.
-    if [ "${SHIM_OVERLAY:-1}" = 1 ]; then
+    if shim_overlay_enabled; then
         log "overlay ON by default but no injector in $SHIM_DIST — staying off"
     fi
-    export SHIM_OVERLAY=0
+    shim_overlay_export 0
     export SteamNoOverlayUIDrawing=1
     export SteamOverlayGameId=0
 fi
@@ -273,7 +280,7 @@ EXE_WIN="$EXE"
 case "$EXE" in
     /*) EXE_WIN="Z:$(printf '%s' "$EXE" | tr '/' '\\')" ;;
 esac
-if [ "${SHIM_OVERLAY:-1}" = 1 ] && [ "$HAVE_INJECT" = 1 ] && [ -f "$EXE" ]; then
+if shim_overlay_enabled && [ "$HAVE_INJECT" = 1 ] && [ -f "$EXE" ]; then
     # The injector creates the title suspended, puts the shim PE in before any of
     # the title's own code runs, and resumes — that ordering is the whole overlay
     # (ADR 0003). It stays for the title's lifetime and exits with the title's
