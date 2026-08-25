@@ -296,7 +296,14 @@ static void wire_getters(const char *ver)
     if (!d) { dbg("shim: wire_getters: no table for %s", ver); return; }
     for (i = 0; d->methods[i].name; i++) {
         const struct vt_method *m = &d->methods[i];
-        if (strncmp(m->name, "GetISteam", 9)) continue;
+        const char *n = m->name;
+        /* Valve retired some getters in place rather than removing the slot, so
+         * the family is `GetISteam*` OR `DEPRECATED_GetISteam*`. Matching only
+         * the first left DEPRECATED_GetISteamUnifiedMessages returning NULL from
+         * a stub, which is indistinguishable from "no such interface" to a title
+         * that still asks for it (ADR 0009). */
+        if (!strncmp(n, "DEPRECATED_", 11)) n += 11;
+        if (strncmp(n, "GetISteam", 9)) continue;
         if (m->bytes == 16)      d->vtable[m->slot] = (const void *)ic_GetIface_UPV;
         else if (m->bytes == 12) d->vtable[m->slot] = (const void *)ic_GetIface_PV;
         else dbg("shim: %s.%s unexpected shape (%u bytes) — left stubbed",

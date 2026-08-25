@@ -79,6 +79,37 @@ def strip_cxx(body):
     return '\n'.join(l for l in out if l.strip())
 
 
+ARRAY_RE = re.compile(r'^\s*[WU](?:64|32)_ARRAY\(\s*([\w ]+?)\s*,\s*(\d+)\s*,\s*(\w+)\s*\);\s*$', re.M)
+
+
+def resolve_array_macros(body):
+    """W64_ARRAY(char, 129, m_rgchTitle) -> `char m_rgchTitle[129];`, which is
+    the C expansion in steamclient_structs.h. The C++ expansion is a std::array
+    of the same layout; we emit plain C so both halves of the seam can include
+    the header."""
+    return ARRAY_RE.sub(lambda m: '    %s %s[%s];' % (m.group(1), m.group(3), m.group(2)), body)
+
+
+FIELD_RE = re.compile(r'^\s*([A-Za-z_][\w ]*?[\w*])\s+(\w+)\s*(?:\[(\d+)\])?;\s*$')
+
+
+def fields_of(body):
+    """The members, as (type, name, array count or 0). Proton's explicit
+    `__pad_N[]` members are dropped: they exist to pin the layout, and a
+    converter that copied them would be copying the difference it is there to
+    absorb."""
+    out = []
+    for line in body.split('\n'):
+        m = FIELD_RE.match(line)
+        if not m:
+            continue
+        name = m.group(2)
+        if name.startswith('__pad'):
+            continue
+        out.append([m.group(1).strip(), name, int(m.group(3) or 0)])
+    return out
+
+
 def resolve_ptr_macros(body):
     """W64_PTR(decl, name, type) -> decl, which is its x86_64 expansion verbatim
     (steamclient_structs.h: `#define W64_PTR( decl, name, type ) decl`). Only the
@@ -105,8 +136,8 @@ def main():
 
     structs, order = {}, []
     for pack, name, body in STRUCT_RE.findall(gen):
-        body = resolve_ptr_macros(strip_cxx(body))
-        structs[name] = {'pack': int(pack), 'body': body}
+        body = resolve_array_macros(resolve_ptr_macros(strip_cxx(body)))
+        structs[name] = {'pack': int(pack), 'body': body, 'fields': fields_of(body)}
         order.append(name)
 
     opaque = {}

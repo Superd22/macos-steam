@@ -19,11 +19,11 @@ the first — `ISteamMatchmakingServers::RequestInternetServerList` is refused f
 | --- | --- |
 | interface versions | 212 |
 | vtable slots | 6555 |
-| slots wired to a generated thunk | 5191 |
-| — of those, x86_64 only | 110 |
-| distinct shapes emitted | 1143 |
-| — of those, x86_64 only | 22 |
-| methods refused | 163 |
+| slots wired to a generated thunk | 5218 |
+| — of those, x86_64 only | 137 |
+| distinct shapes emitted | 1152 |
+| — of those, x86_64 only | 31 |
+| methods refused | 157 |
 
 ## x86_64-only shapes
 
@@ -55,7 +55,7 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamInventory` | 40 | 0 | 0 |
 | `ISteamMasterServerUpdater` | 14 | 0 | 0 |
 | `ISteamMatchmaking` | 59 | 0 | 0 |
-| `ISteamMatchmakingServers` | 19 | 5 | 9 |
+| `ISteamMatchmakingServers` | 20 | 6 | 9 |
 | `ISteamMusic` | 9 | 0 | 0 |
 | `ISteamMusicRemote` | 32 | 0 | 0 |
 | `ISteamNetworking` | 34 | 0 | 0 |
@@ -65,15 +65,15 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamNetworkingSocketsSerialized` | 9 | 0 | 0 |
 | `ISteamNetworkingUtils` | 27 | 1 | 2 |
 | `ISteamParentalSettings` | 6 | 0 | 0 |
-| `ISteamParties` | 8 | 0 | 4 |
+| `ISteamParties` | 12 | 4 | 0 |
 | `ISteamRemotePlay` | 21 | 0 | 0 |
 | `ISteamRemoteStorage` | 43 | 10 | 24 |
 | `ISteamScreenshots` | 9 | 0 | 0 |
 | `ISteamTimeline` | 21 | 0 | 0 |
-| `ISteamUGC` | 107 | 3 | 1 |
+| `ISteamUGC` | 110 | 6 | 0 |
 | `ISteamUnifiedMessages` | 5 | 0 | 0 |
 | `ISteamUser` | 82 | 0 | 6 |
-| `ISteamUserStats` | 52 | 2 | 11 |
+| `ISteamUserStats` | 53 | 3 | 10 |
 | `ISteamUtils` | 27 | 0 | 18 |
 | `ISteamVideo` | 4 | 0 | 0 |
 
@@ -96,7 +96,7 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamClient` | `BReleaseSteamPipe` | 17 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamClient` | `ConnectToGlobalUser` | 17 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamClient` | `CreateSteamPipe` | 17 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamClient` | `DEPRECATED_GetISteamUnifiedMessages` | 4 | returns `void *`, a native pointer — a 32-bit PE cannot hold a macOS heap address, and there is no length to copy down by |
+| `ISteamClient` | `DEPRECATED_GetISteamUnifiedMessages` | 4 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamClient` | `DEPRECATED_Remove_SteamAPI_CPostAPIResultInProcess` | 6 | function-pointer parameter `void (*)(void)` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
 | `ISteamClient` | `DEPRECATED_Set_SteamAPI_CPostAPIResultInProcess` | 6 | function-pointer parameter `void (*)(void)` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
 | `ISteamClient` | `GetISteamAppList` | 8 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
@@ -130,7 +130,7 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamClient` | `GetISteamUserStats` | 16 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamClient` | `GetISteamUtils` | 17 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamClient` | `GetISteamVideo` | 7 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamClient` | `GetIVAC` | 1 | returns `void *`, a native pointer — a 32-bit PE cannot hold a macOS heap address, and there is no length to copy down by |
+| `ISteamClient` | `GetIVAC` | 1 | returns `void *`, a native pointer to a type Proton either states no layout for or states differs between the Windows and unix forms — so there is nothing the PE side could safely dereference, and no length to copy down by |
 | `ISteamClient` | `ReleaseUser` | 17 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamClient` | `Remove_SteamAPI_CPostAPIResultInProcess` | 1 | function-pointer parameter `void (*)(uint64_t, void *, uint32_t, int32_t)` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
 | `ISteamClient` | `SetWarningMessageHook` | 16 | function-pointer parameter `void (*)(int32_t, const char *)` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
@@ -159,7 +159,7 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamInput` | `RunFrame` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamInput` | `Shutdown` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamMatchmakingServers` | `CancelQuery` | 3 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
-| `ISteamMatchmakingServers` | `GetServerDetails` | 3 | returns `gameserveritem_t_105 *`, a native pointer — a 32-bit PE cannot hold a macOS heap address, and there is no length to copy down by |
+| `ISteamMatchmakingServers` | `GetServerDetails` | 2 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamMatchmakingServers` | `ReleaseRequest` | 2 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamMatchmakingServers` | `RequestFavoritesServerList` | 2 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamMatchmakingServers` | `RequestFriendsServerList` | 2 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
@@ -170,7 +170,7 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamNetworkingFakeUDPPort` | `DestroyFakeUDPPort` | 1 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamNetworkingFakeUDPPort` | `ReceiveMessages` | 1 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamNetworkingMessages` | `ReceiveMessagesOnChannel` | 1 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
-| `ISteamNetworkingSockets` | `CreateFakeUDPPort` | 2 | returns `void *`, a native pointer — a 32-bit PE cannot hold a macOS heap address, and there is no length to copy down by |
+| `ISteamNetworkingSockets` | `CreateFakeUDPPort` | 2 | returns `void *`, a native pointer to a type Proton either states no layout for or states differs between the Windows and unix forms — so there is nothing the PE side could safely dereference, and no length to copy down by |
 | `ISteamNetworkingSockets` | `GetCertificateRequest` | 4 | function-pointer parameter `char (*)[1024]` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
 | `ISteamNetworkingSockets` | `ReceiveMessagesOnConnection` | 7 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamNetworkingSockets` | `ReceiveMessagesOnListenSocket` | 3 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
@@ -180,10 +180,6 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamNetworkingSockets` | `SetCertificate` | 4 | function-pointer parameter `char (*)[1024]` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
 | `ISteamNetworkingUtils` | `AllocateMessage` | 2 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamNetworkingUtils` | `SetDebugOutputFunction` | 4 | function-pointer parameter `void (*)(uint32_t, const char *)` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
-| `ISteamParties` | `CreateBeacon` | 1 | parameter points at `SteamPartyBeaconLocation_t`, whose Windows and unix layouts differ on x86_64 by Proton's own generated definitions — it needs a field-by-field converter, and the element count and direction are not in the signature |
-| `ISteamParties` | `GetAvailableBeaconLocations` | 1 | parameter points at `SteamPartyBeaconLocation_t`, whose Windows and unix layouts differ on x86_64 by Proton's own generated definitions — it needs a field-by-field converter, and the element count and direction are not in the signature |
-| `ISteamParties` | `GetBeaconDetails` | 1 | parameter points at `SteamPartyBeaconLocation_t`, whose Windows and unix layouts differ on x86_64 by Proton's own generated definitions — it needs a field-by-field converter, and the element count and direction are not in the signature |
-| `ISteamParties` | `GetBeaconLocationData` | 1 | by-value parameter `SteamPartyBeaconLocation_t`, whose Windows and unix layouts differ on x86_64 by Proton's own generated definitions |
 | `ISteamRemoteStorage` | `FileDelete` | 14 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamRemoteStorage` | `FileExists` | 15 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamRemoteStorage` | `FileForget` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
@@ -208,7 +204,6 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamRemoteStorage` | `IsCloudEnabledForApp` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamRemoteStorage` | `SetCloudEnabledForApp` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamRemoteStorage` | `SetSyncPlatforms` | 12 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamUGC` | `GetQueryUGCResult` | 19 | parameter points at `SteamUGCDetails_t_126`, whose Windows and unix layouts differ on x86_64 by Proton's own generated definitions — it needs a field-by-field converter, and the element count and direction are not in the signature |
 | `ISteamUser` | `BLoggedOn` | 20 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUser` | `GetEncryptedAppTicket` | 10 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUser` | `GetHSteamUser` | 20 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
@@ -220,7 +215,6 @@ calls one, which is a named line rather than a wrong answer.
 | `ISteamUserStats` | `GetAchievementAndUnlockTime` | 7 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `GetAchievementDisplayAttribute` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `GetAchievementName` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamUserStats` | `GetDownloadedLeaderboardEntry` | 3 | parameter points at `LeaderboardEntry_t_123`, whose Windows and unix layouts differ on x86_64 by Proton's own generated definitions — it needs a field-by-field converter, and the element count and direction are not in the signature |
 | `ISteamUserStats` | `GetNumAchievements` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `RequestCurrentStats` | 12 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `ResetAllStats` | 9 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |

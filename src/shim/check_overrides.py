@@ -60,7 +60,10 @@ def main():
             if iface(ver) != i:
                 continue
             for s in t['slots']:
-                if s['name'].startswith('GetISteam'):
+                n = s['name']
+                if n.startswith('DEPRECATED_'):
+                    n = n[11:]
+                if n.startswith('GetISteam'):
                     wired.add((i, s['name']))
 
     listed = {(o['interface'], o['method'])
