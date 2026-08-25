@@ -271,6 +271,43 @@ static const struct vt_method *meth_find(const struct vt_desc *d, const char *me
     return NULL;
 }
 
+/* Which generated table does this wrapper carry? Every vt_desc owns exactly one
+ * table, so the vtable pointer identifies the interface VERSION the title asked
+ * for — and therefore the slot layout the native object on the other side of
+ * the seam is using.
+ *
+ * This exists for the overlay activators (#23) and nothing else. Every other
+ * forwarded method in this file happens to sit at the same slot in every
+ * version it appears in, so the unix half can cast the native handle to one
+ * fixed C++ class. ISteamFriends::ActivateGameOverlay does not: it lives at
+ * slot 19, 20, 21, 22, 28 or 27 depending on the version. Wiring the PE side
+ * by name is already correct — that is what wire_all does — but the NATIVE
+ * call needs the same treatment, and only this side knows which version this
+ * object is. So the slot travels with the call. */
+static const struct vt_desc *vt_of(const void **vtable)
+{
+    int i;
+    if (!vtable) return NULL;
+    for (i = 0; g_vtdescs[i].version; i++)
+        if (g_vtdescs[i].vtable == vtable) return &g_vtdescs[i];
+    return NULL;
+}
+
+/* -1 means "could not name it", which the unix half treats as do-nothing-loudly
+ * rather than dispatching through a guessed slot. There is no safe guess: the
+ * wrong slot on ISteamFriends is a call to SetPlayedWith or GetClanTag. */
+static int32_t native_slot(struct w_iface *s, const char *method)
+{
+    const struct vt_desc *d = s ? vt_of(s->vtable) : NULL;
+    const struct vt_method *m = d ? meth_find(d, method) : NULL;
+    if (!m) {
+        dbg("shim: native_slot(%s): unresolvable (version %s) — call dropped",
+            method, d ? d->version : "unknown");
+        return -1;
+    }
+    return (int32_t)m->slot;
+}
+
 /* Wire a thunk into EVERY generated version of an interface that declares the
  * method with the SAME SHAPE as the version the thunk was written against.
  *
@@ -316,6 +353,56 @@ static int wire_all(const char *ref, const char *method, const void *fn)
             continue;
         }
         d->vtable[m->slot] = fn; n++;
+    }
+    return n;
+}
+
+/* Some methods changed SHAPE rather than slot between versions:
+ * ISteamFriends::ActivateGameOverlayToWebPage gained a mode parameter at v017,
+ * and ActivateGameOverlayToStore gained a flag at v013. Each shape needs its
+ * own thunk — i386 thiscall is callee-cleanup, which is exactly the case
+ * wire_all refuses to guess at — but wiring them with two wire_all calls makes
+ * each pass report the OTHER pass's versions as "left stubbed". That turns the
+ * one log line whose whole job is "here is a real gap" into noise, in a file
+ * where the same line is currently telling the truth about ISteamUserStats.
+ *
+ * So wire both shapes in a single pass: a mismatch reported here is a version
+ * that matches NEITHER, which is a genuine gap. Returns versions wired. */
+static int wire_all_2(const char *method,
+                      const char *refA, const void *fnA,
+                      const char *refB, const void *fnB)
+{
+    const struct vt_desc *da = vt_find(refA), *db = vt_find(refB);
+    const struct vt_method *ma = da ? meth_find(da, method) : NULL;
+    const struct vt_method *mb = db ? meth_find(db, method) : NULL;
+    int n = 0, i;
+
+    if (!ma || !mb) {
+        dbg("shim: WIRE MISS %s: reference version missing (%s=%s, %s=%s)", method,
+            refA, ma ? "ok" : "no", refB, mb ? "ok" : "no");
+        return -1;
+    }
+    if (ma->bytes == mb->bytes) {
+        dbg("shim: %s: %s and %s are the SAME shape (%u bytes) — one wire_all "
+            "would do; wiring %s only", method, refA, refB,
+            (unsigned)ma->bytes, refA);
+        return wire_all(refA, method, fnA);
+    }
+    for (i = 0; g_vtdescs[i].version; i++) {
+        const struct vt_desc *d = &g_vtdescs[i];
+        const struct vt_method *m;
+        if (strcmp(d->iface, da->iface)) continue;
+        m = meth_find(d, method);
+        if (!m) continue;
+        if      (m->bytes == ma->bytes) d->vtable[m->slot] = fnA;
+        else if (m->bytes == mb->bytes) d->vtable[m->slot] = fnB;
+        else {
+            dbg("shim: %s.%s SHAPE MISMATCH (%u bytes, matches neither %s's %u "
+                "nor %s's %u) — left stubbed", d->version, method,
+                (unsigned)m->bytes, refA, (unsigned)ma->bytes, refB, (unsigned)mb->bytes);
+            continue;
+        }
+        n++;
     }
     return n;
 }
@@ -785,6 +872,100 @@ static const char * THISCALL ifr_GetPersonaName(struct w_iface *s)
   dbg("shim: GetPersonaName() -> %s", r ? r : "(null)");
   return r; }
 
+/* ---- overlay activation (#23) -------------------------------------------
+ *
+ * These are the only methods in this file whose native slot is sent across the
+ * seam (see native_slot above). Two of them come in two shapes across versions,
+ * and each shape gets its own thunk for the same reason ISteamInput's Init
+ * does: on i386 thiscall is callee-cleanup, so a thunk that pops the wrong
+ * number of bytes corrupts the caller's stack rather than returning a wrong
+ * answer. wire_all refuses to guess across a shape change, so we name both. */
+static void THISCALL ifr_ActivateGameOverlay(struct w_iface *s, const char *dialog)
+{ struct sp_fr_ov_str p; p.handle = s->handle; p.str = (uint64_t)(uintptr_t)dialog;
+  p.slot = native_slot(s, "ActivateGameOverlay");
+  dbg("shim: ActivateGameOverlay(\"%s\")", dialog ? dialog : "(null)");
+  seam(C_Friends_ActivateOverlay, &p); }
+
+static void THISCALL ifr_ActivateGameOverlayToUser(struct w_iface *s, const char *dialog, uint64_t steamid)
+{ struct sp_fr_ov_user p; p.handle = s->handle; p.str = (uint64_t)(uintptr_t)dialog;
+  p.steamid = steamid; p.slot = native_slot(s, "ActivateGameOverlayToUser");
+  dbg("shim: ActivateGameOverlayToUser(\"%s\", %llu)", dialog ? dialog : "(null)",
+      (unsigned long long)steamid);
+  seam(C_Friends_ActivateOverlayToUser, &p); }
+
+/* v017/v018: (pchURL, EActivateGameOverlayToWebPageMode). */
+static void THISCALL ifr_ActivateGameOverlayToWebPage(struct w_iface *s, const char *url, int32_t mode)
+{ struct sp_fr_ov_web p; p.handle = s->handle; p.url = (uint64_t)(uintptr_t)url;
+  p.mode = mode; p.slot = native_slot(s, "ActivateGameOverlayToWebPage");
+  dbg("shim: ActivateGameOverlayToWebPage(\"%s\", mode=%d)", url ? url : "(null)", mode);
+  seam(C_Friends_ActivateOverlayToWebPage, &p); }
+
+/* v005-v015: the URL alone, no mode. Mode 0 is k_EActivateGameOverlayToWebPage-
+ * Mode_Default, and the native method of those versions has no second parameter
+ * to be confused by it. */
+static void THISCALL ifr_ActivateGameOverlayToWebPage_nomode(struct w_iface *s, const char *url)
+{ struct sp_fr_ov_web p; p.handle = s->handle; p.url = (uint64_t)(uintptr_t)url;
+  p.mode = 0; p.slot = native_slot(s, "ActivateGameOverlayToWebPage");
+  dbg("shim: ActivateGameOverlayToWebPage(\"%s\") [no-mode form]", url ? url : "(null)");
+  seam(C_Friends_ActivateOverlayToWebPage, &p); }
+
+/* v013+: (nAppID, EOverlayToStoreFlag). */
+static void THISCALL ifr_ActivateGameOverlayToStore(struct w_iface *s, uint32_t appid, int32_t flag)
+{ struct sp_fr_ov_store p; p.handle = s->handle; p.appid = appid; p.flag = flag;
+  p.slot = native_slot(s, "ActivateGameOverlayToStore");
+  dbg("shim: ActivateGameOverlayToStore(%u, flag=%d)", appid, flag);
+  seam(C_Friends_ActivateOverlayToStore, &p); }
+
+/* v005-v012: the AppId alone. */
+static void THISCALL ifr_ActivateGameOverlayToStore_noflag(struct w_iface *s, uint32_t appid)
+{ struct sp_fr_ov_store p; p.handle = s->handle; p.appid = appid; p.flag = 0;
+  p.slot = native_slot(s, "ActivateGameOverlayToStore");
+  dbg("shim: ActivateGameOverlayToStore(%u) [no-flag form]", appid);
+  seam(C_Friends_ActivateOverlayToStore, &p); }
+
+static void THISCALL ifr_ActivateGameOverlayInviteDialog(struct w_iface *s, uint64_t lobby)
+{ struct sp_fr_ov_id p; p.handle = s->handle; p.steamid = lobby;
+  p.slot = native_slot(s, "ActivateGameOverlayInviteDialog");
+  dbg("shim: ActivateGameOverlayInviteDialog(%llu)", (unsigned long long)lobby);
+  seam(C_Friends_ActivateOverlayInviteDialog, &p); }
+
+static void THISCALL ifr_ActivateGameOverlayRemotePlayTogetherInviteDialog(struct w_iface *s, uint64_t lobby)
+{ struct sp_fr_ov_id p; p.handle = s->handle; p.steamid = lobby;
+  p.slot = native_slot(s, "ActivateGameOverlayRemotePlayTogetherInviteDialog");
+  dbg("shim: ActivateGameOverlayRemotePlayTogetherInviteDialog(%llu)", (unsigned long long)lobby);
+  seam(C_Friends_ActivateOverlayRemotePlay, &p); }
+
+static void THISCALL ifr_ActivateGameOverlayInviteDialogConnectString(struct w_iface *s, const char *connect)
+{ struct sp_fr_ov_str p; p.handle = s->handle; p.str = (uint64_t)(uintptr_t)connect;
+  p.slot = native_slot(s, "ActivateGameOverlayInviteDialogConnectString");
+  dbg("shim: ActivateGameOverlayInviteDialogConnectString(\"%s\")", connect ? connect : "(null)");
+  seam(C_Friends_ActivateOverlayConnectString, &p); }
+
+static uint8_t THISCALL ifr_RegisterProtocolInOverlayBrowser(struct w_iface *s, const char *protocol)
+{ struct sp_fr_ov_proto p; p.handle = s->handle; p.str = (uint64_t)(uintptr_t)protocol;
+  p.slot = native_slot(s, "RegisterProtocolInOverlayBrowser"); p.ret = 0;
+  seam(C_Friends_RegisterProtocolInOverlayBrowser, &p);
+  dbg("shim: RegisterProtocolInOverlayBrowser(\"%s\") -> %d", protocol ? protocol : "(null)", p.ret);
+  return (uint8_t)p.ret; }
+
+/* ---- ISteamUtils overlay predicates (#23) --------------------------------
+ *
+ * No native handle crosses: the unix half answers these from Valve's renderer,
+ * which is process state, not interface state. IsOverlayEnabled is the one the
+ * whole ticket turns on — a title told `true` with nothing to draw pauses
+ * forever, a title told `false` with an overlay running has dead buttons — so
+ * it is deliberately NOT a constant and NOT tracked here. See the unix half. */
+static uint8_t THISCALL iut_IsOverlayEnabled(struct w_iface *s)
+{ struct sp_overlay_bool p; (void)s; p.ret = 0; seam(C_Overlay_IsEnabled, &p);
+  dbg("shim: IsOverlayEnabled() -> %d", p.ret); return (uint8_t)p.ret; }
+static uint8_t THISCALL iut_BOverlayNeedsPresent(struct w_iface *s)
+{ struct sp_overlay_bool p; (void)s; p.ret = 0; seam(C_Overlay_BNeedsPresent, &p);
+  return (uint8_t)p.ret; }
+static void THISCALL iut_SetOverlayNotificationPosition(struct w_iface *s, int32_t pos)
+{ struct sp_overlay_pos p; (void)s; p.pos = pos; seam(C_Overlay_SetNotificationPosition, &p); }
+static void THISCALL iut_SetOverlayNotificationInset(struct w_iface *s, int32_t x, int32_t y)
+{ struct sp_overlay_inset p; (void)s; p.x = x; p.y = y; seam(C_Overlay_SetNotificationInset, &p); }
+
 static void build_vtables(void)
 {
     vt_fill_stubs();
@@ -827,6 +1008,14 @@ static void build_vtables(void)
     wire_all("SteamUtils010", "RunFrame", (const void *)iut_RunFrame);
     wire_all("SteamUtils010", "GetIPCCallCount", (const void *)iut_GetIPCCallCount);
     wire_all("SteamUtils010", "GetSteamUILanguage", (const void *)iut_GetSteamUILanguage);
+    /* The overlay predicates (#23), answered from the renderer rather than the
+     * dylib — so they were the "our honest answer is the stub's false" case
+     * until #25 made an overlay real, and are now the one place where a
+     * hardcoded answer would be a hang. */
+    wire_all("SteamUtils010", "IsOverlayEnabled", (const void *)iut_IsOverlayEnabled);
+    wire_all("SteamUtils010", "BOverlayNeedsPresent", (const void *)iut_BOverlayNeedsPresent);
+    wire_all("SteamUtils010", "SetOverlayNotificationPosition", (const void *)iut_SetOverlayNotificationPosition);
+    wire_all("SteamUtils010", "SetOverlayNotificationInset", (const void *)iut_SetOverlayNotificationInset);
 
     /* ISteamUserStats */
     wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "RequestCurrentStats", (const void *)is_RequestCurrentStats);
@@ -856,6 +1045,27 @@ static void build_vtables(void)
 
     /* ISteamFriends */
     wire_all("SteamFriends017", "GetPersonaName", (const void *)ifr_GetPersonaName);
+
+    /* Overlay activation (#23). Two reference versions where the method changed
+     * shape, so all fifteen versions that declare it are covered rather than
+     * just the two a modern title asks for:
+     *   ToWebPage — v017 added a mode parameter, v005-v015 have none
+     *   ToStore   — v013 added a flag parameter, v005-v012 have none */
+    wire_all("SteamFriends017", "ActivateGameOverlay", (const void *)ifr_ActivateGameOverlay);
+    wire_all("SteamFriends017", "ActivateGameOverlayToUser", (const void *)ifr_ActivateGameOverlayToUser);
+    wire_all_2("ActivateGameOverlayToWebPage",
+               "SteamFriends017", (const void *)ifr_ActivateGameOverlayToWebPage,
+               "SteamFriends015", (const void *)ifr_ActivateGameOverlayToWebPage_nomode);
+    wire_all_2("ActivateGameOverlayToStore",
+               "SteamFriends017", (const void *)ifr_ActivateGameOverlayToStore,
+               "SteamFriends012", (const void *)ifr_ActivateGameOverlayToStore_noflag);
+    wire_all("SteamFriends017", "ActivateGameOverlayInviteDialog", (const void *)ifr_ActivateGameOverlayInviteDialog);
+    wire_all("SteamFriends017", "ActivateGameOverlayRemotePlayTogetherInviteDialog",
+             (const void *)ifr_ActivateGameOverlayRemotePlayTogetherInviteDialog);
+    wire_all("SteamFriends017", "ActivateGameOverlayInviteDialogConnectString",
+             (const void *)ifr_ActivateGameOverlayInviteDialogConnectString);
+    wire_all("SteamFriends017", "RegisterProtocolInOverlayBrowser",
+             (const void *)ifr_RegisterProtocolInOverlayBrowser);
 
     /* ISteamInput stays PER-VERSION: 002 and 006 need genuinely different thunks
      * (different signatures), which is the case wire_all deliberately refuses to

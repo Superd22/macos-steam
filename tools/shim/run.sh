@@ -7,11 +7,18 @@
 # it on WINEDLLPATH (#8/#10). Provenance: delete the .dll and the run must flip
 # back to SteamAPI_Init()=0 FATAL (the negative control from #13).
 #
-# Usage: ./run.sh [mode]   (mode = loop|status|set|reset ; default loop)
+# Usage: ./run.sh [mode] [arg]
+#   mode = loop|status|set|reset|overlay   (default loop)
+#   arg  = achievement name for set; for `overlay`, which slot to fire
+#          (all|store|web|friends|user|invite|remoteplay|connect|protocol).
+#
+# SHIM_OVERLAY=1 ./run.sh overlay is the #23 pair: with it, IsOverlayEnabled
+# must answer true only if injection actually armed; without it, false.
 set -eu
 cd "$(dirname "$0")"
 
 MODE="${1:-loop}"
+ARG="${2:-}"
 BOTTLE_NAME="shim-clean"
 CXROOT="$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver"
 WL="$CXROOT/CrossOver-Hosted Application/wineloader"
@@ -63,9 +70,9 @@ cp "$HARNESS/steam_appid.txt"  "$BOTTLE/drive_c/steam_appid.txt"
 "$WL" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
     /v SteamClientDll64 /t REG_SZ /d "C:\\shim\\steamclient64.dll" /f >/dev/null 2>&1
 
-echo "=== running harness ($MODE) through the shim, no Windows Steam ==="
+echo "=== running harness ($MODE${ARG:+ $ARG}) through the shim, no Windows Steam ==="
 cd "$BOTTLE/drive_c"
-"$WL" c:\\harness.exe "$MODE" 2>/tmp/shim_wine_stderr.log || true
+"$WL" c:\\harness.exe "$MODE" ${ARG:+"$ARG"} 2>/tmp/shim_wine_stderr.log || true
 echo "=== unix-side shim log (/tmp/shim_unix.log) ==="
 cat "$SHIM_UNIX_LOG" || true
 echo "=== PE-side shim debugstr (filtered) ==="

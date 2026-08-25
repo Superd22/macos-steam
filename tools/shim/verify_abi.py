@@ -58,7 +58,19 @@ def main():
                 bad.append('stub %s (%s slot %d %s): pops %d, MSVC pushes %d'
                            % (name, ver, s['slot'], s['name'], got[name], s['bytes'] - 4))
 
-    for ver, meth, fn in re.findall(r'wire\("([^"]+)", "([^"]+)", \(const void \*\)(\w+)\)', src):
+    # Every wiring form, reduced to (reference version, method, thunk). wire_all
+    # and wire_all_2 were invisible here until #23, which is how a callee-cleanup
+    # mismatch could have reached a title through them: the whole point of this
+    # check is that a wrong `ret N` is a stack corruption, not a wrong answer,
+    # and it does not care which macro placed the thunk.
+    wirings = re.findall(r'wire\("([^"]+)",\s*"([^"]+)",\s*\(const void \*\)(\w+)\)', src)
+    wirings += re.findall(r'wire_all\("([^"]+)",\s*"([^"]+)",\s*\(const void \*\)(\w+)\)', src)
+    for meth, ra, fa, rb, fb in re.findall(
+            r'wire_all_2\(\s*"([^"]+)",\s*"([^"]+)",\s*\(const void \*\)(\w+),'
+            r'\s*"([^"]+)",\s*\(const void \*\)(\w+)\)', src):
+        wirings += [(ra, meth, fa), (rb, meth, fb)]
+
+    for ver, meth, fn in wirings:
         slot = [s for s in tables.get(ver, {'slots': []})['slots'] if s['name'] == meth]
         if not slot:
             bad.append('wire %s.%s: no such method in that version' % (ver, meth)); continue

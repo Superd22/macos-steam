@@ -21,8 +21,55 @@ trap #1). No Spacewar install is needed: `steam_appid.txt` beside the exe makes
 it init as 480 with nothing installed.
 
 Modes: `loop` (default; set → verify → reset → verify — never burns the
-achievement), `status` (read-only), `set [ACH]`, `reset`. `--md` switches to the
-manual-dispatch pump (see findings — broken in this environment).
+achievement), `status` (read-only), `set [ACH]`, `reset`, and `overlay [WHICH]`
+(below). `--md` switches to the manual-dispatch pump (see findings — broken in
+this environment).
+
+## Overlay mode (#23)
+
+```sh
+                ../shim/run.sh overlay all     # expect IsOverlayEnabled() = 0
+SHIM_OVERLAY=1  ../shim/run.sh overlay all     # expect 1 iff injection armed
+SHIM_OVERLAY=1  ../shim/run.sh overlay store   # just one slot
+```
+
+`WHICH` is `all` (default) or one of `store web friends user invite remoteplay
+connect protocol`.
+
+**Why a fake title tests this better than a real one.** The overlay slots are
+calls the *game* makes, and a game only makes them when a player clicks
+something. Four of the twelve — `RemotePlayTogetherInviteDialog`, the
+connect-string invite, `RegisterProtocolInOverlayBrowser` and
+`SetOverlayNotificationInset` — are not called by any title we own, so a
+real-title test cannot reach them at all. The harness calls every one on demand,
+through Valve's own `SteamAPI_ISteamFriends_*` flat functions, which do the MSVC
+thiscall dispatch into the shim's generated vtable internally. A wrong slot or a
+wrong `ret N` surfaces here as a crash or garbage, not as a subtly wrong pixel
+three layers away.
+
+**What it cannot show** is the overlay compositing: this is a console exe with
+no swapchain, so the visible outcome is the degraded one — the native macOS
+Steam window coming to the front on the right page. Two things cover the rest:
+
+- `IsOverlayEnabled()` is checked in the direction that can only be wrong.
+  `true` with `SHIM_OVERLAY` off is a hard FAIL (a title that pauses on
+  activation would hang forever); `false` with it on is a legitimate outcome —
+  injection lost its race, or there was no swapchain to hook — and is reported,
+  not failed.
+- Seeing a store page drawn *in* the overlay needs a real title. **Surviving
+  Mars** is the one to use, and not by guesswork: it exports
+  `SteamActivateGameOverlayToWebPage`, `...ToStore`, `...ToInvite` and
+  `SteamIsOverlayEnabled` as *Lua* functions (`HGE::l_Steam*`), and
+  `ModTools/Src/CommonLua/Core/lib.lua:2016` branches `OpenUrl()` on
+  `SteamIsOverlayEnabled()` — overlay page if true, external browser if false.
+  So both branches of the load-bearing predicate are visibly different, on
+  demand, from the game's own console. (Among Us's IL2CPP metadata names all
+  twelve, but that is Steamworks.NET's whole binding surface, not evidence of a
+  call site.)
+
+After a run, `/tmp/shim_unix.log` should show a `slot=NN fn=0x...` line per
+activation with distinct, non-null `fn` values, and **no** `(unmapped)` line for
+any `SteamFriends`/`SteamUtils` overlay method.
 
 ## Reference trace
 

@@ -94,6 +94,13 @@ static bool ensure_dylib()
  * and must not be, or we are already too late.
  */
 static void *g_overlay;
+/* The renderer's own answers to the overlay predicates (#23). Four exports, of
+ * which we want three; there is no SetNotificationInset, which is why the inset
+ * setter below is accept-and-ignore rather than a forward. */
+static bool (*n_IsOverlayEnabled)(void);
+static bool (*n_BOverlayNeedsPresent)(void);
+static void (*n_SetNotificationPosition)(uint32_t);
+
 static std::string renderer_path()
 {
     const char *home = getenv("HOME");
@@ -110,6 +117,14 @@ __attribute__((constructor)) static void overlay_load(void)
     g_overlay = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
     ulog("overlay: dlopen(%s) -> %p pid=%d%s%s", path.c_str(), g_overlay, (int)getpid(),
          g_overlay ? "" : " err=", g_overlay ? "" : dlerror());
+    if (g_overlay) {
+        n_IsOverlayEnabled       = (bool(*)(void))dlsym(g_overlay, "IsOverlayEnabled");
+        n_BOverlayNeedsPresent   = (bool(*)(void))dlsym(g_overlay, "BOverlayNeedsPresent");
+        n_SetNotificationPosition= (void(*)(uint32_t))dlsym(g_overlay, "SetNotificationPosition");
+        ulog("overlay: predicates IsOverlayEnabled=%p BOverlayNeedsPresent=%p "
+             "SetNotificationPosition=%p (#23)", (void*)n_IsOverlayEnabled,
+             (void*)n_BOverlayNeedsPresent, (void*)n_SetNotificationPosition);
+    }
     ulog("overlay: set STEAM_OVERLAY_LOGGING=1 and read /tmp/gameoverlayrenderer.%d.log — "
          "'Hooking ...' means we were early enough, its absence means we were not", (int)getpid());
 }
@@ -396,6 +411,171 @@ static NTSTATUS u_friends_personaname(void *args)
 { auto *p = (sp_friends_str *)args; p->ret = (uint64_t)FRIENDS(p->handle)->GetPersonaName();
   ulog("GetPersonaName() -> %s", p->ret ? (const char*)p->ret : "(null)"); return 0; }
 
+/* ---- ISteamFriends overlay activation (#23) ------------------------------
+ *
+ * Dispatched by SLOT, not through a declared C++ class, and that is the whole
+ * point rather than a shortcut. ISteamFriends put ActivateGameOverlay at slot
+ * 19 in v003, 20 in v006, 21 in v010, 22 in v014, 28 in v015/v017 and 27 in
+ * v018 — so a single `((ISteamFriends017 *)h)->ActivateGameOverlay(...)` would
+ * silently call GetClanTag, or SetPlayedWith, on thirteen of the fifteen
+ * versions that have it. The PE half resolves the method against the version
+ * the title actually asked for and sends that slot; here we index the native
+ * vtable with it. Safe because ISteamFriends has no same-name overload in ANY
+ * version, so MSVC's order (what the PE side holds) and the dylib's Itanium
+ * order are the same order.
+ *
+ * Deliberately forwarded whether or not the overlay is armed: unarmed, Valve's
+ * client brings the native macOS Steam window to the front on the right page,
+ * which is a degraded answer but a real one — and strictly better than the
+ * dead button a stub gives.
+ *
+ * Every string here is a PE address the title owns and keeps alive for the
+ * call, so it is read in place; nothing comes back by pointer, so none of the
+ * #20 copy-down machinery is involved on either bitness. */
+static void *vslot(uint64_t handle, int32_t slot)
+{
+    if (!handle || slot < 0) return nullptr;
+    void **vt = *(void ***)(uintptr_t)handle;
+    return vt ? vt[slot] : nullptr;
+}
+/* A miss is a real outcome, not an assertion: it means the PE side could not
+ * name the slot, and the honest response is to do nothing loudly. */
+#define OV_FN(T, p) ((T)vslot((p)->handle, (p)->slot))
+
+static NTSTATUS u_fr_ov_activate(void *args)
+{
+    auto *p = (sp_fr_ov_str *)args;
+    auto fn = OV_FN(void (*)(void *, const char *), p);
+    ulog("ActivateGameOverlay(\"%s\") slot=%d fn=%p", p->str ? (const char *)(uintptr_t)p->str : "",
+         p->slot, (void *)fn);
+    if (fn) fn((void *)(uintptr_t)p->handle, (const char *)(uintptr_t)p->str);
+    return 0;
+}
+static NTSTATUS u_fr_ov_touser(void *args)
+{
+    auto *p = (sp_fr_ov_user *)args;
+    auto fn = OV_FN(void (*)(void *, const char *, CSteamID_t), p);
+    ulog("ActivateGameOverlayToUser(\"%s\", %llu) slot=%d fn=%p",
+         p->str ? (const char *)(uintptr_t)p->str : "", (unsigned long long)p->steamid,
+         p->slot, (void *)fn);
+    if (fn) fn((void *)(uintptr_t)p->handle, (const char *)(uintptr_t)p->str, p->steamid);
+    return 0;
+}
+/* v005-v015 take the URL alone; v017/v018 added EActivateGameOverlayToWebPageMode.
+ * One handler serves both: the PE half wires a mode-less thunk to the older
+ * versions, which leaves mode 0 (k_EActivateGameOverlayToWebPageMode_Default),
+ * and the extra SysV argument register is simply ignored by the older native
+ * method. */
+static NTSTATUS u_fr_ov_towebpage(void *args)
+{
+    auto *p = (sp_fr_ov_web *)args;
+    auto fn = OV_FN(void (*)(void *, const char *, int32_t), p);
+    ulog("ActivateGameOverlayToWebPage(\"%s\", mode=%d) slot=%d fn=%p",
+         p->url ? (const char *)(uintptr_t)p->url : "", p->mode, p->slot, (void *)fn);
+    if (fn) fn((void *)(uintptr_t)p->handle, (const char *)(uintptr_t)p->url, p->mode);
+    return 0;
+}
+/* Same two-shape story: v005-v012 take the AppId alone, v013+ added
+ * EOverlayToStoreFlag. */
+static NTSTATUS u_fr_ov_tostore(void *args)
+{
+    auto *p = (sp_fr_ov_store *)args;
+    auto fn = OV_FN(void (*)(void *, AppId_t, int32_t), p);
+    ulog("ActivateGameOverlayToStore(%u, flag=%d) slot=%d fn=%p",
+         p->appid, p->flag, p->slot, (void *)fn);
+    if (fn) fn((void *)(uintptr_t)p->handle, p->appid, p->flag);
+    return 0;
+}
+static NTSTATUS u_fr_ov_invite(void *args)
+{
+    auto *p = (sp_fr_ov_id *)args;
+    auto fn = OV_FN(void (*)(void *, CSteamID_t), p);
+    ulog("ActivateGameOverlayInviteDialog(%llu) slot=%d fn=%p",
+         (unsigned long long)p->steamid, p->slot, (void *)fn);
+    if (fn) fn((void *)(uintptr_t)p->handle, p->steamid);
+    return 0;
+}
+static NTSTATUS u_fr_ov_remoteplay(void *args)
+{
+    auto *p = (sp_fr_ov_id *)args;
+    auto fn = OV_FN(void (*)(void *, CSteamID_t), p);
+    ulog("ActivateGameOverlayRemotePlayTogetherInviteDialog(%llu) slot=%d fn=%p",
+         (unsigned long long)p->steamid, p->slot, (void *)fn);
+    if (fn) fn((void *)(uintptr_t)p->handle, p->steamid);
+    return 0;
+}
+static NTSTATUS u_fr_ov_connectstring(void *args)
+{
+    auto *p = (sp_fr_ov_str *)args;
+    auto fn = OV_FN(void (*)(void *, const char *), p);
+    ulog("ActivateGameOverlayInviteDialogConnectString(\"%s\") slot=%d fn=%p",
+         p->str ? (const char *)(uintptr_t)p->str : "", p->slot, (void *)fn);
+    if (fn) fn((void *)(uintptr_t)p->handle, (const char *)(uintptr_t)p->str);
+    return 0;
+}
+/* #23 asked whether this one is in scope or an explicit no. It is in scope:
+ * it is the same shape as its neighbours, it goes to the same native object,
+ * and the alternative — a stub returning 0 — is a title being told its custom
+ * protocol was rejected when nobody ever asked. Forwarding lets the client
+ * give whatever answer is true. */
+static NTSTATUS u_fr_ov_registerprotocol(void *args)
+{
+    auto *p = (sp_fr_ov_proto *)args;
+    auto fn = OV_FN(bool (*)(void *, const char *), p);
+    p->ret = fn ? (fn((void *)(uintptr_t)p->handle, (const char *)(uintptr_t)p->str) ? 1 : 0) : 0;
+    ulog("RegisterProtocolInOverlayBrowser(\"%s\") slot=%d -> %d",
+         p->str ? (const char *)(uintptr_t)p->str : "", p->slot, p->ret);
+    return 0;
+}
+
+/* ---- overlay predicates (#23) --------------------------------------------
+ *
+ * These are the load-bearing half of the ticket. IsOverlayEnabled is the answer
+ * a title uses to decide whether to PAUSE and wait for a panel, so `true` with
+ * no compositor is a hang and `false` with one running is a dead button — and
+ * neither is a constant we could hardcode once #25 made the overlay real.
+ *
+ * So we do not track it. Valve's renderer exports it, and its answer is the
+ * truth by construction: static analysis of gameoverlayrenderer.dylib shows the
+ * byte IsOverlayEnabled returns starts at 0 and is set to 1 only inside the
+ * client handshake loop, after the overlay has actually armed. Loading the
+ * renderer is not enough to make it say yes. With SHIM_OVERLAY off we never
+ * dlopen it at all, there is no symbol, and the answer is false — which is the
+ * well-tested no-overlay branch every title already has. */
+static NTSTATUS u_overlay_isenabled(void *args)
+{
+    auto *p = (sp_overlay_bool *)args;
+    p->ret = n_IsOverlayEnabled ? (n_IsOverlayEnabled() ? 1 : 0) : 0;
+    ulog("IsOverlayEnabled() -> %d (renderer %s)", p->ret,
+         n_IsOverlayEnabled ? "loaded" : "not loaded — SHIM_OVERLAY off or dlopen failed");
+    return 0;
+}
+static NTSTATUS u_overlay_needspresent(void *args)
+{
+    auto *p = (sp_overlay_bool *)args;
+    p->ret = n_BOverlayNeedsPresent ? (n_BOverlayNeedsPresent() ? 1 : 0) : 0;
+    return 0;
+}
+static NTSTATUS u_overlay_setnotifypos(void *args)
+{
+    auto *p = (sp_overlay_pos *)args;
+    if (n_SetNotificationPosition) n_SetNotificationPosition((uint32_t)p->pos);
+    ulog("SetOverlayNotificationPosition(%d) -> %s", p->pos,
+         n_SetNotificationPosition ? "forwarded" : "no renderer, ignored");
+    return 0;
+}
+/* The renderer exports no inset setter, so this is accept-and-ignore by
+ * necessity rather than by choice. It returns void and is pure cosmetics — a
+ * notification a few pixels off is not a failure a title can observe, let alone
+ * one it stops for. Logged so a misplaced toast has a first thing to check. */
+static NTSTATUS u_overlay_setnotifyinset(void *args)
+{
+    auto *p = (sp_overlay_inset *)args;
+    ulog("SetOverlayNotificationInset(%d, %d) -> accepted and ignored "
+         "(the renderer exports no inset setter)", p->x, p->y);
+    return 0;
+}
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -426,6 +606,10 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_copymem, u_copystr,
     u_user_reqencticket, u_user_getencticket,
     u_friends_personaname,
+    u_fr_ov_activate, u_fr_ov_touser, u_fr_ov_towebpage, u_fr_ov_tostore,
+    u_fr_ov_invite, u_fr_ov_remoteplay, u_fr_ov_connectstring, u_fr_ov_registerprotocol,
+    u_overlay_isenabled, u_overlay_needspresent,
+    u_overlay_setnotifypos, u_overlay_setnotifyinset,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -448,6 +632,10 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_copymem, u_copystr,
     u_user_reqencticket, u_user_getencticket,
     u_friends_personaname,
+    u_fr_ov_activate, u_fr_ov_touser, u_fr_ov_towebpage, u_fr_ov_tostore,
+    u_fr_ov_invite, u_fr_ov_remoteplay, u_fr_ov_connectstring, u_fr_ov_registerprotocol,
+    u_overlay_isenabled, u_overlay_needspresent,
+    u_overlay_setnotifypos, u_overlay_setnotifyinset,
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a

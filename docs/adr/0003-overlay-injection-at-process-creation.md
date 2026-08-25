@@ -295,3 +295,55 @@ Note this removes the ADR's implied prerequisite that shipping the overlay would
 first require reimplementing the `GameOverlayActivated_t` input gate PE-side.
 It would not. The remaining blocker on turning the overlay on by default is the
 Steamworks overlay API surface (#23), not input.
+
+## Addendum, 2026-08-25: the overlay API surface, and who answers `IsOverlayEnabled` (#23)
+
+The addendum above named #23 as the remaining blocker on turning the overlay on
+by default. It is now closed, and one decision inside it is worth recording here
+because it is the difference between an overlay that works and a title that
+hangs.
+
+**`IsOverlayEnabled` is not ours to answer.** The original plan was an honest
+hardcoded `false`, on the sound reasoning that a title told `true` with no
+compositor pauses forever waiting for a panel that never appears. #25 made that
+answer wrong without making the reasoning wrong — it now has to track reality,
+in both directions, or it is a hang one way and a dead button the other.
+
+So we do not track it. Valve's renderer exports `IsOverlayEnabled`,
+`BOverlayNeedsPresent` and `SetNotificationPosition`, and the unixlib already
+has the renderer in-process, so it `dlsym`s them and forwards. That makes the
+answer correct by construction rather than by bookkeeping we could get out of
+step: with `SHIM_OVERLAY` off we never `dlopen` the renderer, there is no
+symbol, and the answer is `false`.
+
+The important part is that this distinguishes **loaded** from **armed**.
+Disassembly of `gameoverlayrenderer.dylib` shows the byte `IsOverlayEnabled`
+returns starts at `0` and is written `1` at exactly one site — inside the
+client-handshake loop, after a successful virtual call, alongside
+`"Forcing internal overlay disable and requesting ui disable"`. Loading the
+dylib is not enough to make it say yes. Confirmed behaviourally: the harness run
+with `SHIM_OVERLAY=1` logs `overlay: dlopen(...) -> 0x3d1580` and all three
+symbols resolved, and `IsOverlayEnabled() -> 0 (renderer loaded)` — because a
+console exe has no swapchain and the overlay never armed. That is the right
+answer, and it is one a boolean tracking `SHIM_OVERLAY` would have got wrong.
+
+**There is no inset setter.** `SetOverlayNotificationInset` is accept-and-ignore
+by necessity, not by choice: the renderer exports no counterpart. It returns
+void and moves a toast a few pixels, so nothing observable to a title depends
+on it.
+
+**The activators cross the seam with their slot number.** Every other forwarded
+method in the shim reaches the native object by casting the handle to one fixed
+C++ class in declaration order. `ISteamFriends::ActivateGameOverlay` cannot:
+it sits at slot 19, 20, 21, 22, 28 or 27 depending on which of the fifteen
+versions the title asked for, so one class would silently call `GetClanTag` or
+`SetPlayedWith` on thirteen of them. The PE half already resolves methods
+against the version's own generated table, so it sends the slot it found and
+the unix half indexes the native vtable with it. This is safe *here* and only
+here: `ISteamFriends` and `ISteamUtils` have no same-name overload in any
+version, which is the one condition under which the MSVC order the PE side
+holds and the dylib's Itanium order cannot diverge.
+
+Unarmed, the activators still forward, and Valve's client brings the native
+macOS Steam window to the front on the right page. That is degraded, but it is
+a real answer where a stub was a dead button.

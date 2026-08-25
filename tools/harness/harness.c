@@ -72,6 +72,30 @@ static uint32_t (*p_Stats_GetNumAchievements)(void *);
 static const char *(*p_Stats_GetAchievementName)(void *, uint32_t);
 static const char *(*p_Stats_GetAchievementDisplayAttribute)(void *, const char *, const char *);
 
+/* ---- overlay API (#23) --------------------------------------------------
+ * The twelve slots #23 wires. Every one is reached through Valve's own flat
+ * function, which does the MSVC thiscall dispatch into the shim's generated
+ * vtable internally — so calling them here exercises the exact path a title
+ * takes: right slot, right arity, right calling convention, on both bitnesses.
+ * A wrong slot or a wrong `ret N` shows up as a crash or garbage here, not as
+ * a subtly wrong pixel three layers away. */
+static void *(*p_SteamFriends_v017)(void);
+static void *(*p_SteamUtils_v010)(void);
+
+static void (*p_Fr_ActivateGameOverlay)(void *, const char *);
+static void (*p_Fr_ActivateGameOverlayToUser)(void *, const char *, uint64_t);
+static void (*p_Fr_ActivateGameOverlayToWebPage)(void *, const char *, int);
+static void (*p_Fr_ActivateGameOverlayToStore)(void *, uint32_t, int);
+static void (*p_Fr_ActivateGameOverlayInviteDialog)(void *, uint64_t);
+static void (*p_Fr_ActivateGameOverlayRemotePlay)(void *, uint64_t);
+static void (*p_Fr_ActivateGameOverlayConnectString)(void *, const char *);
+static int  (*p_Fr_RegisterProtocolInOverlayBrowser)(void *, const char *);
+
+static int  (*p_Ut_IsOverlayEnabled)(void *);
+static int  (*p_Ut_BOverlayNeedsPresent)(void *);
+static void (*p_Ut_SetOverlayNotificationPosition)(void *, int);
+static void (*p_Ut_SetOverlayNotificationInset)(void *, int, int);
+
 static void  (*p_RunCallbacks)(void);
 static void  (*p_RegisterCallback)(void *, int);
 static void  (*p_UnregisterCallback)(void *);
@@ -117,6 +141,24 @@ static int resolve_all(HMODULE dll)
     RESOLVE(p_Stats_GetNumAchievements,         "SteamAPI_ISteamUserStats_GetNumAchievements", 0);
     RESOLVE(p_Stats_GetAchievementName,         "SteamAPI_ISteamUserStats_GetAchievementName", 0);
     RESOLVE(p_Stats_GetAchievementDisplayAttribute, "SteamAPI_ISteamUserStats_GetAchievementDisplayAttribute", 0);
+
+    /* Overlay (#23). None is `required`: an older redistributable may not
+     * export all twelve, and the achievement modes must still run. The overlay
+     * mode reports what it could not resolve rather than aborting the run. */
+    RESOLVE(p_SteamFriends_v017, "SteamAPI_SteamFriends_v017", 0);
+    RESOLVE(p_SteamUtils_v010,   "SteamAPI_SteamUtils_v010", 0);
+    RESOLVE(p_Fr_ActivateGameOverlay,              "SteamAPI_ISteamFriends_ActivateGameOverlay", 0);
+    RESOLVE(p_Fr_ActivateGameOverlayToUser,        "SteamAPI_ISteamFriends_ActivateGameOverlayToUser", 0);
+    RESOLVE(p_Fr_ActivateGameOverlayToWebPage,     "SteamAPI_ISteamFriends_ActivateGameOverlayToWebPage", 0);
+    RESOLVE(p_Fr_ActivateGameOverlayToStore,       "SteamAPI_ISteamFriends_ActivateGameOverlayToStore", 0);
+    RESOLVE(p_Fr_ActivateGameOverlayInviteDialog,  "SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog", 0);
+    RESOLVE(p_Fr_ActivateGameOverlayRemotePlay,    "SteamAPI_ISteamFriends_ActivateGameOverlayRemotePlayTogetherInviteDialog", 0);
+    RESOLVE(p_Fr_ActivateGameOverlayConnectString, "SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialogConnectString", 0);
+    RESOLVE(p_Fr_RegisterProtocolInOverlayBrowser, "SteamAPI_ISteamFriends_RegisterProtocolInOverlayBrowser", 0);
+    RESOLVE(p_Ut_IsOverlayEnabled,                 "SteamAPI_ISteamUtils_IsOverlayEnabled", 0);
+    RESOLVE(p_Ut_BOverlayNeedsPresent,             "SteamAPI_ISteamUtils_BOverlayNeedsPresent", 0);
+    RESOLVE(p_Ut_SetOverlayNotificationPosition,   "SteamAPI_ISteamUtils_SetOverlayNotificationPosition", 0);
+    RESOLVE(p_Ut_SetOverlayNotificationInset,      "SteamAPI_ISteamUtils_SetOverlayNotificationInset", 0);
     return 1;
 }
 
@@ -329,6 +371,126 @@ static int get_achieved(const char *name)
     return ach & 0xff;
 }
 
+/* ---- overlay mode (#23) --------------------------------------------------
+ *
+ * Why a fake title and not a real one: these are calls the GAME makes, and a
+ * game only makes them when the player clicks something. A harness can call
+ * every one of them on demand, including the four (RemotePlayTogether, the
+ * connect-string invite, the protocol registration, the notification inset)
+ * that no title we own is known to touch — so no slot ships untested at the
+ * plumbing level. What it CANNOT show is the overlay compositing: this is a
+ * console exe with no swapchain, so the visible outcome here is the degraded
+ * one — the native macOS Steam window coming to the front on the right page.
+ * Seeing a store page drawn IN the overlay needs a real title (Surviving Mars
+ * exposes ActivateGameOverlayToWebPage/ToStore and IsOverlayEnabled as Lua
+ * functions, and its OpenUrl() branches on the predicate).
+ *
+ * Every activation is separated by a beat so a human watching can attribute
+ * what appeared to what was called.
+ */
+static void beat(const char *what)
+{
+    tr("--- %s ---", what);
+    Sleep(2500);
+    if (p_RunCallbacks) p_RunCallbacks();
+}
+
+static int mode_overlay(uint64_t sid, const char *which)
+{
+    void *fr = p_SteamFriends_v017 ? p_SteamFriends_v017() : NULL;
+    void *ut = p_SteamUtils_v010   ? p_SteamUtils_v010()   : NULL;
+    const char *env = getenv("SHIM_OVERLAY");
+    int armed_expected = env && *env && *env != '0';
+    int all = (strcmp(which, "all") == 0);
+    int rc = 0;
+
+    tr("ISteamFriends(v017)=%p ISteamUtils(v010)=%p", fr, ut);
+    if (!fr || !ut) {
+        fprintf(stderr, "FATAL: overlay mode needs both interfaces; one is NULL. "
+                        "If the shim logged 'NO VTABLE', that version is not generated.\n");
+        return 3;
+    }
+
+    /* Phase 1: the predicates. This is the load-bearing pair — a title that is
+     * told the overlay exists will PAUSE and wait for a panel, so a false
+     * `true` is a hang, not a cosmetic bug. */
+    tr("--- predicates (SHIM_OVERLAY=%s) ---", env && *env ? env : "(unset)");
+    if (p_Ut_IsOverlayEnabled) {
+        int on = p_Ut_IsOverlayEnabled(ut);
+        tr("IsOverlayEnabled() = %d   [expected %s]", on,
+           armed_expected ? "1 if injection armed, 0 if it did not" : "0");
+        /* Only one direction is unambiguously wrong. With SHIM_OVERLAY off
+         * there is no renderer in the process at all, so a `true` here means
+         * we are about to hang a title on a panel that cannot exist. With it
+         * on, a `false` may simply mean injection lost its race — a real and
+         * correctly-reported outcome, not a bug in this ticket. */
+        if (!armed_expected && on) {
+            fprintf(stderr, "FAIL: IsOverlayEnabled()=true with SHIM_OVERLAY off — "
+                            "a title that pauses on activation would hang forever.\n");
+            rc = 8;
+        }
+    } else tr("IsOverlayEnabled: export MISSING, skipped");
+    if (p_Ut_BOverlayNeedsPresent)
+        tr("BOverlayNeedsPresent() = %d", p_Ut_BOverlayNeedsPresent(ut));
+
+    /* Phase 2: the setters. Void, so the only failure they can have is the one
+     * that matters on i386 — a thunk popping the wrong number of bytes, which
+     * corrupts the caller's stack and takes the next call with it. Surviving
+     * the calls after them IS the assertion. */
+    if (p_Ut_SetOverlayNotificationPosition) {
+        p_Ut_SetOverlayNotificationPosition(ut, 3);   /* k_EPositionBottomRight */
+        tr("SetOverlayNotificationPosition(3) returned");
+    }
+    if (p_Ut_SetOverlayNotificationInset) {
+        p_Ut_SetOverlayNotificationInset(ut, 16, 24);
+        tr("SetOverlayNotificationInset(16, 24) returned");
+    }
+
+    /* Phase 3: the activators. */
+    if ((all || !strcmp(which, "store")) && p_Fr_ActivateGameOverlayToStore) {
+        beat("ActivateGameOverlayToStore(480, k_EOverlayToStoreFlag_None)");
+        p_Fr_ActivateGameOverlayToStore(fr, 480, 0);
+    }
+    if ((all || !strcmp(which, "web")) && p_Fr_ActivateGameOverlayToWebPage) {
+        beat("ActivateGameOverlayToWebPage(store page, Default)");
+        p_Fr_ActivateGameOverlayToWebPage(fr, "https://store.steampowered.com/app/480/", 0);
+    }
+    if ((all || !strcmp(which, "friends")) && p_Fr_ActivateGameOverlay) {
+        beat("ActivateGameOverlay(\"Friends\")");
+        p_Fr_ActivateGameOverlay(fr, "Friends");
+    }
+    if ((all || !strcmp(which, "user")) && p_Fr_ActivateGameOverlayToUser) {
+        beat("ActivateGameOverlayToUser(\"steamid\", <self>)");
+        p_Fr_ActivateGameOverlayToUser(fr, "steamid", sid);
+    }
+    if ((all || !strcmp(which, "invite")) && p_Fr_ActivateGameOverlayInviteDialog) {
+        /* No lobby exists, so the client will decline to show anything. The
+         * point is that the CALL lands: an invalid CSteamID is still eight
+         * bytes crossing the seam in the right place. */
+        beat("ActivateGameOverlayInviteDialog(0)");
+        p_Fr_ActivateGameOverlayInviteDialog(fr, 0);
+    }
+    if ((all || !strcmp(which, "remoteplay")) && p_Fr_ActivateGameOverlayRemotePlay) {
+        beat("ActivateGameOverlayRemotePlayTogetherInviteDialog(0)");
+        p_Fr_ActivateGameOverlayRemotePlay(fr, 0);
+    }
+    if ((all || !strcmp(which, "connect")) && p_Fr_ActivateGameOverlayConnectString) {
+        beat("ActivateGameOverlayInviteDialogConnectString(\"+connect 127.0.0.1:27015\")");
+        p_Fr_ActivateGameOverlayConnectString(fr, "+connect 127.0.0.1:27015");
+    }
+    if ((all || !strcmp(which, "protocol")) && p_Fr_RegisterProtocolInOverlayBrowser) {
+        beat("RegisterProtocolInOverlayBrowser(\"harness-probe\")");
+        tr("RegisterProtocolInOverlayBrowser() = %d",
+           p_Fr_RegisterProtocolInOverlayBrowser(fr, "harness-probe"));
+    }
+
+    beat("settling");
+    tr("=== OVERLAY %s === (no crash means every slot dispatched with the right "
+       "arity; check shim_unix.log for 'slot=' lines and the ABSENCE of "
+       "'(unmapped)')", rc == 0 ? "PASS" : "FAIL");
+    return rc;
+}
+
 int main(int argc, char **argv)
 {
     const char *pos[2] = { "loop", "ACH_WIN_ONE_GAME" };
@@ -338,10 +500,14 @@ int main(int argc, char **argv)
         else if (npos < 2) pos[npos++] = argv[i];
     }
     const char *mode = pos[0], *ach = pos[1];
+    /* The second positional is the achievement name for the stats modes and the
+     * slot selector for `overlay`; "all" is the default there, not an
+     * achievement. */
+    const char *ach_or_which = (npos >= 2) ? pos[1] : "all";
     g_t0 = GetTickCount();
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    printf("=== steamworks achievement harness (%s) ===\n", mode);
+    printf("=== steamworks harness (%s) ===\n", mode);
 
     /* Valve ships a different redistributable per bitness, and each looks for a
      * different steamclient under a different registry value — steam_api64.dll
@@ -400,11 +566,18 @@ int main(int argc, char **argv)
         return 4;
     }
 
-    tr("RequestCurrentStats() = %d", p_Stats_RequestCurrentStats(g_stats));
-    if (!pump_until(CBID_UserStatsReceived, 10000)) return 5;
+    /* The overlay slots have nothing to do with stats; do not make an overlay
+     * run depend on a stats callback arriving. */
+    if (strcmp(mode, "overlay") != 0) {
+        tr("RequestCurrentStats() = %d", p_Stats_RequestCurrentStats(g_stats));
+        if (!pump_until(CBID_UserStatsReceived, 10000)) return 5;
+    }
 
     int rc = 0;
-    if (strcmp(mode, "status") == 0) {
+    if (strcmp(mode, "overlay") == 0) {
+        rc = mode_overlay(sid, ach_or_which);
+
+    } else if (strcmp(mode, "status") == 0) {
         print_all_achievements();
 
     } else if (strcmp(mode, "set") == 0) {

@@ -120,6 +120,44 @@ enum shim_call
      * the same shape as the ISteamApps::GetCurrentGameLanguage crash in #12. */
     C_Friends_GetPersonaName,
 
+    /* ISteamFriends overlay activation (#23). Unlike everything above, these are
+     * not questions the title asks — they are the title telling Steam to put a
+     * panel on screen: "Buy DLC", "View profile", "Invite friend". Stubbed, every
+     * one of those is a dead button.
+     *
+     * Each params struct carries `slot`, the native vtable index, and that is
+     * load-bearing rather than defensive. ISteamFriends moved ActivateGameOverlay
+     * through slots 19, 20, 21, 22, 28 and 27 across the fifteen versions that
+     * declare it, so casting the native handle to one fixed C++ class — the
+     * pattern every other block here uses — would dispatch to a DIFFERENT method
+     * on thirteen of them. The PE half already resolves each method against its
+     * own version's generated table, so it sends the slot it found. ISteamFriends
+     * has no same-name overload in any version (checked against vtables.json),
+     * which is what makes that slot number transferable: it is the one case where
+     * the MSVC order the PE side holds and the native Itanium order cannot
+     * diverge. */
+    C_Friends_ActivateOverlay,
+    C_Friends_ActivateOverlayToUser,
+    C_Friends_ActivateOverlayToWebPage,
+    C_Friends_ActivateOverlayToStore,
+    C_Friends_ActivateOverlayInviteDialog,
+    C_Friends_ActivateOverlayRemotePlay,
+    C_Friends_ActivateOverlayConnectString,
+    C_Friends_RegisterProtocolInOverlayBrowser,
+
+    /* Overlay predicates (#23) — answered by Valve's RENDERER, not by
+     * steamclient.dylib, and so they take no interface handle. The renderer is
+     * already in our address space (overlay_load below dlopens it) and exports
+     * exactly these, so forwarding makes the answer correct BY CONSTRUCTION:
+     * no renderer loaded, no symbol, false. That matters more here than
+     * anywhere else in this enum, because IsOverlayEnabled is the one call
+     * whose wrong answer is not a wrong pixel — a title told `true` with
+     * nothing to draw pauses forever waiting for a panel that never comes. */
+    C_Overlay_IsEnabled,
+    C_Overlay_BNeedsPresent,
+    C_Overlay_SetNotificationPosition,
+    C_Overlay_SetNotificationInset,
+
     C_COUNT
 };
 
@@ -175,6 +213,21 @@ struct sp_user_getticket   { uint64_t handle; uint64_t ticket; uint64_t cbticket
 
 /* ---- ISteamFriends (VERSION017) ---- */
 struct sp_friends_str      { uint64_t handle; uint64_t ret; };                    /* GetPersonaName -> const char* */
+/* The overlay activators (#23). `slot` is the native vtable index the PE half
+ * resolved for the version the title actually asked for — see the enum comment.
+ * Strings are PE addresses the title owns, so they zero-extend and the native
+ * side reads them in place; nothing is handed back, so no copy-down. */
+struct sp_fr_ov_str        { uint64_t handle; uint64_t str; int32_t slot; };      /* ActivateGameOverlay, ...InviteDialogConnectString */
+struct sp_fr_ov_user       { uint64_t handle; uint64_t str; uint64_t steamid; int32_t slot; }; /* ActivateGameOverlayToUser */
+struct sp_fr_ov_web        { uint64_t handle; uint64_t url; int32_t slot; int32_t mode; };     /* ActivateGameOverlayToWebPage */
+struct sp_fr_ov_store      { uint64_t handle; uint32_t appid; int32_t flag; int32_t slot; };   /* ActivateGameOverlayToStore */
+struct sp_fr_ov_id         { uint64_t handle; uint64_t steamid; int32_t slot; };  /* ...InviteDialog, ...RemotePlayTogetherInviteDialog */
+struct sp_fr_ov_proto      { uint64_t handle; uint64_t str; int32_t slot; int32_t ret; };      /* RegisterProtocolInOverlayBrowser */
+
+/* ---- overlay predicates (#23) — renderer state, so no interface handle ---- */
+struct sp_overlay_bool     { int32_t ret; };                                      /* IsOverlayEnabled/BOverlayNeedsPresent */
+struct sp_overlay_pos      { int32_t pos; };                                      /* SetOverlayNotificationPosition */
+struct sp_overlay_inset    { int32_t x; int32_t y; };                             /* SetOverlayNotificationInset */
 
 /* ---- ISteamUtils (VERSION010) ---- */
 /* sp_utils_u32 (declared above for GetAppID) also carries every no-arg uint32

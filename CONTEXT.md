@@ -46,3 +46,14 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
 - **Bottle** — a CrossOver Wine prefix. A **clean bottle** is one with no Windows Steam
   installed, required so the shim is tested without the real `steamclient64.dll` winning the
   lookup.
+
+- **Overlay renderer** — Valve's `gameoverlayrenderer.dylib`, shipped inside macOS Steam.app.
+  The thing that actually draws the overlay, by swizzling `CAMetalDrawable` / `MTLCommandBuffer`.
+  We do not write one; we load theirs into the Wine process (ADR 0003).
+
+- **Loaded vs armed** — two different states of the overlay renderer, and conflating them is
+  the failure this vocabulary exists to prevent. **Loaded** means the dylib is in the process
+  and its hooks are installed. **Armed** means the native client has additionally completed
+  its handshake with it, so a panel can actually appear. A renderer can be loaded and never
+  arm. `ISteamUtils::IsOverlayEnabled()` answers **armed**, never loaded — a title told
+  "yes" pauses and waits for a panel, so answering it from the wrong state is a hang.
