@@ -21,9 +21,15 @@
 set -eu
 cd "$(dirname "$0")"
 
+# The deploy contract (#32): the four artifact names below all come from
+# src/layout/layout.json, as does the injector basename shim_pe.c derives.
+../layout/build.sh
+. ../layout/gen/shim_paths.sh
+DIST="$SHIM_PATH_DIST"
+
 MINGW64=x86_64-w64-mingw32-gcc
 MINGW32=i686-w64-mingw32-gcc
-mkdir -p dist
+mkdir -p "$DIST"
 
 # --regen-vtables: re-fetch Proton's PE-side sources and regenerate the tables.
 #
@@ -72,9 +78,10 @@ python3 check_abi_layout.py
 
 # --- unix half (one x86_64 build, deployed under both PE basenames) -----------
 clang++ -std=c++17 -arch x86_64 -dynamiclib -O2 -Wall -Wextra \
-    -o dist/steamclient64.so shim_unix.cpp \
-    -Wl,-install_name,@rpath/steamclient64.so
-cp -f dist/steamclient64.so dist/steamclient.so
+    -I../layout/gen \
+    -o "$DIST/$SHIM_PATH_UNIX64" shim_unix.cpp \
+    -Wl,-install_name,"@rpath/$SHIM_PATH_UNIX64"
+cp -f "$DIST/$SHIM_PATH_UNIX64" "$DIST/$SHIM_PATH_UNIX32"
 
 # --- PE halves ----------------------------------------------------------------
 # -static-libgcc is load-bearing on i686: that toolchain's default is the SJLJ
@@ -82,20 +89,22 @@ cp -f dist/steamclient64.so dist/steamclient.so
 # the bottle. The loader then fails the whole DLL with err=126 (MOD_NOT_FOUND)
 # and steam_api reports it as a failed sign-in, three layers away (#20). The
 # 64-bit build never needed it, which is exactly why it was easy to miss.
-$MINGW64 -shared -O2 -Wall -static -static-libgcc -o dist/steamclient64.dll shim_pe.c
-python3 patch_marker.py dist/steamclient64.dll
+$MINGW64 -shared -O2 -Wall -static -static-libgcc -I../layout/gen \
+    -o "$DIST/$SHIM_PATH_PE64" shim_pe.c
+python3 patch_marker.py "$DIST/$SHIM_PATH_PE64"
 
-$MINGW32 -shared -O2 -Wall -static -static-libgcc -o dist/steamclient.dll shim_pe.c
-python3 patch_marker.py dist/steamclient.dll
+$MINGW32 -shared -O2 -Wall -static -static-libgcc -I../layout/gen \
+    -o "$DIST/$SHIM_PATH_PE32" shim_pe.c
+python3 patch_marker.py "$DIST/$SHIM_PATH_PE32"
 
 # --- i386 thiscall is CALLEE-cleanup: every slot must pop the right bytes -----
-$MINGW32 -c -O2 -o dist/.shim_pe32.o shim_pe.c
-python3 verify_abi.py vtables.json shim_pe.c dist/.shim_pe32.o
-rm -f dist/.shim_pe32.o
+$MINGW32 -c -O2 -I../layout/gen -o "$DIST/.shim_pe32.o" shim_pe.c
+python3 verify_abi.py vtables.json shim_pe.c "$DIST/.shim_pe32.o"
+rm -f "$DIST/.shim_pe32.o"
 
 # The bottle has no mingw runtime DLLs. Catch a reintroduced dependency here
 # rather than as err=126 at load time.
-for d in dist/steamclient64.dll dist/steamclient.dll; do
+for d in "$DIST/$SHIM_PATH_PE64" "$DIST/$SHIM_PATH_PE32"; do
     case "$d" in *64.dll) OD=x86_64-w64-mingw32-objdump ;; *) OD=i686-w64-mingw32-objdump ;; esac
     if $OD -p "$d" | grep "DLL Name" | grep -qiE "libgcc|libstdc|libwinpthread"; then
         echo "ERROR: $d imports a mingw runtime DLL that is not in the bottle:" >&2
@@ -105,10 +114,10 @@ for d in dist/steamclient64.dll dist/steamclient.dll; do
 done
 
 echo "---"
-file dist/steamclient64.so dist/steamclient64.dll dist/steamclient.dll
+file "$DIST/$SHIM_PATH_UNIX64" "$DIST/$SHIM_PATH_PE64" "$DIST/$SHIM_PATH_PE32"
 echo "--- unix exports (must include the two unixlib arrays) ---"
-nm -gU dist/steamclient64.so | grep -E "wine_unix_call_funcs|wine_unix_call_wow64_funcs|wine_unix_lib_init" || true
+nm -gU "$DIST/$SHIM_PATH_UNIX64" | grep -E "wine_unix_call_funcs|wine_unix_call_wow64_funcs|wine_unix_lib_init" || true
 echo "--- PE exports, 64-bit ---"
-x86_64-w64-mingw32-objdump -p dist/steamclient64.dll | grep -A40 "Export Address Table" | grep -E "CreateInterface|Steam_" || true
+x86_64-w64-mingw32-objdump -p "$DIST/$SHIM_PATH_PE64" | grep -A40 "Export Address Table" | grep -E "CreateInterface|Steam_" || true
 echo "--- PE exports, 32-bit (must be undecorated: steam_api.dll does GetProcAddress by these names) ---"
-i686-w64-mingw32-objdump -p dist/steamclient.dll | grep -A40 "Export Address Table" | grep -E "CreateInterface|Steam_" || true
+i686-w64-mingw32-objdump -p "$DIST/$SHIM_PATH_PE32" | grep -A40 "Export Address Table" | grep -E "CreateInterface|Steam_" || true

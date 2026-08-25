@@ -37,6 +37,9 @@
 #include <pwd.h>
 #include <sys/stat.h>
 
+/* The deploy contract (#32) — generated from src/layout/layout.json. */
+#include "shim_paths.h"
+
 #define TARGET_IMAGE  "steamclient.dylib"
 #define HOST_PROCESS  "steam_osx"
 #define COMPAT_OFF    0x7b0          // offsetof(CCompatManager, m_bCompatEnabled)
@@ -69,9 +72,9 @@ static FILE *open_log(void) {
             home = pw ? pw->pw_dir : NULL;
         }
         if (!home) return NULL;
-        snprintf(path, sizeof(path), "%s/Library/Logs/macos-steam-shim", home);
+        snprintf(path, sizeof(path), "%s/" SHIM_PATH_LOG_DIR_REL, home);
         mkdir(path, 0700);                       /* ~/Library/Logs always exists */
-        strncat(path, "/compat-enabler.log", sizeof(path) - strlen(path) - 1);
+        strncat(path, "/" SHIM_PATH_LOG_ENABLER, sizeof(path) - strlen(path) - 1);
     }
     fd = open(path, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
     return fd < 0 ? NULL : fdopen(fd, "a");

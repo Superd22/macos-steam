@@ -9,9 +9,10 @@ removing one is a release-surface change and wants a note in the ADRs.
 
 | | |
 |---|---|
+| `layout/` | the deploy contract (#32) — one manifest of every shipped path, emitted as a C header and an sh fragment |
 | `installer/` | `install.sh` — builds what is stale, deploys the payload, writes the launcher |
 | `compat-enabler/` | the `m_bCompatEnabled` one-byte patch injected into the macOS client (Level A) |
-| `compat-tool/` | `compatibilitytool.vdf` + `toolmanifest.vdf` + the launch script (the Level A ↔ Level B seam) |
+| `compat-tool/` | the two vdf templates + the launch script (the Level A ↔ Level B seam) |
 | `shim/` | the bridge — PE `steamclient(64).dll` plus the native `.so` (Level B) |
 | `overlay-inject/` | gets Valve's overlay renderer into the game process before the Mac driver loads |
 

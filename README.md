@@ -150,6 +150,7 @@ docs/adr/                   the decisions, and why the alternatives were rejecte
 docs/research/              the measured evidence behind each decision
 
 src/                        reaches a user's machine
+  layout/                   the deploy contract — one manifest of every shipped path
   installer/                install.sh — the one command that deploys everything
   compat-enabler/           the m_bCompatEnabled injector (Level A)
   compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)

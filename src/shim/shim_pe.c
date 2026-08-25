@@ -19,6 +19,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* The deploy contract (#32) — generated from src/layout/layout.json. */
+#include "shim_paths.h"
+
 #include "shim_abi.h"
 
 /* i386 MSVC instance methods are __thiscall: `this` in ECX, remaining args on
@@ -744,7 +747,7 @@ static void attach_child(DWORD pid, int want64)
     ZeroMemory(&si, sizeof si); si.cb = sizeof si;
     if (!GetModuleFileNameW(self_module, self, MAX_PATH)) return;
     slash = wcsrchr(self, L'\\');
-    lstrcpyW(slash ? slash + 1 : self, want64 ? L"overlayinject64.exe" : L"overlayinject32.exe");
+    lstrcpyW(slash ? slash + 1 : self, want64 ? SHIM_PATH_INJECT64_W : SHIM_PATH_INJECT32_W);
 
     wsprintfW(line, L"\"%s\" --attach %lu", self, pid);
     dbg("shim: child pid=%lu is %d-bit -> %ls", pid, want64 ? 64 : 32, self);
@@ -1238,7 +1241,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
          * subtract our base and disassemble the offset (#11's method). */
         dump_modules();
         dbg("shim: %s attached, base=%p",
-            sizeof(void *) == 8 ? "steamclient64.dll" : "steamclient.dll", (void *)inst);
+            sizeof(void *) == 8 ? SHIM_PATH_PE64 : SHIM_PATH_PE32, (void *)inst);
     }
     return TRUE;
 }

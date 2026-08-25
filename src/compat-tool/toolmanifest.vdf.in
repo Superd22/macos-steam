@@ -4,7 +4,8 @@
 	//   <install_path>/<commandline> <verb> <path-to-exe> [args...]
 	// with the STEAM_COMPAT_* environment. See steam-compat-tool-interface.md.
 	"version"		"2"
-	"commandline"		"/steamclient-shim-launch.sh %verb%"
+	// @LAUNCH_SH@ is filled in from src/layout/layout.json by install.sh (#32).
+	"commandline"		"/@LAUNCH_SH@ %verb%"
 	"use_sessions"		"1"
 	"require_tool_appid"	""
 }

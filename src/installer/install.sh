@@ -24,12 +24,19 @@
 set -eu
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-PAYLOAD="$HOME/Library/Application Support/macos-steam-shim"
-APP="$HOME/Applications/Steam (macOS Play).app"
-# Kept in sync by hand with the same path inside the generated launcher below,
-# which resolves it from its own $HOME rather than having it substituted in.
-STEAM_OSX="$HOME/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"
-TOOLDIR="$PAYLOAD/compatibilitytools.d/crossover-steam-shim"
+
+# --- the deploy contract (#32) ------------------------------------------------
+# Where every artifact lands is one manifest, src/layout/layout.json, not a set
+# of literals restated here and in the launch script and in the two C halves.
+# Regenerate first: an installer that deploys against a stale contract is the
+# drift this script exists to end.
+"$REPO/src/layout/build.sh"
+. "$REPO/src/layout/gen/shim_paths.sh"
+
+PAYLOAD="$HOME/$SHIM_PATH_PAYLOAD_REL"
+APP="$HOME/$SHIM_PATH_LAUNCHER_REL"
+STEAM_OSX="$HOME/$SHIM_PATH_STEAM_OSX_REL"
+TOOLDIR="$HOME/$SHIM_PATH_TOOL_DIR_REL"
 
 log() { printf '[install] %s\n' "$*"; }
 
@@ -79,45 +86,63 @@ stale() {
     return 1
 }
 
-if stale "$REPO/src/compat-enabler/libcompat-enabler.dylib" \
+# The generated header is a source like any other: a manifest edit changes a
+# path that is compiled in, and gen.py only rewrites it when it really changed,
+# so its mtime is exactly "when the contract last moved" (#32).
+PATHS_H="$REPO/src/layout/gen/shim_paths.h"
+if stale "$REPO/src/compat-enabler/$SHIM_PATH_ENABLER" \
          "$REPO/src/compat-enabler/enabler.c" \
-         "$REPO/src/compat-enabler/build.sh"; then
+         "$REPO/src/compat-enabler/build.sh" "$PATHS_H"; then
     log "building injector"; "$REPO/src/compat-enabler/build.sh"
 fi
-if [ ! -f "$REPO/src/shim/dist/steamclient.dll" ] \
-   || stale "$REPO/src/shim/dist/steamclient64.dll" \
+SHIM_DIST_DIR="$REPO/src/shim/$SHIM_PATH_DIST"
+INJECT_DIST_DIR="$REPO/src/overlay-inject/$SHIM_PATH_DIST"
+if [ ! -f "$SHIM_DIST_DIR/$SHIM_PATH_PE32" ] \
+   || stale "$SHIM_DIST_DIR/$SHIM_PATH_PE64" \
             "$REPO/src/shim/shim_pe.c"      "$REPO/src/shim/shim_unix.cpp" \
             "$REPO/src/shim/shim_abi.h"     "$REPO/src/shim/shim_vtables.h" \
-            "$REPO/src/shim/steam_ifaces.h" "$REPO/src/shim/build.sh"; then
+            "$REPO/src/shim/steam_ifaces.h" "$REPO/src/shim/build.sh" \
+            "$PATHS_H"; then
     log "building shim (both bitnesses)"; "$REPO/src/shim/build.sh"
 fi
-if [ ! -f "$REPO/src/overlay-inject/dist/overlayinject32.exe" ] \
-   || stale "$REPO/src/overlay-inject/dist/overlayinject64.exe" \
+if [ ! -f "$INJECT_DIST_DIR/$SHIM_PATH_INJECT32" ] \
+   || stale "$INJECT_DIST_DIR/$SHIM_PATH_INJECT64" \
             "$REPO/src/overlay-inject/overlayinject.c" \
-            "$REPO/src/overlay-inject/build.sh"; then
+            "$REPO/src/overlay-inject/build.sh" "$PATHS_H"; then
     log "building overlay injector"; "$REPO/src/overlay-inject/build.sh"
 fi
 
 # --- payload ------------------------------------------------------------------
-mkdir -p "$TOOLDIR/dist"
-cp -f "$REPO/src/compat-enabler/libcompat-enabler.dylib" "$PAYLOAD/"
-cp -f "$REPO/src/compat-tool/steamclient-shim-launch.sh" "$TOOLDIR/"
-cp -f "$REPO/src/compat-tool/toolmanifest.vdf"           "$TOOLDIR/"
-cp -f "$REPO/src/compat-tool/compatibilitytool.vdf"      "$TOOLDIR/"
-cp -f "$REPO/src/shim/dist/steamclient64.dll"            "$TOOLDIR/dist/"
-cp -f "$REPO/src/shim/dist/steamclient64.so"             "$TOOLDIR/dist/"
+mkdir -p "$TOOLDIR/$SHIM_PATH_DIST"
+cp -f "$REPO/src/compat-enabler/$SHIM_PATH_ENABLER" "$PAYLOAD/"
+cp -f "$REPO/src/compat-tool/$SHIM_PATH_LAUNCH_SH"  "$TOOLDIR/"
+# The contract travels with the launch script: once deployed it is the only copy
+# either can see, so the script sources it from beside itself (#32).
+cp -f "$REPO/src/layout/gen/$SHIM_PATH_PATHS_SH"    "$TOOLDIR/"
+# The two vdfs are templates. Steam matches the tool key inside
+# compatibilitytool.vdf against the directory name, and toolmanifest.vdf names
+# the launch script — three facts that must agree, so all three come from the
+# manifest and none is typed into a vdf.
+render_vdf() {
+    sed -e "s|@TOOL_NAME@|$SHIM_PATH_TOOL_NAME|g" \
+        -e "s|@LAUNCH_SH@|$SHIM_PATH_LAUNCH_SH|g" "$1" > "$2"
+}
+render_vdf "$REPO/src/compat-tool/$SHIM_PATH_TOOL_MANIFEST.in" "$TOOLDIR/$SHIM_PATH_TOOL_MANIFEST"
+render_vdf "$REPO/src/compat-tool/$SHIM_PATH_TOOL_VDF.in"      "$TOOLDIR/$SHIM_PATH_TOOL_VDF"
+cp -f "$SHIM_DIST_DIR/$SHIM_PATH_PE64"    "$TOOLDIR/$SHIM_PATH_DIST/"
+cp -f "$SHIM_DIST_DIR/$SHIM_PATH_UNIX64"  "$TOOLDIR/$SHIM_PATH_DIST/"
 # Both bitnesses: 32-bit titles load steam_api.dll -> steamclient.dll under the
 # SteamClientDll registry value, a different file and a different value from the
 # 64-bit pair (#20). Shipping only the 64-bit half is what made Among Us report
 # "Could not sign in to your Steam account".
-cp -f "$REPO/src/shim/dist/steamclient.dll"              "$TOOLDIR/dist/"
-cp -f "$REPO/src/shim/dist/steamclient.so"               "$TOOLDIR/dist/"
+cp -f "$SHIM_DIST_DIR/$SHIM_PATH_PE32"    "$TOOLDIR/$SHIM_PATH_DIST/"
+cp -f "$SHIM_DIST_DIR/$SHIM_PATH_UNIX32"  "$TOOLDIR/$SHIM_PATH_DIST/"
 # The overlay injector (#25, ADR 0003) — the launch script plants it in the
 # bottle and routes through it when SHIM_OVERLAY=1. Without both bitnesses the
 # script leaves the overlay off rather than arming an env it cannot deliver.
-cp -f "$REPO/src/overlay-inject/dist/overlayinject64.exe" "$TOOLDIR/dist/"
-cp -f "$REPO/src/overlay-inject/dist/overlayinject32.exe" "$TOOLDIR/dist/"
-chmod +x "$TOOLDIR/steamclient-shim-launch.sh"
+cp -f "$INJECT_DIST_DIR/$SHIM_PATH_INJECT64" "$TOOLDIR/$SHIM_PATH_DIST/"
+cp -f "$INJECT_DIST_DIR/$SHIM_PATH_INJECT32" "$TOOLDIR/$SHIM_PATH_DIST/"
+chmod +x "$TOOLDIR/$SHIM_PATH_LAUNCH_SH"
 log "payload -> $PAYLOAD"
 
 # --- launcher .app ------------------------------------------------------------
@@ -147,11 +172,17 @@ PLIST
 # the launcher resolves its own paths from $HOME when it runs. The unquoted
 # version interpolated $PAYLOAD and $STEAM_OSX — both $HOME-derived — straight
 # into a script that runs on every Steam launch, which turns a quote, a backtick
-# or a $(...) anywhere in $HOME into code executed by the launcher. Same paths,
-# same values, no substitution step to get wrong.
+# or a $(...) anywhere in $HOME into code executed by the launcher.
 #
-# SHIM_OVERLAY is the one baked-in value, so it is written separately, from a
-# variable this script has already constrained to the literal 0 or 1.
+# The three contract lines are printf'd rather than heredoc'd, so `$HOME` still
+# reaches the launcher unexpanded while the path BELOW $HOME comes from the
+# manifest (#32) — that half used to be hand-synced with the constants at the
+# top of this script, which the comment there admitted. What is substituted is a
+# repo constant, never anything derived from the user's environment, so the
+# injection the quoted heredoc exists to prevent stays prevented.
+#
+# SHIM_OVERLAY is the other baked-in value, written from a variable this script
+# has already constrained to the literal 0 or 1.
 {
 printf '%s\n' '#!/bin/sh'
 printf '%s\n' '# Generated by src/installer/install.sh — do not edit; reinstall instead.'
@@ -166,16 +197,15 @@ cat <<'LAUNCHER'
 # omitted — unset means ON below this point, so omitting it cannot express
 # "off". Then hand off to Valve's own binary, unmodified.
 : "${HOME:?launcher: HOME is unset — cannot locate the payload or Steam}"
-PAYLOAD="$HOME/Library/Application Support/macos-steam-shim"
-export DYLD_INSERT_LIBRARIES="$PAYLOAD/libcompat-enabler.dylib"
-export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$PAYLOAD/compatibilitytools.d"
-export SHIM_OVERLAY
-exec "$HOME/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx" "$@"
 LAUNCHER
+printf 'export DYLD_INSERT_LIBRARIES="$HOME/%s"\n'          "$SHIM_PATH_ENABLER_REL"
+printf 'export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$HOME/%s"\n' "$SHIM_PATH_COMPAT_TOOLS_REL"
+printf '%s\n' 'export SHIM_OVERLAY'
+printf 'exec "$HOME/%s" "$@"\n'                             "$SHIM_PATH_STEAM_OSX_REL"
 } > "$APP/Contents/MacOS/launcher"
 chmod +x "$APP/Contents/MacOS/launcher"
 log "launcher -> $APP"
 
 log "done. Quit Steam, then launch 'Steam (macOS Play)' so the injector and the"
-log "tool path are inherited. Confirm ~/Library/Logs/macos-steam-shim/compat-enabler.log"
+log "tool path are inherited. Confirm ~/$SHIM_PATH_LOG_ENABLER_REL"
 log "says 'patched 1 site(s)'."

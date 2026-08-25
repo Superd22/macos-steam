@@ -1,8 +1,11 @@
+// Template — src/installer/install.sh renders it into the payload, filling
+// @NAME@ from src/layout/layout.json (#32). The tool key below MUST match the
+// directory the tool is deployed into, which is why neither is typed here.
 "compatibilitytools"
 {
 	"compat_tools"
 	{
-		"crossover-steam-shim"
+		"@TOOL_NAME@"
 		{
 			"install_path"	"."
 			"display_name"	"CrossOver Steam Shim"
