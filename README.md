@@ -137,8 +137,6 @@ Others that came up in the research:
   Valve documents neither.
 - [CrossOver](https://www.codeweavers.com/crossover) — the Wine layer this builds on, and
   where Apple's Game Porting Toolkit reaches the game.
-  [Sikarugir](https://github.com/Sikarugir-App/Sikarugir), formerly Kegworks, continues where
-  Whisky left off, but is untested here.
 
 ## Repo layout
 
