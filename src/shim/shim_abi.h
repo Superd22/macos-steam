@@ -338,6 +338,13 @@ struct sp_rs_setcloud      { uint64_t handle; int32_t enabled; };               
 /* ---- diagnostics (#45) ---- */
 struct sp_log              { uint64_t msg; };                                     /* a PE-side line, into shim-unix.log */
 
+/* ---- Steamworks aggregates that cross by value (#82) ----
+ * Emitted verbatim from Proton's own steamclient_structs_generated.h, and only
+ * for types Proton states are layout-identical between the Windows and unix
+ * forms — so one definition serves both halves of the seam. A type whose
+ * layouts differ is refused instead, by name, in gen/REPORT.md. */
+#include "gen/shim_gen_structs.h"
+
 /* ---- generated params structs (#78) ----
  * The same widest-first, fixed-width discipline as everything above, applied by
  * gen_thunks.py instead of by hand — and held to it by the same check: every

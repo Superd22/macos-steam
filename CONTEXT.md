@@ -66,6 +66,13 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   refusal exists to prevent is a silent `0` — a plausible answer a title builds on, which is
   how a complete cloud save stayed invisible for a whole session.
 
+- **x86_64-only shape** — a **shape** the generator emits for the 64-bit build alone,
+  because its correctness depends on pointers being 8 bytes wide on both sides of the
+  seam (an array of pointers, or a struct whose layouts agree on x86_64 and diverge on
+  i386). On the 32-bit build the slot keeps its logging stub, so coverage is deliberately
+  bitness-dependent and a 32-bit title meets a named line rather than a wrong answer
+  (ADR 0008).
+
 - **Override** — a method the generator is told not to emit even though it could, declared in
   `src/shim/overrides.json` with its reason. Two kinds: *hand-written* (a thunk already
   serves it, and the build checks that claim both ways) and *semantic* (forwarding it would
