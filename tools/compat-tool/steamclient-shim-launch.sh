@@ -47,7 +47,27 @@ set -eu
 
 # Steam invokes us with stderr detached, so a stderr-only log is invisible when
 # a launch fails from the Play button. Tee to a file as well (#12).
-SHIM_LAUNCH_LOG="${SHIM_LAUNCH_LOG:-/tmp/shim-launch.log}"
+#
+# Not /tmp: it is world-writable, so the fixed path was one another local account
+# could pre-plant a symlink at, making us append to a file of its choosing as the
+# user — and the log names the whole Steam library, app ids included, while
+# landing world-readable. ~/Library/Logs is writable only by its owner, and the
+# umask keeps what we create there to 0600. The same directory is where the
+# injector and the shim's unix half now write.
+#
+# The umask is set and restored around our own creation only. Leaving it at 077
+# would be inherited by the title we exec, quietly changing the mode of every
+# save file and config it writes from then on — a hardening change has no
+# business doing that.
+if [ -z "${SHIM_LAUNCH_LOG:-}" ]; then
+    SHIM_LAUNCH_LOG="$HOME/Library/Logs/macos-steam-shim/shim-launch.log"
+    _oldumask="$(umask)"
+    umask 077
+    mkdir -p "$(dirname "$SHIM_LAUNCH_LOG")" 2>/dev/null || true
+    : >>"$SHIM_LAUNCH_LOG" 2>/dev/null || true
+    umask "$_oldumask"
+    unset _oldumask
+fi
 log() {
     printf '[shim-launch %s] %s\n' "$(date +%H:%M:%S)" "$*" >&2
     printf '[shim-launch %s] %s\n' "$(date +%H:%M:%S)" "$*" >>"$SHIM_LAUNCH_LOG" 2>/dev/null || true

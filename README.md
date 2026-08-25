@@ -60,23 +60,20 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
 
    This builds anything missing and lays down two things:
    - the **payload** in `~/Library/Application Support/macos-steam-shim/` — the injector, the
-     compat tool, and both bitnesses of the shim. It lives outside every bundle, so a Steam
-     update cannot wipe it.
+     compat tool, and both bitnesses of the shim.
    - the **launcher** `~/Applications/Steam (macOS Play).app` — an unhardened `.app` whose
      shell-script executable exports the injector and the tool path, then execs Valve's own
-     `steam_osx` unmodified. It pins `arm64`: `steam_osx` is universal and the arch is
-     inherited across the exec, so without the pin a Finder launch lands on translated
-     x86_64 and the injector's arm64 gate pattern matches nothing.
+     `steam_osx` unmodified.
 
 3. **Quit Steam, then launch `Steam (macOS Play)`** instead of Steam.app. The gate is flipped
    in memory each launch, so this app is how you start Steam from now on.
-   Check `/tmp/compat-enabler.log`: it should say `patched 1 site(s)`.
+   Check `~/Library/Logs/macos-steam-shim/compat-enabler.log`: it should say `patched 1 site(s)`.
 
 4. **Install and play a Windows title** from the normal Steam library UI. Steam downloads the
    Windows depot into your macOS `steamapps`, then hands the `.exe` to the compat tool, which
    launches it in the bottle against the shim.
 
-The Steam overlay is **on by default**. To turn it off, reinstall with it disabled:
+The Steam overlay is **on by default**. To turn it off, reinstall (and quit & relaunch) with it disabled:
 
 ```sh
 SHIM_OVERLAY=0 ./tools/installer/install.sh
@@ -93,13 +90,15 @@ else to undo.
 
 ## Troubleshooting
 
-Three logs cover almost everything:
+Three logs cover almost everything. They live in `~/Library/Logs/macos-steam-shim/`, owner-only
+— they name your whole Steam library, so they are not in `/tmp` where the rest of the machine
+can read them:
 
-| Log                       | What it tells you                                               |
-| ------------------------- | --------------------------------------------------------------- |
-| `/tmp/compat-enabler.log` | whether the compat gate was flipped                             |
-| `/tmp/shim-launch.log`    | what the compat tool was invoked with, and how it launched      |
-| `/tmp/shim_unix.log`      | every Steamworks call crossing the seam, per interface and slot |
+| Log                   | What it tells you                                               |
+| --------------------- | --------------------------------------------------------------- |
+| `compat-enabler.log`  | whether the compat gate was flipped                             |
+| `shim-launch.log`     | what the compat tool was invoked with, and how it launched      |
+| `shim-unix.log`       | every Steamworks call crossing the seam, per interface and slot |
 
 Two failure modes account for most confusion:
 

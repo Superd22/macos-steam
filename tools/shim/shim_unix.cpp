@@ -21,7 +21,10 @@
 #include <string>
 
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <climits>
 #include <pwd.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "shim_abi.h"
@@ -32,11 +35,38 @@ typedef NTSTATUS (*unixlib_entry_t)(void *args);
 
 /* ---- diagnostics -------------------------------------------------------- */
 static FILE *g_log;
+
+/* Open the log for append, without following a symlink and without exposing it
+ * to other users. The default used to be /tmp/shim_unix.log; /tmp is
+ * world-writable, so on a shared machine anything could pre-plant a symlink
+ * there and have us create-or-append to a file of its choosing with the user's
+ * privileges, and the log — full of the user's library paths, app ids and
+ * Steam ID — was created world-readable. Silent on failure, as before: this is
+ * a diagnostic and must never be why a title does not launch. */
+static FILE *open_log()
+{
+    char path[PATH_MAX];
+    const char *env = getenv("SHIM_UNIX_LOG");
+    int fd;
+
+    if (env && *env) {
+        snprintf(path, sizeof(path), "%s", env);
+    } else {
+        const char *home = getenv("HOME");
+        if (!home || !*home) { struct passwd *pw = getpwuid(getuid()); home = pw ? pw->pw_dir : nullptr; }
+        if (!home) return nullptr;
+        snprintf(path, sizeof(path), "%s/Library/Logs/macos-steam-shim", home);
+        mkdir(path, 0700);                       /* ~/Library/Logs always exists */
+        strncat(path, "/shim-unix.log", sizeof(path) - strlen(path) - 1);
+    }
+    fd = open(path, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
+    return fd < 0 ? nullptr : fdopen(fd, "a");
+}
+
 static void ulog(const char *fmt, ...)
 {
     if (!g_log) {
-        const char *p = getenv("SHIM_UNIX_LOG");
-        g_log = fopen(p ? p : "/tmp/shim_unix.log", "a");
+        g_log = open_log();
         if (!g_log) return;
         setvbuf(g_log, nullptr, _IONBF, 0);
     }

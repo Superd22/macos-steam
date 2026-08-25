@@ -318,7 +318,13 @@ static int relaunch_for_bitness(int want64, char *cmdline)
     ilog("target is %d-bit, we are %d-bit -> handing over to %s",
          want64 ? 64 : 32, (int)sizeof(void *) * 8, sib);
 
-    _snprintf(line, sizeof(line), "\"%s\" %s", sib, cmdline);
+    /* Truncation here would hand the sibling a different command line than the
+     * one we were given, so treat a short write as a failure rather than
+     * launching whatever fitted. */
+    if (_snprintf(line, sizeof(line), "\"%s\" %s", sib, cmdline) < 0) {
+        ilog("  command line too long to hand over to %s", sib);
+        return -1;
+    }
     line[sizeof(line) - 1] = 0;
     if (!CreateProcessA(sib, line, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
         ilog("  cannot start %s (%lu)", sib, GetLastError());
@@ -377,6 +383,54 @@ static DWORD debug_loop(DWORD top_pid, HANDLE top_proc)
     return exit_code;
 }
 
+/* ---- command line assembly ----------------------------------------------
+ *
+ * lstrcatA has no bound, and the arguments here are not ours: Steam hands us the
+ * title's path plus whatever the user typed into its launch options. A long
+ * enough one used to run off the end of a fixed 8 KB stack buffer, and an
+ * argument containing a double quote used to close our quoting early and inject
+ * extra tokens into the command line CreateProcess parses.
+ *
+ * So append one argument at a time, bounded, and quote it the way
+ * CommandLineToArgvW unquotes it: backslash runs are doubled only where they
+ * precede a quote (or the closing quote), and an embedded quote is escaped.
+ * Returns -1 when the argument would not fit — the caller must then refuse to
+ * launch, because a truncated command line is a wrong launch, not a smaller one.
+ */
+static int append_arg(char *dst, size_t cap, const char *arg)
+{
+    size_t n0 = strlen(dst), n = n0, bs = 0;
+    const char *p;
+
+    if (n && n + 1 >= cap) goto full;
+    if (n) dst[n++] = ' ';
+    if (n + 2 >= cap) goto full;                 /* opening quote + NUL */
+    dst[n++] = '"';
+
+    for (p = arg; *p; p++) {
+        if (*p == '\\') { bs++; continue; }
+        if (*p == '"') {
+            if (n + bs * 2 + 2 + 2 > cap) goto full;   /* + closing quote + NUL */
+            for (; bs; bs--) { dst[n++] = '\\'; dst[n++] = '\\'; }
+            dst[n++] = '\\'; dst[n++] = '"';
+        } else {
+            if (n + bs + 1 + 2 > cap) goto full;
+            for (; bs; bs--) dst[n++] = '\\';
+            dst[n++] = *p;
+        }
+    }
+    /* Trailing backslashes would otherwise escape the closing quote. */
+    if (n + bs * 2 + 2 > cap) goto full;
+    for (; bs; bs--) { dst[n++] = '\\'; dst[n++] = '\\'; }
+    dst[n++] = '"';
+    dst[n] = 0;
+    return 0;
+
+full:
+    dst[n0] = 0;                                 /* leave the caller's buffer intact */
+    return -1;
+}
+
 /* ---- main ---------------------------------------------------------------- */
 
 int main(int argc, char **argv)
@@ -424,11 +478,14 @@ int main(int argc, char **argv)
     }
 
     /* Rebuild a command line for the title from argv[1..], quoted so paths with
-     * spaces survive — Steam library paths routinely have them. */
+     * spaces survive — Steam library paths routinely have them — and bounded,
+     * because none of these arguments are ours (see append_arg). */
     for (i = 1; i < argc; i++) {
-        lstrcatA(line, i > 1 ? " \"" : "\"");
-        lstrcatA(line, argv[i]);
-        lstrcatA(line, "\"");
+        if (append_arg(line, sizeof line, argv[i])) {
+            ilog("command line exceeds %u bytes at argv[%d] — refusing to launch"
+                 " a truncated one", (unsigned)sizeof line, i);
+            return 2;
+        }
     }
     ilog("--- overlayinject (%d-bit) %s", (int)sizeof(void *) * 8, line);
 

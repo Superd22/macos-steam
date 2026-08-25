@@ -32,14 +32,53 @@
 #include <mach-o/dyld.h>
 #include <mach-o/getsect.h>
 #include <libkern/OSCacheControl.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <pwd.h>
+#include <sys/stat.h>
 
 #define TARGET_IMAGE  "steamclient.dylib"
 #define HOST_PROCESS  "steam_osx"
 #define COMPAT_OFF    0x7b0          // offsetof(CCompatManager, m_bCompatEnabled)
 
+/* Open the log for append without following a symlink and without exposing it
+ * to other users.
+ *
+ * The default used to be /tmp/compat-enabler.log. /tmp is world-writable, so on
+ * a shared machine anything could pre-plant a symlink at that fixed path and
+ * have us create-or-append to a file of its choosing, with our privileges — and
+ * the log, which names the user's Steam paths, was created world-readable.
+ * ~/Library/Logs is neither writable by others nor readable by them, O_NOFOLLOW
+ * refuses a symlink even there, and 0600 keeps the contents to the owner.
+ *
+ * A failure here is silent, as it always was: this is a diagnostic, and a
+ * missing log must never be the reason a launch does not happen.
+ */
+static FILE *open_log(void) {
+    char path[PATH_MAX];
+    const char *env = getenv("COMPAT_ENABLER_LOG");
+    const char *home;
+    int fd;
+
+    if (env && *env) {
+        snprintf(path, sizeof(path), "%s", env);
+    } else {
+        home = getenv("HOME");
+        if (!home || !*home) {
+            struct passwd *pw = getpwuid(getuid());
+            home = pw ? pw->pw_dir : NULL;
+        }
+        if (!home) return NULL;
+        snprintf(path, sizeof(path), "%s/Library/Logs/macos-steam-shim", home);
+        mkdir(path, 0700);                       /* ~/Library/Logs always exists */
+        strncat(path, "/compat-enabler.log", sizeof(path) - strlen(path) - 1);
+    }
+    fd = open(path, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
+    return fd < 0 ? NULL : fdopen(fd, "a");
+}
+
 static void logf_(const char *fmt, ...) {
-    const char *p = getenv("COMPAT_ENABLER_LOG");
-    FILE *f = fopen(p ? p : "/tmp/compat-enabler.log", "a");
+    FILE *f = open_log();
     if (!f) return;
     va_list ap; va_start(ap, fmt);
     fprintf(f, "[compat-enabler] ");
