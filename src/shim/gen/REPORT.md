@@ -13,9 +13,9 @@ time and loud again at runtime, never silent.
 | --- | --- |
 | interface versions | 212 |
 | vtable slots | 6555 |
-| slots wired to a generated thunk | 4873 |
-| distinct shapes emitted | 1071 |
-| methods refused | 216 |
+| slots wired to a generated thunk | 5029 |
+| distinct shapes emitted | 1102 |
+| methods refused | 190 |
 
 ## Per interface
 
@@ -27,16 +27,16 @@ time and loud again at runtime, never silent.
 | `ISteamBilling` | 43 | 0 |
 | `ISteamClient` | 10 | 43 |
 | `ISteamController` | 35 | 5 |
-| `ISteamFriends` | 96 | 11 |
+| `ISteamFriends` | 99 | 9 |
 | `ISteamGameCoordinator` | 3 | 0 |
 | `ISteamGameSearch` | 14 | 0 |
 | `ISteamGameServer` | 79 | 1 |
-| `ISteamGameServerStats` | 6 | 4 |
+| `ISteamGameServerStats` | 10 | 0 |
 | `ISteamGameStats` | 13 | 0 |
 | `ISteamHTMLSurface` | 38 | 1 |
 | `ISteamHTTP` | 25 | 0 |
 | `ISteamInput` | 37 | 14 |
-| `ISteamInventory` | 36 | 4 |
+| `ISteamInventory` | 40 | 0 |
 | `ISteamMasterServerUpdater` | 14 | 0 |
 | `ISteamMatchmaking` | 59 | 0 |
 | `ISteamMatchmakingServers` | 9 | 13 |
@@ -54,10 +54,10 @@ time and loud again at runtime, never silent.
 | `ISteamRemoteStorage` | 33 | 32 |
 | `ISteamScreenshots` | 9 | 0 |
 | `ISteamTimeline` | 21 | 0 |
-| `ISteamUGC` | 100 | 7 |
+| `ISteamUGC` | 104 | 3 |
 | `ISteamUnifiedMessages` | 5 | 0 |
 | `ISteamUser` | 82 | 6 |
-| `ISteamUserStats` | 34 | 23 |
+| `ISteamUserStats` | 50 | 11 |
 | `ISteamUtils` | 27 | 18 |
 | `ISteamVideo` | 4 | 0 |
 
@@ -134,13 +134,7 @@ time and loud again at runtime, never silent.
 | `ISteamFriends` | `ActivateGameOverlayToWebPage` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamFriends` | `GetPersonaName` | 17 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamFriends` | `RegisterProtocolInOverlayBrowser` | 2 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamFriends` | `SendMsgToFriend` | 2 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamFriends` | `SendMsgToFriend_2` | 1 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamGameServer` | `GetPublicIP` | 3 | returns the aggregate `SteamIPAddress_t` by value (MSVC hidden-pointer form) — the seam carries no struct bodies |
-| `ISteamGameServerStats` | `GetUserStat` | 1 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamGameServerStats` | `GetUserStat_2` | 1 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamGameServerStats` | `SetUserStat` | 1 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamGameServerStats` | `SetUserStat_2` | 1 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamHTMLSurface` | `FileLoadDialogResponse` | 5 | pointer-to-pointer parameter `const char **` — the POINTEES are 4 bytes wide in the 32-bit PE and 8 on the native side, so the array cannot be read in place |
 | `ISteamInput` | `BNewDataAvailable` | 3 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamInput` | `EnableActionEventCallbacks` | 3 | function-pointer parameter `void (*)(SteamInputActionEvent_t *)` — calling it means a deferred upcall from native code back into PE code, which the seam does not carry |
@@ -156,10 +150,6 @@ time and loud again at runtime, never silent.
 | `ISteamInput` | `Init` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamInput` | `RunFrame` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamInput` | `Shutdown` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamInventory` | `SetProperty` | 2 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamInventory` | `SetProperty_2` | 2 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamInventory` | `SetProperty_3` | 2 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamInventory` | `SetProperty_4` | 2 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamMatchmakingServers` | `CancelQuery` | 3 | Proton hand-writes this wrapper — there is no one-line typed signature to read |
 | `ISteamMatchmakingServers` | `GetServerDetails` | 3 | returns `gameserveritem_t_105 *`, a native pointer — a 32-bit PE cannot hold a macOS heap address, and there is no length to copy down by |
 | `ISteamMatchmakingServers` | `PingServer` | 3 | parameter `w_ISteamMatchmakingPingResponse *` points at a Proton w_-prefixed struct, which is Proton's own marker for a layout that needs converting between the Windows and native forms; we have no converter |
@@ -228,10 +218,6 @@ time and loud again at runtime, never silent.
 | `ISteamRemoteStorage` | `UpdatePublishedFile` | 1 | by-value aggregate parameter `w_RemoteStorageUpdatePublishedFileRequest_t` — the seam carries scalars and addresses, not struct bodies |
 | `ISteamRemoteStorage` | `UpdatePublishedFileTags` | 10 | parameter `w_SteamParamStringArray_t *` points at a Proton w_-prefixed struct, which is Proton's own marker for a layout that needs converting between the Windows and native forms; we have no converter |
 | `ISteamUGC` | `AddRequiredTagGroup` | 7 | parameter `const w_SteamParamStringArray_t *` points at a Proton w_-prefixed struct, which is Proton's own marker for a layout that needs converting between the Windows and native forms; we have no converter |
-| `ISteamUGC` | `CreateQueryAllUGCRequest` | 19 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUGC` | `CreateQueryAllUGCRequest_2` | 9 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUGC` | `GetQueryUGCKeyValueTag` | 13 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUGC` | `GetQueryUGCKeyValueTag_2` | 8 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamUGC` | `GetQueryUGCResult` | 19 | parameter `w_SteamUGCDetails_t_126 *` points at a Proton w_-prefixed struct, which is Proton's own marker for a layout that needs converting between the Windows and native forms; we have no converter |
 | `ISteamUGC` | `SetItemTags` | 18 | parameter `const w_SteamParamStringArray_t *` points at a Proton w_-prefixed struct, which is Proton's own marker for a layout that needs converting between the Windows and native forms; we have no converter |
 | `ISteamUser` | `BLoggedOn` | 20 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
@@ -245,23 +231,11 @@ time and loud again at runtime, never silent.
 | `ISteamUserStats` | `GetAchievementAndUnlockTime` | 7 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `GetAchievementDisplayAttribute` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `GetAchievementName` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamUserStats` | `GetAchievementProgressLimits` | 2 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `GetAchievementProgressLimits_2` | 2 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamUserStats` | `GetDownloadedLeaderboardEntry` | 9 | parameter `w_LeaderboardEntry_t_104 *` points at a Proton w_-prefixed struct, which is Proton's own marker for a layout that needs converting between the Windows and native forms; we have no converter |
-| `ISteamUserStats` | `GetGlobalStat` | 4 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `GetGlobalStatHistory` | 4 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `GetGlobalStatHistory_2` | 4 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `GetGlobalStat_2` | 4 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamUserStats` | `GetNumAchievements` | 5 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamUserStats` | `GetStat` | 13 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `GetStat_2` | 13 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `GetUserStat` | 10 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `GetUserStat_2` | 10 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamUserStats` | `RequestCurrentStats` | 12 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `ResetAllStats` | 9 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUserStats` | `SetAchievement` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
-| `ISteamUserStats` | `SetStat` | 13 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
-| `ISteamUserStats` | `SetStat_2` | 13 | one of a same-name overload set (Proton disambiguates them with a `_n` suffix): MSVC reverses the run against the order the dylib was compiled in, so the slot the PE half holds is a SIBLING overload's slot on the native side |
 | `ISteamUserStats` | `StoreStats` | 13 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |
 | `ISteamUtils` | `BOverlayNeedsPresent` | 7 | semantic override: renderer state, not client state — forwarded to the renderer's own export so the answer is correct by construction: no renderer loaded, no symbol, false (#23). |
 | `ISteamUtils` | `GetAPICallFailureReason` | 9 | hand-written: a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot |

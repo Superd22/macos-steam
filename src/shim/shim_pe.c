@@ -348,7 +348,17 @@ static const struct vt_desc *vt_of(const void **vtable)
 
 /* -1 means "could not name it", which the unix half treats as do-nothing-loudly
  * rather than dispatching through a guessed slot. There is no safe guess: the
- * wrong slot on ISteamFriends is a call to SetPlayedWith or GetClanTag. */
+ * wrong slot on ISteamFriends is a call to SetPlayedWith or GetClanTag.
+ *
+ * `native`, not `slot`. They are the same number for every method that is not
+ * one of a same-name overload set, which is the overwhelming majority — but
+ * MSVC lays an overload set out in REVERSE against the order the dylib was
+ * compiled in, so for those the table this side calls through and the vtable
+ * the other side indexes disagree. Sending `slot` for ISteamUserStats::GetStat
+ * would call GetStat(const char*, float*) with an int32_t* — the right method
+ * name, the wrong overload, and a write through a reinterpreted pointer.
+ * gen_vtables.py resolves the correspondence; this just picks the right column
+ * (#78). */
 static int32_t native_slot(struct w_iface *s, const char *method)
 {
     const struct vt_desc *d = s ? (s->desc ? s->desc : vt_of(s->vtable)) : NULL;
@@ -358,7 +368,7 @@ static int32_t native_slot(struct w_iface *s, const char *method)
             method, d ? d->version : "unknown");
         return -1;
     }
-    return (int32_t)m->slot;
+    return (int32_t)m->native;
 }
 
 /* Wire a thunk into EVERY generated version of an interface that declares the
