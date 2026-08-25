@@ -158,6 +158,52 @@ enum shim_call
     C_Overlay_SetNotificationPosition,
     C_Overlay_SetNotificationInset,
 
+    /* ISteamRemoteStorage (slots 0-23 of VERSION014/016) — the Steam Cloud file
+     * surface (#43). Appended after the overlay block so existing opcode indices
+     * are undisturbed.
+     *
+     * This is the interface a title with cloud saves reads its save THROUGH: the
+     * bytes on disk in userdata/<id>/<appid>/remote are Steam's business, not the
+     * game's. Space Marine (3169520) never opens that directory — it asks
+     * FileExists("smsave0.dsav"). Left stubbed, that is `false`, and the title
+     * offers only "New Campaign" with a complete save sitting on disk. FileWrite
+     * being stubbed alongside it is why the same run cannot save either.
+     *
+     * Unlike ISteamFriends' overlay block, these need no `slot` field: no version
+     * of ISteamRemoteStorage declares a same-name overload (checked against
+     * vtables.json), so the dylib's Itanium order IS the MSVC order the PE side
+     * holds, and casting the handle to one fixed class dispatches correctly on
+     * every version. Slots 0-23 are also shape-identical from v001 through v016,
+     * which is what lets one wire_all per method reach them all.
+     *
+     * Slots 24-58 (UGC, workshop publishing, video, local-file-change batching)
+     * are deliberately absent: a different subsystem, unexercised by any title in
+     * hand, and each needs types the seam does not carry. */
+    C_RS_FileWrite,
+    C_RS_FileRead,
+    C_RS_FileWriteAsync,
+    C_RS_FileReadAsync,
+    C_RS_FileReadAsyncComplete,
+    C_RS_FileForget,
+    C_RS_FileDelete,
+    C_RS_FileShare,
+    C_RS_SetSyncPlatforms,
+    C_RS_FileWriteStreamOpen,
+    C_RS_FileWriteStreamWriteChunk,
+    C_RS_FileWriteStreamClose,
+    C_RS_FileWriteStreamCancel,
+    C_RS_FileExists,
+    C_RS_FilePersisted,
+    C_RS_GetFileSize,
+    C_RS_GetFileTimestamp,
+    C_RS_GetSyncPlatforms,
+    C_RS_GetFileCount,
+    C_RS_GetFileNameAndSize,
+    C_RS_GetQuota,
+    C_RS_IsCloudEnabledForAccount,
+    C_RS_IsCloudEnabledForApp,
+    C_RS_SetCloudEnabledForApp,
+
     C_COUNT
 };
 
@@ -249,3 +295,25 @@ struct sp_input_handles    { uint64_t handle; uint64_t out; int32_t ret; };
 /* ---- copy-out of native memory (#20) ---- */
 struct sp_copymem          { uint64_t src; uint64_t dst; int32_t len; };
 struct sp_copystr          { uint64_t src; uint64_t dst; int32_t cap; int32_t ret; };
+
+/* ---- ISteamRemoteStorage (slots 0-23) (#43) ----
+ * `data` and the out-params (`size_out`, `total`/`avail`) are addresses the GAME
+ * supplies, so on i386 they zero-extend and the native side reads and writes
+ * through them directly — same as GetUserDataFolder, and the copy-down path is
+ * not involved. The one exception is GetFileNameAndSize, whose const char*
+ * RETURN points into the dylib's heap above 4 GB; that one goes through
+ * native_str on the PE side like GetIPCountry does. */
+struct sp_rs_filedata      { uint64_t handle; uint64_t name; uint64_t data; int32_t count; int32_t ret; }; /* FileWrite -> bool, FileRead -> bytes read */
+struct sp_rs_writeasync    { uint64_t handle; uint64_t name; uint64_t data; uint64_t ret; int32_t count; }; /* FileWriteAsync -> SteamAPICall_t */
+struct sp_rs_readasync     { uint64_t handle; uint64_t name; uint64_t ret; int32_t offset; int32_t toread; }; /* FileReadAsync -> SteamAPICall_t */
+struct sp_rs_readasyncdone { uint64_t handle; uint64_t call; uint64_t data; int32_t toread; int32_t ret; }; /* FileReadAsyncComplete -> bool */
+struct sp_rs_name_i32      { uint64_t handle; uint64_t name; int32_t ret; };      /* FileForget/FileDelete/FileExists/FilePersisted -> bool; GetFileSize -> int32; GetSyncPlatforms -> ERemoteStoragePlatform */
+struct sp_rs_name_u64      { uint64_t handle; uint64_t name; uint64_t ret; };     /* FileShare -> SteamAPICall_t; FileWriteStreamOpen -> UGCFileWriteStreamHandle_t */
+struct sp_rs_name_i64      { uint64_t handle; uint64_t name; int64_t ret; };      /* GetFileTimestamp -> int64 */
+struct sp_rs_syncplat      { uint64_t handle; uint64_t name; int32_t platform; int32_t ret; }; /* SetSyncPlatforms -> bool */
+struct sp_rs_streamchunk   { uint64_t handle; uint64_t stream; uint64_t data; int32_t count; int32_t ret; }; /* FileWriteStreamWriteChunk -> bool */
+struct sp_rs_stream        { uint64_t handle; uint64_t stream; int32_t ret; };    /* FileWriteStreamClose/Cancel -> bool */
+struct sp_rs_noarg         { uint64_t handle; int32_t ret; };                     /* GetFileCount -> int32; IsCloudEnabledForAccount/App -> bool */
+struct sp_rs_namesize      { uint64_t handle; uint64_t size_out; uint64_t ret; int32_t index; }; /* GetFileNameAndSize -> const char* */
+struct sp_rs_quota         { uint64_t handle; uint64_t total; uint64_t avail; int32_t ret; };    /* GetQuota -> bool */
+struct sp_rs_setcloud      { uint64_t handle; int32_t enabled; };                 /* SetCloudEnabledForApp -> void */
