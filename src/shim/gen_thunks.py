@@ -135,7 +135,7 @@ class Refuse(Exception):
     """Carries the reason verbatim into REPORT.md. There is no unnamed refusal."""
 
 
-def map_param(t):
+def map_param(t, spec=None):
     """C parameter type -> (field code, PE thunk type, native arg type, x64_only,
     by-value struct name or None).
 
@@ -154,31 +154,36 @@ def map_param(t):
         # array crosses verbatim; only a 32-bit PE, whose pointees are 4 bytes
         # wide, cannot be read in place. So this is an i386 problem that was
         # being charged to both bitnesses.
-        return 'Q', 'void *', 'void *', True, None
+        return 'Q', 'void *', 'void *', True, None, None
     if t.endswith('*') or t.endswith(']'):
         base, kind = struct_kind(re.sub(r'\[.*$', '', t))
         if kind == 'x64-differs':
+            if spec:
+                # Declared in overrides.json: direction and extent supplied, the
+                # conversion itself generated from Proton's two field lists.
+                return 'Q', 'void *', 'void *', True, None, dict(spec, struct=base)
             raise Refuse('parameter points at `%s`, whose Windows and unix layouts '
                          'differ on x86_64 by Proton\'s own generated definitions — '
-                         'it needs a field-by-field converter, and the element '
-                         'count and direction are not in the signature' % base)
+                         'the converter is mechanical but the direction and element '
+                         'count are not in the signature; declare them in '
+                         'overrides.json `marshal`' % base)
         if kind == 'x64-unknown':
             raise Refuse('parameter points at `%s`, for which Proton generates a '
                          'Windows layout but no unix counterpart, so nothing says '
                          'whether the two agree' % base)
         if kind == 'x64-identical':
             # Proton states the unix layout IS the Windows layout on x86_64.
-            return 'Q', 'void *', 'void *', True, None
+            return 'Q', 'void *', 'void *', True, None, None
         # plain, opaque, or a type Proton never splits: an address the GAME owns,
         # zero-extending into the uint64 field, read or written in place — the
         # same path GetUserDataFolder has taken since #20.
-        return 'Q', 'void *', 'void *', False, None
+        return 'Q', 'void *', 'void *', False, None, None
     bare = norm(t.replace('const', ''))
     if bare in ID_TYPES:
-        return 'Q', 'uint64_t', 'uint64_t', False, None
+        return 'Q', 'uint64_t', 'uint64_t', False, None, None
     if bare in SCALARS:
         c, pe, nat = SCALARS[bare]
-        return c, pe, nat, False, None
+        return c, pe, nat, False, None, None
     # A by-value aggregate. It crosses as the ADDRESS of the caller's copy, and
     # the native side passes it by value again on its own side — which needs the
     # type declared, so the type is emitted from Proton's own definition rather
@@ -186,13 +191,20 @@ def map_param(t):
     base, kind = struct_kind(bare)
     if kind in ('plain', 'opaque'):
         ct = struct_ctype(base, kind)
-        return 'Q', ct, ct, False, ct
+        return 'Q', ct, ct, False, ct, None
     if kind == 'x64-identical':
         ct = struct_ctype(base, kind)
-        return 'Q', ct, ct, True, ct
+        return 'Q', ct, ct, True, ct, None
     if kind == 'x64-differs':
+        if spec:
+            # By value: the seam carries the address of the caller's copy in the
+            # WINDOWS layout, and the native side is handed the converted UNIX
+            # one by value.
+            return ('Q', 'w64_' + base, 'u64_' + base, True, 'w64_' + base,
+                    dict(spec, struct=base, byval=True))
         raise Refuse('by-value parameter `%s`, whose Windows and unix layouts '
-                     'differ on x86_64 by Proton\'s own generated definitions' % base)
+                     'differ on x86_64; declare direction in overrides.json '
+                     '`marshal`' % base)
     raise Refuse('by-value aggregate parameter `%s` — Proton states no layout '
                  'for it' % t)
 
@@ -239,9 +251,19 @@ def map_ret(sig):
                              'layouts differ on x86_64' % b2)
             raise Refuse('returns the aggregate `%s` by value and Proton states '
                          'no layout for it' % base)
-        raise Refuse('returns `%s`, a native pointer — a 32-bit PE cannot hold '
-                     'a macOS heap address, and there is no length to copy down '
-                     'by' % r)
+        # A pointer to a struct whose layout both sides agree on. On x86_64 this
+        # is the same move `const char *` returns already make: one address
+        # space, so the PE dereferences the native object in place, and lifetime
+        # is Valve's documented "valid until the next call" either way. A 32-bit
+        # PE cannot hold the address at all, so this is x86_64-only.
+        b2, kind = struct_kind(base)
+        if kind in ('plain', 'opaque', 'x64-identical'):
+            ct = struct_ctype(b2, kind)
+            return 'ptr', 'Q', ct + ' *', 'void *', True, ct
+        raise Refuse('returns `%s`, a native pointer to a type Proton either '
+                     'states no layout for or states differs between the Windows '
+                     'and unix forms — so there is nothing the PE side could '
+                     'safely dereference, and no length to copy down by' % r)
     if r in ID_TYPES:
         return 'val', 'Q', 'uint64_t', 'uint64_t', False, None
     if r in SCALARS:
@@ -250,7 +272,7 @@ def map_ret(sig):
     raise Refuse('returns the by-value aggregate `%s`' % r)
 
 
-def shape_of(sig):
+def shape_of(sig, specs=None):
     """One signature -> the shape record, or Refuse. `codes` is the argument
     field-code string that names the params struct; `x64_only` is true if ANY
     part of the signature is correct on x86_64 but not on i386; `structs` is the
@@ -260,17 +282,26 @@ def shape_of(sig):
     codes, pe_args, nat_args, structs = '', [], [], set()
     if rstruct:
         structs.add(rstruct)
+    marshal = []
     for i, (t, name) in enumerate(args):
-        c, pe, nat, ax, st = map_param(t)
+        spec = (specs or {}).get(i)
+        if spec and spec['param'] != name:
+            raise Refuse('overrides.json declares marshalling for argument %d as '
+                         '`%s`, but this version calls it `%s` — the parameters '
+                         'were renamed or reordered' % (i, spec['param'], name))
+        c, pe, nat, ax, st, mr = map_param(t, spec)
         codes += c
         x64 = x64 or ax
         if st:
             structs.add(st)
+        if mr:
+            mr = dict(mr, index=i)
+            marshal.append(mr)
         pe_args.append((pe, 'a%d' % i, norm(t), name, st))
         nat_args.append((nat, st))
     return dict(kind=kind, codes=codes, rcode=rcode, pe_ret=pe_ret,
                 nat_ret=nat_ret, pe_args=pe_args, nat_args=nat_args,
-                x64_only=x64, structs=structs)
+                x64_only=x64, structs=structs, marshal=marshal)
 
 
 def struct_name(sh):
@@ -305,6 +336,11 @@ def main():
     tables = data['tables']
     ovr = json.load(open(ovr_path))
     skip = {(o['interface'], o['method']): o for o in ovr['skip']}
+    # Per-method marshalling facts the signature cannot carry: direction, and
+    # the extent of an array parameter. Declared, never inferred (ADR 0009).
+    marshal_specs = collections.defaultdict(dict)
+    for m in ovr.get('marshal', []):
+        marshal_specs[(m['interface'], m['method'])][m['arg']] = m
 
     # Interface for each version, straight from Proton's own tag.
     iface_of = {v: (t['tag'].split('_', 1)[0][3:] if t['tag'].startswith('win')
@@ -349,7 +385,7 @@ def main():
                        'callee-cleanup byte count is unknown', [ver])
                 continue
             try:
-                sh = shape_of(s['sig'])
+                sh = shape_of(s['sig'], marshal_specs.get(key))
             except Refuse as e:
                 refuse(iface, s['name'], str(e), [ver])
                 continue
@@ -388,8 +424,13 @@ def main():
     # definitions themselves reference. Emitted from Proton's own text, in
     # Proton's own order, so nothing here is a re-derivation of a layout.
     need = set()
+    convert = set()
     for g in groups.values():
         need |= g['shape']['structs']
+        for mr in g['shape']['marshal']:
+            convert.add(mr['struct'])
+            need.add('w64_' + mr['struct'])
+            need.add('u64_' + mr['struct'])
     seen_dep = set()
     while need - seen_dep:
         for n in list(need - seen_dep):
@@ -437,6 +478,36 @@ def main():
         L.append('};')
         L.append('#pragma pack( pop )')
     write(outdir, 'shim_gen_structs.h', L)
+
+    # -- layout converters, unix side only ------------------------------------
+    #
+    # Only for the families Proton states genuinely differ on x86_64. The copy is
+    # field-by-field BY NAME, from Proton's own two field lists, with the
+    # explicit `__pad_N[]` members dropped — those exist to pin the layout, and
+    # copying them would be copying the very difference the converter absorbs.
+    L = [banner, '#pragma once', '']
+    for b in sorted(convert):
+        w, u = STRUCTS['structs']['w64_' + b], STRUCTS['structs']['u64_' + b]
+        wf = {f[1]: f for f in w['fields']}
+        uf = {f[1]: f for f in u['fields']}
+        common = [f[1] for f in w['fields'] if f[1] in uf]
+        missing = [f[1] for f in w['fields'] if f[1] not in uf] + \
+                  [f[1] for f in u['fields'] if f[1] not in wf]
+        if missing:
+            sys.exit('%s: the Windows and unix field sets differ by name (%s). A '
+                     'field-by-field copy cannot be generated; the two layouts are '
+                     'not the same struct.' % (b, ', '.join(missing)))
+        for a, bb, an, bn in (('w64_', 'u64_', 'w', 'u'), ('u64_', 'w64_', 'u', 'w')):
+            L.append('static void cvt_%s2%s_%s(const struct %s%s *%s, struct %s%s *%s)'
+                     % (an, bn, b, a, b, an, bb, b, bn))
+            L.append('{')
+            for f in common:
+                if wf[f][2]:
+                    L.append('    memcpy(%s->%s, %s->%s, sizeof %s->%s);' % (bn, f, an, f, bn, f))
+                else:
+                    L.append('    %s->%s = %s->%s;' % (bn, f, an, f))
+            L.append('}')
+    write(outdir, 'shim_gen_convert.h', L)
 
     # -- params structs -------------------------------------------------------
     L = [banner, '#pragma once', '']
@@ -575,6 +646,8 @@ def pe_thunk(name, g):
         L.append('    return sret;')
     elif sh['kind'] == 'agg':
         L.append('    return sret;')
+    elif sh['kind'] == 'ptr':
+        L.append('    return (%s)(uintptr_t)p.ret;' % sh['pe_ret'])
     elif sh['kind'] == 'str':
         L.append('    return native_str(p.ret);')
     elif sh['kind'] == 'val':
@@ -588,6 +661,17 @@ def _agg(sh):
     return sh['nat_ret']
 
 
+def _marshal_back(sh):
+    """Copy any `out`/`inout` buffer back into the caller's Windows layout."""
+    L = []
+    for mr in sh['marshal']:
+        if mr['dir'] in ('out', 'inout'):
+            i, b = mr['index'], mr['struct']
+            L.append('    if (wv%d) for (size_t k = 0; k < cv%d.size(); k++) '
+                     'cvt_u2w_%s(&cv%d[k], &wv%d[k]);' % (i, i, b, i, i))
+    return L
+
+
 def unix_handler(name, g):
     """The unix half: index the native vtable with the slot the PE side sent and
     call through a typed function pointer. No class cast, so no transcription."""
@@ -596,8 +680,12 @@ def unix_handler(name, g):
     nat_ret = sh['nat_ret'] if sh['kind'] != 'agg' else sh['nat_ret']
     fnt = '%s (*)(void *%s)' % (nat_ret,
                                 ''.join(', ' + t for t, _s in sh['nat_args']))
+    converted = {mr['index']: mr for mr in sh['marshal']}
     call = ''
     for i, (t, bystruct) in enumerate(sh['nat_args']):
+        if i in converted:
+            call += (', *cv%d.data()' % i) if converted[i].get('byval') else (', cv%d.data()' % i)
+            continue
         if bystruct:
             call += ', *(%s *)(uintptr_t)p->a%d' % (t, i)
         elif t == 'void *':
@@ -613,18 +701,36 @@ def unix_handler(name, g):
     L.append('    auto fn = (%s)vslot(p->handle, p->slot);' % fnt)
     L.append('    if (!fn) { ulog("%s::%s: slot %%d unresolvable — call dropped", '
              'p->slot); return 0; }' % (g['iface'], g['method']))
+    for mr in sh['marshal']:
+        i, b = mr['index'], mr['struct']
+        cnt = ('(size_t)p->a%d' % mr['count_arg']) if 'count_arg' in mr else '1'
+        L.append('    /* %s: %s */' % (mr['param'], mr['why']))
+        L.append('    std::vector<struct u64_%s> cv%d(%s);' % (b, i, cnt))
+        L.append('    auto *wv%d = (struct w64_%s *)(uintptr_t)p->a%d;' % (i, b, i))
+        if mr['dir'] in ('in', 'inout'):
+            L.append('    if (wv%d) for (size_t k = 0; k < cv%d.size(); k++) '
+                     'cvt_w2u_%s(&wv%d[k], &cv%d[k]);' % (i, i, b, i, i))
+        else:
+            # A pure `out`: the caller's buffer is not required to hold anything
+            # meaningful yet, so it is not read. Zeroed so the native side never
+            # sees this side's stack.
+            L.append('    memset(cv%d.data(), 0, cv%d.size() * sizeof(struct u64_%s));'
+                     % (i, i, b))
     if sh['kind'] == 'agg':
         # The native side returns the aggregate BY VALUE. Letting the compiler
         # make that call from the declared type is the whole point: SysV
         # classification depends on the struct's size and field classes, and
         # `p->ret` is the caller's own buffer, forwarded by the PE half.
         L.append('    %s v = fn((void *)(uintptr_t)p->handle%s);' % (nat_ret, call))
+        L += _marshal_back(sh)
         L.append('    if (p->ret) memcpy((void *)(uintptr_t)p->ret, &v, sizeof v);')
     elif sh['kind'] == 'void':
         L.append('    fn((void *)(uintptr_t)p->handle%s);' % call)
+        L += _marshal_back(sh)
     else:
         L.append('    p->ret = (%s)fn((void *)(uintptr_t)p->handle%s);'
                  % (CODE_C[sh['rcode']], call))
+        L += _marshal_back(sh)
     L.append('    return 0;')
     L.append('}')
     return L

@@ -114,6 +114,12 @@
   },
   {
    "interface": "ISteamClient",
+   "method": "DEPRECATED_GetISteamUnifiedMessages",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
    "method": "GetISteamAppList",
    "reason": "hand-written",
    "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
@@ -735,6 +741,84 @@
    "method": "SetWarningMessageHook",
    "reason": "semantic override",
    "why": "installs a PE callback the native client would call back INTO, which the seam does not carry \u2014 and deliberately not forwarded even so, for the same reason as IsOverlayEnabled: it is a semantic, not a marshalling, decision."
+  }
+ ],
+ "_marshal": [
+  "Per-method marshalling facts the SIGNATURE cannot carry (ADR 0009).",
+  "",
+  "A parameter pointing at a struct whose Windows and unix layouts genuinely differ",
+  "on x86_64 needs converting on the unix side. The conversion itself is mechanical --",
+  "Proton states both layouts field for field -- but two things are not derivable and",
+  "must be declared here or the generator refuses the method:",
+  "",
+  "  dir    in | out | inout. NOT derivable from const-ness: ISteamParties::CreateBeacon",
+  "         takes a NON-const pointer that is an INPUT (the location to create a beacon",
+  "         at), while the other five non-const cases are outputs. Converting an `out`",
+  "         inward would read uninitialised PE memory; skipping the outward conversion",
+  "         on an `in` would be harmless but skipping it on an `out` returns garbage.",
+  "",
+  "  count  how many elements the pointer addresses. Usually 1; where it is an ARRAY the",
+  "         extent lives in another parameter, named by count_arg.",
+  "",
+  "`arg` is the zero-based index among the arguments after `this`, and `param` is the",
+  "name it must have -- checked at generation time, so a version that renames or",
+  "reorders its parameters fails the build instead of marshalling the wrong one."
+ ],
+ "marshal": [
+  {
+   "interface": "ISteamParties",
+   "method": "CreateBeacon",
+   "arg": 1,
+   "param": "pBeaconLocation",
+   "dir": "in",
+   "count": 1,
+   "why": "the location the caller is asking to open a beacon at \u2014 an input, despite the non-const pointer"
+  },
+  {
+   "interface": "ISteamParties",
+   "method": "GetAvailableBeaconLocations",
+   "arg": 0,
+   "param": "pLocationList",
+   "dir": "out",
+   "count_arg": 1,
+   "count_param": "uMaxNumLocations",
+   "why": "fills a caller-supplied ARRAY; the extent is the second parameter, not the signature"
+  },
+  {
+   "interface": "ISteamParties",
+   "method": "GetBeaconDetails",
+   "arg": 2,
+   "param": "pLocation",
+   "dir": "out",
+   "count": 1,
+   "why": "one location, written back to the caller"
+  },
+  {
+   "interface": "ISteamParties",
+   "method": "GetBeaconLocationData",
+   "arg": 0,
+   "param": "BeaconLocation",
+   "dir": "in",
+   "count": 1,
+   "why": "passed BY VALUE \u2014 the seam carries the address of the caller's copy, which is read and never written"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "GetDownloadedLeaderboardEntry",
+   "arg": 2,
+   "param": "pLeaderboardEntry",
+   "dir": "out",
+   "count": 1,
+   "why": "one entry, written back to the caller"
+  },
+  {
+   "interface": "ISteamUGC",
+   "method": "GetQueryUGCResult",
+   "arg": 2,
+   "param": "pDetails",
+   "dir": "out",
+   "count": 1,
+   "why": "one details record, written back to the caller"
   }
  ]
 }

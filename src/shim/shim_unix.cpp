@@ -19,6 +19,7 @@
 #include <cstring>
 #include <cstdarg>
 #include <string>
+#include <vector>
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -33,6 +34,11 @@
 
 #include "shim_abi.h"
 #include "steam_ifaces.h"
+
+/* Layout converters for the few Steamworks structs whose Windows and unix forms
+ * genuinely differ on x86_64 (#84). Unix-side only: the conversion happens here,
+ * where both layouts are in scope, and the PE half never sees a u64_ form. */
+#include "gen/shim_gen_convert.h"
 
 typedef int32_t NTSTATUS;
 typedef NTSTATUS (*unixlib_entry_t)(void *args);

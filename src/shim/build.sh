@@ -82,6 +82,12 @@ python3 check_overrides.py vtables.json overrides.json shim_pe.c
 python3 check_slot_transfer.py vtables.json steam_ifaces.h
 python3 gen_thunks.py vtables.json structs.json overrides.json gen
 
+# A converter that silently drops a field leaves the caller reading whatever
+# was in its buffer before the call — a plausible value, not an error. Checked
+# against Proton's field list rather than against the generated converter, so
+# the two would have to be wrong in the same way (ADR 0009).
+python3 check_convert.py structs.json gen
+
 # Every version a real title has been observed to ask for must have a real table.
 # This is the guard that would have caught Space Marine before it crashed: the
 # list is what titles NEED, vtables.json is what we HAVE, and a version in the
