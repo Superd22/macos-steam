@@ -204,6 +204,16 @@ enum shim_call
     C_RS_IsCloudEnabledForApp,
     C_RS_SetCloudEnabledForApp,
 
+    /* Diagnostics (#45). The PE half's own dbg() writes to OutputDebugStringA and
+     * to a file only when SHIM_PE_LOG is set, so in a normal run it writes
+     * nowhere. That is fine for tracing and wrong for the one message that must
+     * never be missed: a title calling a vtable slot nothing is wired into. That
+     * call silently returns 0, and "no error" then reads as "works" — which is
+     * how a complete cloud save stayed invisible through a whole play session
+     * (#43). This opcode puts that one line in shim-unix.log, where every other
+     * half of the stack already reports. */
+    C_Log,
+
     C_COUNT
 };
 
@@ -317,3 +327,6 @@ struct sp_rs_noarg         { uint64_t handle; int32_t ret; };                   
 struct sp_rs_namesize      { uint64_t handle; uint64_t size_out; uint64_t ret; int32_t index; }; /* GetFileNameAndSize -> const char* */
 struct sp_rs_quota         { uint64_t handle; uint64_t total; uint64_t avail; int32_t ret; };    /* GetQuota -> bool */
 struct sp_rs_setcloud      { uint64_t handle; int32_t enabled; };                 /* SetCloudEnabledForApp -> void */
+
+/* ---- diagnostics (#45) ---- */
+struct sp_log              { uint64_t msg; };                                     /* a PE-side line, into shim-unix.log */
