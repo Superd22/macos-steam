@@ -578,6 +578,202 @@ static int32_t THISCALL iin_GetConnectedControllers(struct w_iface *s, uint64_t 
 { struct sp_input_handles p; p.handle = s->handle; p.out = (uint64_t)(uintptr_t)out; p.ret = 0;
   seam(C_Input_GetConnectedControllers, &p); return p.ret; }
 
+/* ---- covering a title that relaunches itself (#27) -----------------------
+ *
+ * ADR 0003 covers children with DEBUG_PROCESS. That cannot work for the case
+ * that actually occurs. Space Marine ships a 32-bit bootstrapper whose only job
+ * is to start the 64-bit game, and a 32-bit debugger cannot debug a 64-bit
+ * child — a hard rule on Windows, and Wine behaves the same. Measured: no
+ * CREATE_PROCESS_DEBUG_EVENT arrives at all, the child gets the payload only
+ * later through the ordinary steam_api route (by which time d3d12 and dxgi are
+ * up), and the renderer logs zero Hooking lines.
+ *
+ * The parent's own CreateProcess is the one place that is guaranteed to run
+ * before the child does anything, so hook it here. We are already inside the
+ * parent as its first static import, so the hook is installed before the title
+ * has executed a single instruction of its own.
+ *
+ * We do NOT patch the child ourselves: from a 32-bit parent the child's address
+ * space is out of reach. We create it suspended and hand the pid to
+ * overlayinject<child's bitness>.exe --attach, which does the patch in the
+ * right bitness, then we resume. Only under SHIM_OVERLAY: with the overlay off
+ * this must not alter how a title starts its own processes. */
+
+typedef BOOL (WINAPI *pCreateProcessW_t)(LPCWSTR, LPWSTR, LPSECURITY_ATTRIBUTES,
+    LPSECURITY_ATTRIBUTES, BOOL, DWORD, LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION);
+typedef BOOL (WINAPI *pCreateProcessA_t)(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES,
+    LPSECURITY_ATTRIBUTES, BOOL, DWORD, LPVOID, LPCSTR, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
+
+static pCreateProcessW_t g_real_cpW;
+static pCreateProcessA_t g_real_cpA;
+
+/* Read a PE's Machine field. Returns 1 for AMD64, 0 for anything else, and sets
+ * *ok=0 when the file could not be read — in which case the caller assumes its
+ * own bitness rather than guessing wrong. */
+static int child_is_64bit_w(const wchar_t *exe, int *ok)
+{
+    HANDLE f;
+    DWORD got = 0, pe = 0;
+    WORD machine = 0;
+    *ok = 0;
+    if (!exe) return 0;
+    f = CreateFileW(exe, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) return 0;
+    SetFilePointer(f, 0x3c, NULL, FILE_BEGIN);
+    if (ReadFile(f, &pe, sizeof pe, &got, NULL) && got == sizeof pe) {
+        SetFilePointer(f, pe + 4, NULL, FILE_BEGIN);
+        if (ReadFile(f, &machine, sizeof machine, &got, NULL) && got == sizeof machine) *ok = 1;
+    }
+    CloseHandle(f);
+    return machine == 0x8664;
+}
+
+/* The child's image path: lpApplicationName when given, else the first token of
+ * the command line, which may be quoted. */
+static void child_exe_path(LPCWSTR app, LPCWSTR cmd, wchar_t *out, int cap)
+{
+    int i = 0;
+    out[0] = 0;
+    if (app && *app) { lstrcpynW(out, app, cap); return; }
+    if (!cmd || !*cmd) return;
+    if (*cmd == L'"') {
+        cmd++;
+        while (*cmd && *cmd != L'"' && i < cap - 1) out[i++] = *cmd++;
+    } else {
+        while (*cmd && *cmd != L' ' && i < cap - 1) out[i++] = *cmd++;
+    }
+    out[i] = 0;
+}
+
+/* Run overlayinject<bits>.exe --attach <pid> and wait for it. The helper lives
+ * beside us — we are C:\shim\steamclient*.dll, it is C:\shim\overlayinject*.exe. */
+static void attach_child(DWORD pid, int want64)
+{
+    wchar_t self[MAX_PATH], line[MAX_PATH + 64];
+    wchar_t *slash;
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+
+    ZeroMemory(&si, sizeof si); si.cb = sizeof si;
+    if (!GetModuleFileNameW(self_module, self, MAX_PATH)) return;
+    slash = wcsrchr(self, L'\\');
+    lstrcpyW(slash ? slash + 1 : self, want64 ? L"overlayinject64.exe" : L"overlayinject32.exe");
+
+    wsprintfW(line, L"\"%s\" --attach %lu", self, pid);
+    dbg("shim: child pid=%lu is %d-bit -> %ls", pid, want64 ? 64 : 32, self);
+    if (!CreateProcessW(self, line, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        dbg("shim: could not start the attach helper (%lu) — child has no overlay",
+            GetLastError());
+        return;
+    }
+    /* Wait: the child is suspended until the helper has patched it, and resuming
+     * before that would be the race this whole mechanism exists to avoid. */
+    WaitForSingleObject(pi.hProcess, 15000);
+    CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+}
+
+static BOOL WINAPI hook_CreateProcessW(LPCWSTR app, LPWSTR cmd, LPSECURITY_ATTRIBUTES pa,
+    LPSECURITY_ATTRIBUTES ta, BOOL inherit, DWORD flags, LPVOID env, LPCWSTR dir,
+    LPSTARTUPINFOW si, LPPROCESS_INFORMATION pi)
+{
+    int caller_wanted_suspended = (flags & CREATE_SUSPENDED) != 0;
+    wchar_t exe[MAX_PATH];
+    int ok = 0, is64;
+    BOOL r = g_real_cpW(app, cmd, pa, ta, inherit, flags | CREATE_SUSPENDED, env, dir, si, pi);
+    if (!r) return r;
+
+    child_exe_path(app, cmd, exe, MAX_PATH);
+    is64 = child_is_64bit_w(exe, &ok);
+    if (!ok) is64 = (sizeof(void *) == 8);
+    attach_child(pi->dwProcessId, is64);
+
+    /* Restore the caller's semantics exactly: it only asked for a suspended
+     * process if it said so. */
+    if (!caller_wanted_suspended) ResumeThread(pi->hThread);
+    return r;
+}
+
+static BOOL WINAPI hook_CreateProcessA(LPCSTR app, LPSTR cmd, LPSECURITY_ATTRIBUTES pa,
+    LPSECURITY_ATTRIBUTES ta, BOOL inherit, DWORD flags, LPVOID env, LPCSTR dir,
+    LPSTARTUPINFOA si, LPPROCESS_INFORMATION pi)
+{
+    int caller_wanted_suspended = (flags & CREATE_SUSPENDED) != 0;
+    wchar_t exe[MAX_PATH];
+    wchar_t wapp[MAX_PATH], wcmd[8192];
+    int ok = 0, is64;
+    BOOL r = g_real_cpA(app, cmd, pa, ta, inherit, flags | CREATE_SUSPENDED, env, dir, si, pi);
+    if (!r) return r;
+
+    wapp[0] = wcmd[0] = 0;
+    if (app) MultiByteToWideChar(CP_ACP, 0, app, -1, wapp, MAX_PATH);
+    if (cmd) MultiByteToWideChar(CP_ACP, 0, cmd, -1, wcmd, 8192);
+    child_exe_path(app ? wapp : NULL, cmd ? wcmd : NULL, exe, MAX_PATH);
+    is64 = child_is_64bit_w(exe, &ok);
+    if (!ok) is64 = (sizeof(void *) == 8);
+    attach_child(pi->dwProcessId, is64);
+
+    if (!caller_wanted_suspended) ResumeThread(pi->hThread);
+    return r;
+}
+
+/* Redirect one imported function in a module's IAT. Hooking the IAT rather than
+ * the kernel32 export keeps the change local and reversible, and it is what the
+ * loader has already resolved by the time the title calls anything. */
+static int hook_iat_one(HMODULE mod, const char *want, const void *fn, void **orig)
+{
+    IMAGE_DOS_HEADER *dos = (IMAGE_DOS_HEADER *)mod;
+    IMAGE_NT_HEADERS *nt;
+    IMAGE_IMPORT_DESCRIPTOR *imp;
+    DWORD rva;
+    int hooked = 0;
+
+    if (!mod || dos->e_magic != IMAGE_DOS_SIGNATURE) return 0;
+    nt = (IMAGE_NT_HEADERS *)((BYTE *)mod + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return 0;
+    rva = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+    if (!rva) return 0;
+
+    for (imp = (IMAGE_IMPORT_DESCRIPTOR *)((BYTE *)mod + rva); imp->Name; imp++) {
+        IMAGE_THUNK_DATA *othunk, *fthunk;
+        if (!imp->OriginalFirstThunk) continue;
+        othunk = (IMAGE_THUNK_DATA *)((BYTE *)mod + imp->OriginalFirstThunk);
+        fthunk = (IMAGE_THUNK_DATA *)((BYTE *)mod + imp->FirstThunk);
+        for (; othunk->u1.AddressOfData; othunk++, fthunk++) {
+            IMAGE_IMPORT_BY_NAME *ibn;
+            DWORD old;
+            if (othunk->u1.Ordinal & IMAGE_ORDINAL_FLAG) continue;
+            ibn = (IMAGE_IMPORT_BY_NAME *)((BYTE *)mod + othunk->u1.AddressOfData);
+            if (strcmp((char *)ibn->Name, want)) continue;
+            if (!VirtualProtect(&fthunk->u1.Function, sizeof(void *), PAGE_READWRITE, &old)) continue;
+            if (orig && !*orig) *orig = (void *)(ULONG_PTR)fthunk->u1.Function;
+            fthunk->u1.Function = (ULONG_PTR)fn;
+            VirtualProtect(&fthunk->u1.Function, sizeof(void *), old, &old);
+            hooked = 1;
+        }
+    }
+    return hooked;
+}
+
+static void hook_child_creation(void)
+{
+    HMODULE exe = GetModuleHandleA(NULL);
+    HMODULE k32 = GetModuleHandleA("kernel32.dll");
+    int w, a;
+
+    /* Fall back to kernel32's own export if the exe imports CreateProcess
+     * lazily or by ordinal, so the hook still has something real to call. */
+    if (k32) {
+        if (!g_real_cpW) g_real_cpW = (pCreateProcessW_t)GetProcAddress(k32, "CreateProcessW");
+        if (!g_real_cpA) g_real_cpA = (pCreateProcessA_t)GetProcAddress(k32, "CreateProcessA");
+    }
+    if (!g_real_cpW && !g_real_cpA) { dbg("shim: no CreateProcess to hook"); return; }
+
+    w = hook_iat_one(exe, "CreateProcessW", (const void *)hook_CreateProcessW, (void **)&g_real_cpW);
+    a = hook_iat_one(exe, "CreateProcessA", (const void *)hook_CreateProcessA, (void **)&g_real_cpA);
+    dbg("shim: child-creation hook installed (W=%d A=%d) — a title that relaunches "
+        "itself will have its child injected too (#27)", w, a);
+}
+
 /* ---- ISteamFriends thunks (#29) ----------------------------------------- */
 /* native_str is what makes this safe on i386: the dylib's heap sits above 4 GB,
  * so the returned pointer has to be copied down into PE memory before the game
@@ -803,6 +999,11 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
          * the loader-lock hazard that a LoadLibrary here would be. */
         if (GetEnvironmentVariableA("SHIM_OVERLAY", NULL, 0) > 0) {
             int rc = ensure_seam();
+            /* Cover a title that starts the real game in another process (#27).
+             * Installed here, under loader lock, because that is still before
+             * the title's own entry point — and it only touches our own IAT
+             * page, with no LoadLibrary. */
+            hook_child_creation();
             /* Diagnostic for #25: whether the title's own startup has already
              * run by the time we initialise. user32 loaded here means the PE
              * loader has already processed the title's static imports — and if

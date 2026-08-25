@@ -391,7 +391,37 @@ int main(int argc, char **argv)
 
     ZeroMemory(&si, sizeof(si)); si.cb = sizeof(si);
 
-    if (argc < 2) { ilog("usage: overlayinject <title.exe> [args...]"); return 2; }
+    if (argc < 2) { ilog("usage: overlayinject <title.exe> [args...]\n"
+                         "       overlayinject --attach <pid>"); return 2; }
+
+    /* --attach <pid>: patch a SUSPENDED process somebody else created (#27).
+     *
+     * This exists because DEBUG_PROCESS cannot cover the case that matters. A
+     * title like Space Marine ships a 32-bit bootstrapper that starts the real
+     * 64-bit game, and a 32-bit debugger cannot debug a 64-bit child — on
+     * Windows or under Wine. Measured: no CREATE_PROCESS_DEBUG_EVENT ever
+     * arrives, so the child ran with no payload and the overlay never armed.
+     *
+     * So the parent's own CreateProcess is hooked instead (shim_pe.c), and it
+     * calls US, in the CHILD's bitness, to do the patch it cannot do itself.
+     * We only patch: the hook owns the resume, because it is the one that knows
+     * whether its caller asked for CREATE_SUSPENDED. */
+    if (!strcmp(argv[1], "--attach")) {
+        DWORD pid = argc > 2 ? (DWORD)strtoul(argv[2], NULL, 10) : 0;
+        HANDLE h;
+        int rc;
+        if (!pid) { ilog("--attach: no pid"); return 2; }
+        h = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+        if (!h) { ilog("--attach %lu: OpenProcess failed %lu", pid, GetLastError()); return 2; }
+        ilog("--- overlayinject (%d-bit) --attach pid=%lu",
+             (int)sizeof(void *) * 8, pid);
+        rc = patch_imports(h);
+        if (rc == 0) ilog("  attached: payload is the child's first static import");
+        else if (inject(h, 1) == 0) ilog("  attached: FELL BACK to remote thread");
+        else { ilog("  attach FAILED — child runs without an overlay"); rc = 2; }
+        CloseHandle(h);
+        return rc == 0 ? 0 : 2;
+    }
 
     /* Rebuild a command line for the title from argv[1..], quoted so paths with
      * spaces survive — Steam library paths routinely have them. */
