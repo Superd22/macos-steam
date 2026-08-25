@@ -50,7 +50,17 @@ if [ "${1:-}" = "--regen-vtables" ]; then
                 "repos/ValveSoftware/Proton/contents/lsteamclient/$f?ref=proton_11.0" \
                 --jq '.content' | base64 -d > "$PROTON_DIR/$f"
         done
+    # Two more headers since #82: Proton states every struct LAYOUT as well as
+    # every signature, and which of them actually differ between the Windows and
+    # unix forms. That verdict is what decides whether an aggregate can cross the
+    # seam untouched, so it is fetched rather than re-derived.
+    for h in steamclient_structs_generated.h steamclient_structs.h; do
+        [ -f "$PROTON_DIR/$h" ] || gh api \
+            "repos/ValveSoftware/Proton/contents/lsteamclient/$h?ref=proton_11.0" \
+            --jq '.content' | base64 -d > "$PROTON_DIR/$h"
+    done
     python3 extract_vtables.py "$PROTON_DIR" --all > vtables.json
+    python3 extract_structs.py "$PROTON_DIR" > structs.json
 fi
 
 # The generated tables and thunks are a pure function of vtables.json, which is
@@ -70,7 +80,7 @@ python3 check_overrides.py vtables.json overrides.json shim_pe.c
 # where the MSVC and Itanium orders agree. Check it against the classes a human
 # transcribed from the SDK, before generating a thousand callers of the claim.
 python3 check_slot_transfer.py vtables.json steam_ifaces.h
-python3 gen_thunks.py vtables.json overrides.json gen
+python3 gen_thunks.py vtables.json structs.json overrides.json gen
 
 # Every version a real title has been observed to ask for must have a real table.
 # This is the guard that would have caught Space Marine before it crashed: the
