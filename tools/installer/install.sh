@@ -9,9 +9,10 @@
 #      Outside every bundle, so a Steam client update cannot touch it.
 #
 #   2. The LAUNCHER  ~/Applications/Steam (macOS Play).app
-#      An unhardened .app whose LSEnvironment carries DYLD_INSERT_LIBRARIES (the
-#      injector) and STEAM_EXTRA_COMPAT_TOOLS_PATHS (the payload's tool dir),
-#      then execs Valve's inner steam_osx. Touches zero Valve files.
+#      An unhardened .app whose main executable is a shell script: it exports
+#      DYLD_INSERT_LIBRARIES (the injector) and STEAM_EXTRA_COMPAT_TOOLS_PATHS
+#      (the payload's tool dir), then execs Valve's inner steam_osx. Touches zero
+#      Valve files. Deliberately no LSEnvironment key — see the note below.
 #
 # Why this script exists: the payload was hand-assembled once and then drifted —
 # it still held the pre-#19 shim (old wineloader launch, no CWD fix) long after
@@ -99,21 +100,27 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>Steam (macOS Play)</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
-  <key>LSEnvironment</key>
-  <dict>
-    <key>DYLD_INSERT_LIBRARIES</key><string>$PAYLOAD/libcompat-enabler.dylib</string>
-    <key>STEAM_EXTRA_COMPAT_TOOLS_PATHS</key><string>$PAYLOAD/compatibilitytools.d</string>
-    <key>SHIM_OVERLAY</key><string>$OVERLAY_ENV</string>
-  </dict>
+  <!-- steam_osx is universal, and the arch LaunchServices picks is inherited
+       across the exec below. Without this key a Finder/open/Raycast launch
+       lands on translated x86_64, where the injector's arm64 gate pattern
+       matches nothing and the log reads "patched 0 site(s)". A shell exec from
+       an arm64 terminal happened to pick arm64, which is why the direct path
+       always looked fine. State the preference so every launch path agrees. -->
+  <key>LSArchitecturePriority</key>
+  <array><string>arm64</string></array>
 </dict>
 </plist>
 PLIST
 cat > "$APP/Contents/MacOS/launcher" <<LAUNCHER
 #!/bin/sh
-# LSEnvironment above is what actually delivers the two variables; exporting
-# them here too keeps a direct invocation of this script equivalent to a Finder
-# launch. SHIM_OVERLAY is always stated, 1 or 0, never omitted — unset means ON
-# below this point, so omitting it cannot express "off". Then hand off to Valve's own binary, unmodified.
+# These exports are the only thing that delivers the three variables. An
+# LSEnvironment dict in Info.plist would be the tidier way, but LaunchServices
+# refuses to launch a bundle that has BOTH an LSEnvironment key and a #! script
+# as CFBundleExecutable — open/Finder/Raycast fail with -54, surfaced as
+# 'does not have permission to open "(null)"'. Exporting here works from every
+# launch path, so the key is gone. SHIM_OVERLAY is always stated, 1 or 0, never
+# omitted — unset means ON below this point, so omitting it cannot express
+# "off". Then hand off to Valve's own binary, unmodified.
 export DYLD_INSERT_LIBRARIES="$PAYLOAD/libcompat-enabler.dylib"
 export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$PAYLOAD/compatibilitytools.d"
 export SHIM_OVERLAY=$OVERLAY_ENV

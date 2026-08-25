@@ -63,8 +63,10 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
      compat tool, and both bitnesses of the shim. It lives outside every bundle, so a Steam
      update cannot wipe it.
    - the **launcher** `~/Applications/Steam (macOS Play).app` — an unhardened `.app` whose
-     `LSEnvironment` carries the injector and the tool path into Valve's own `steam_osx`,
-     which it then execs unmodified.
+     shell-script executable exports the injector and the tool path, then execs Valve's own
+     `steam_osx` unmodified. It pins `arm64`: `steam_osx` is universal and the arch is
+     inherited across the exec, so without the pin a Finder launch lands on translated
+     x86_64 and the injector's arm64 gate pattern matches nothing.
 
 3. **Quit Steam, then launch `Steam (macOS Play)`** instead of Steam.app. The gate is flipped
    in memory each launch, so this app is how you start Steam from now on.

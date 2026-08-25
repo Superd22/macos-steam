@@ -129,6 +129,34 @@ has none). A per-title *opt-in to a specific tool* remains expressible later as 
   untouched — only titles at `display_status 14` should ever route through us, honouring the
   hard requirement that a macOS-compatible title installs as macOS.
 
+## Correction, 2026-08-25: our `.app` cannot use `LSEnvironment`, and must pin `arm64`
+
+Vehicle A as specified above sets both env vars in the bundle's `LSEnvironment`. Built that
+way, the launcher does not launch at all from Finder, `open`, or Raycast — only from a shell.
+Two independent defects, both invisible to the direct-exec path we developed against.
+
+**1. `LSEnvironment` + a `#!` script executable is unlaunchable.** LaunchServices refuses the
+bundle with error `-54`, surfaced to the user as *The application "X" does not have permission
+to open "(null)."* Reduced on macOS 26 to a three-way minimal bundle: script executable with
+no `LSEnvironment` launches; Mach-O executable with `LSEnvironment` launches; script *plus*
+`LSEnvironment` does not. Ad-hoc signing does not help — it only moves the failure later, to
+`launchd` spawn. The key is not required: the launcher script already exports all three
+variables before the exec, and the child sees them either way. So `LSEnvironment` is gone, and
+the script's exports are now the only carrier. Vehicle B (patching Valve's own `Info.plist`)
+is unaffected — Valve's `CFBundleExecutable` is a Mach-O binary.
+
+**2. The arch is inherited across the exec, and LaunchServices was picking x86_64.** `steam_osx`
+is universal. Launched by `open`, it came up as translated x86-64, where the injector's arm64
+gate pattern matches nothing — the log reads `patched 0 site(s)` and the gate stays shut, with
+no other symptom. A shell exec from an arm64 terminal happened to pick arm64, which is the only
+reason the ADR's verification ever passed. Fixed with `LSArchitecturePriority = [arm64]` in the
+launcher's `Info.plist`. Confirmed: `vmmap` reports `Code Type: ARM64` and the log reads
+`gate found ... patched 1 site(s)` on an `open`-launched client.
+
+The lesson for the verification step: **exercise the launcher through LaunchServices, not
+through a shell.** The two paths differ in both launchability and process architecture, and the
+shell path is the more permissive one on each.
+
 ## Links
 
 - Issue [#17](https://github.com/Superd22/macos-steam/issues/17) — the shipping-vehicle
