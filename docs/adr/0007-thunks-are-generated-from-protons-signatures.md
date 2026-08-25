@@ -145,3 +145,51 @@ against a file regenerated on every build.
   listed generate cleanly.
 - The PE binaries roughly double in size (1.6 MB / 1.4 MB). `struct w_iface` gained a cached
   version descriptor so `native_slot()` does not rescan 212 descriptors per call.
+
+## Addendum, 2026-08-26: same-name overloads are generated too
+
+The decision above refuses every method inside a same-name overload set, on the
+grounds that MSVC reverses the run and the slot the PE half holds is therefore a
+sibling's slot. The premise is right; the conclusion was too strong. The
+reversal is *mechanical*, so the correspondence can simply be computed.
+
+For a run at MSVC slots `[s..e]`, `native = s + (e - msvc)`. That is positional
+and uses nothing but the run's extent — Proton's `_n` suffix decides what
+belongs to a run, never where it lands, so the rule does not depend on Proton's
+numbering scheme staying what it is.
+
+**`msvc_order.py`** now owns that correspondence for all three generators and the
+checker. `gen_vtables.py` writes it into each method as a second index, so
+`struct vt_method` carries both `slot` (where the title calls) and `native`
+(where the dylib answers); `native_slot()` in the PE half returns the latter.
+For everything outside a run the two are the same number, which is why this
+changes nothing for the other 6,415 slots.
+
+Verified by signature, not by name — which matters, because inside an overload
+set the names differ by construction and a name comparison is blind:
+
+| | Proton (MSVC) | rule → native | `steam_ifaces.h` (declaration order) |
+| --- | --- | ---: | --- |
+| slot 1 | `GetStat_2(const char *, **float ***)` | 2 | slot 2 `GetStatF(const char*, **float***)` |
+| slot 2 | `GetStat(const char *, **int32_t ***)` | 1 | slot 1 `GetStatI(const char*, **int32_t***)` |
+
+`check_slot_transfer.py` was rewritten to assert exactly that pairing rather than
+exempt it: it walks the transcription by declaration index and demands that the
+Proton method `msvc_order` resolves onto it carries the parameter type the
+transcribed name describes. Sabotaging the reversal (returning the MSVC slot
+unchanged, i.e. the behaviour this addendum replaces) makes it fail with six
+named errors, so the check has teeth rather than merely passing.
+
+Getting this backwards would not have been a wrong answer. `GetStat` would still
+return true, having written a float through an `int32_t *`.
+
+- 26 methods move from refused to generated; refusals 216 → **190**, shapes 1,071
+  → **1,102**, slots wired 4,873 → **5,029**. 140 slots are reversed.
+- #52 ISteamInventory, #61 ISteamGameServerStats and #70 ISteamFriends have no
+  residue left at all; #73 ISteamUserStats — the largest — goes from 13 to 1.
+- The `stats` mode added to `instruments/harness` is the runtime half: Spacewar
+  defines `NumGames`/`NumWins`/`NumLosses` as int32 and `FeetTraveled`/
+  `MaxFeetTraveled` as float against one interface, so a crossed pair shows up
+  immediately as float bits read as an integer. Nothing else in the harness can
+  see this — the achievement modes touch no overloaded method and pass either
+  way, which is the whole reason the mode exists.

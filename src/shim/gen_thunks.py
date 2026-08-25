@@ -30,10 +30,14 @@ one.
 The unix half calls through `vslot(handle, slot)` — the ISteamFriends pattern
 (#23) — instead of casting the handle to a declared C++ class. Not a shortcut:
 39 interfaces x 212 versions is not transcribable by hand, and the transcription
-is what carries the risk. The MSVC slot the PE side holds IS the native Itanium
-slot for every method generated here, because MSVC's only reordering is to
-reverse each contiguous run of same-name overloads, and REFUSALS below drop
-every method that sits in such a run.
+is what carries the risk. The slot that crosses the seam is the NATIVE one. MSVC's only reordering against
+the order the dylib was compiled in is to reverse each contiguous run of
+same-name overloads, so for the great majority the two indices are the same
+number; for the 140 slots inside such a run they are not, and msvc_order.py
+resolves the correspondence once, for every generator that needs it. Overloads
+therefore generate like anything else: Proton has already disambiguated their
+NAMES (`GetStat` / `GetStat_2`), which is what lets one thunk-per-shape address
+them individually.
 
 ## Refuse loudly
 
@@ -45,6 +49,7 @@ shim-unix.log the first time a title touches it (the #45 stub path).
 Usage: gen_thunks.py <vtables.json> <overrides.json> <out-dir>
 """
 import json, os, re, sys, collections
+import msvc_order
 
 # ---------------------------------------------------------------- type map ---
 # One table, stated once (#78 step 2). C type -> (seam field code, PE thunk
@@ -219,45 +224,16 @@ def main():
                     else t['tag'].split('_', 1)[0])
                 for v, t in tables.items()}
 
-    # ---- same-name overload sets, the one thing that breaks slot transfer ----
-    #
-    # MSVC lays a set of same-name overloads out in REVERSE declaration order,
-    # against the order the dylib was compiled in. So for a method inside such a
-    # set, the slot the PE half holds is not the slot to index the native vtable
-    # with, and the whole dispatch-by-slot design does not apply. Those must be
-    # refused.
-    #
-    # They do NOT show up as a duplicate name. Proton has already disambiguated
-    # them — the SDK's two `GetStat` overloads become `GetStat` and `GetStat_2`,
-    # by DECLARATION index, and the vtable then lists `GetStat_2` first because
-    # that is what MSVC does. Counting duplicate names finds nothing at all and
-    # would have let all 140 of them through, each dispatching to its own
-    # sibling: GetStat(int) landing on GetStat(float).
-    #
-    # So group by the name with a trailing `_<n>` stripped. Sets found this way:
-    # 140 slot entries, suffixes _2.._4.
-    overloaded = set()
+    # Resolve the MSVC -> native slot correspondence for every version, and stop
+    # if any version's overload sets are not the contiguous runs the whole design
+    # assumes. Nothing here consumes the answer — the PE half reads it from the
+    # generated table at call time — but the generator must not emit a thousand
+    # callers of a premise that has already failed.
     for ver, t in tables.items():
-        g = collections.defaultdict(list)
-        for s in t['slots']:
-            g[re.sub(r'_\d+$', '', s['name'])].append(s)
-        for base, members in g.items():
-            if len(members) < 2:
-                continue
-            for m in members:
-                overloaded.add((iface_of[ver], m['name']))
-            # The reversal is confined to the set, which is the ENTIRE reason
-            # every method outside one keeps its slot. That holds only if the
-            # set is contiguous. If one ever is not, the argument fails for the
-            # whole version and refusing the set alone would not be enough — so
-            # stop, rather than generate 6,000 slots on a broken premise.
-            slots = sorted(m['slot'] for m in members)
-            if slots != list(range(slots[0], slots[0] + len(slots))):
-                sys.exit('%s.%s: overload set occupies non-contiguous slots %s.\n'
-                         'Dispatch-by-slot assumes MSVC only ever reverses a '
-                         'CONTIGUOUS run, which is what leaves every other '
-                         'method\'s slot untouched. That assumption just failed; '
-                         'refusing to generate.' % (ver, base, slots))
+        try:
+            msvc_order.native_slots(t['slots'])
+        except msvc_order.OrderProblem as e:
+            sys.exit('%s: %s' % (ver, e))
 
     # Group every vtable entry by (interface, method, signature).
     groups = collections.OrderedDict()
@@ -276,13 +252,6 @@ def main():
             if key in skip:
                 o = skip[key]
                 refuse(iface, s['name'], '%s: %s' % (o['reason'], o['why']), [ver])
-                continue
-            if key in overloaded:
-                refuse(iface, s['name'], 'one of a same-name overload set (Proton '
-                       'disambiguates them with a `_n` suffix): MSVC reverses the '
-                       'run against the order the dylib was compiled in, so the '
-                       'slot the PE half holds is a SIBLING overload\'s slot on '
-                       'the native side', [ver])
                 continue
             if not s['sig']:
                 refuse(iface, s['name'], 'Proton hand-writes this wrapper — there '

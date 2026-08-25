@@ -17,9 +17,18 @@ problems this solves, both of which bit us:
     both silently calls the wrong method (map trap 2). Wiring is therefore
     resolved BY NAME against the version's own table, never by literal index.
 
+ 3. The MSVC order is not the order the macOS dylib was compiled in. Inside a
+    set of same-name overloads MSVC reverses the run, so a slot resolved here
+    and sent across the seam would land on a SIBLING overload — GetStat(int32*)
+    calling GetStat(float*) (#78). Each method therefore carries BOTH indices:
+    `slot`, where it sits in the table the title calls through, and `native`,
+    where the same method sits in the dylib's vtable. msvc_order.py owns that
+    correspondence; everything here just writes it down.
+
 Usage: gen_vtables.py <tables.json> <out.h>
 """
 import json, sys
+import msvc_order
 
 def ident(v):  # version strings are already valid C identifiers
     return v
@@ -42,7 +51,13 @@ def main():
     w('/* bytes = the i386 thiscall stack size INCLUDING `this`, straight from')
     w(' * Proton\'s DEFINE_THISCALL_WRAPPER. Kept at runtime so wiring can tell')
     w(' * apart methods whose shape varies across an interface (see wire_getters). */')
-    w('struct vt_method { const char *name; unsigned short slot; unsigned short bytes; };')
+    w('/* slot   = where the method sits in the MSVC table the TITLE calls through.')
+    w(' * native = where the same method sits in the DYLIB\'s vtable, which is')
+    w(' *          declaration order. They differ only inside a same-name overload')
+    w(' *          set, which MSVC lays out reversed — and that difference is the')
+    w(' *          whole reason both are kept. Sending `slot` across the seam for')
+    w(' *          an overloaded method calls its sibling (#78). */')
+    w('struct vt_method { const char *name; unsigned short slot; unsigned short native; unsigned short bytes; };')
     w('/* iface is the INTERFACE this version belongs to ("ISteamClient"), taken')
     w(' * from Proton\'s own tag. It is what lets wiring say "every version of')
     w(' * ISteamClient" instead of naming version strings one at a time — naming')
@@ -59,6 +74,16 @@ def main():
     w('/* Defined by the PE half: logs "<version> slot N <name> (unmapped)". */')
     w('static unsigned int vt_unmapped(const char *version, int slot, const char *name);')
     w('')
+
+    # Resolve the MSVC -> native correspondence up front, so a version whose
+    # overload sets are not contiguous stops the build here rather than being
+    # generated on a premise that has already failed.
+    natives = {}
+    for ver, t in tables.items():
+        try:
+            natives[ver] = msvc_order.native_slots(t['slots'])
+        except msvc_order.OrderProblem as e:
+            sys.exit('%s: %s' % (ver, e))
 
     nstub = 0
     for ver, t in tables.items():
@@ -78,8 +103,9 @@ def main():
         w('static const void *vt_%s[%d];' % (ident(ver), len(slots)))
         w('static const struct vt_method meth_%s[] = {' % ident(ver))
         for s in slots:
-            w('    { "%s", %d, %d },' % (s['name'], s['slot'], s['bytes']))
-        w('    { 0, 0, 0 }')
+            w('    { "%s", %d, %d, %d },'
+              % (s['name'], s['slot'], natives[ver][s['slot']], s['bytes']))
+        w('    { 0, 0, 0, 0 }')
         w('};')
         w('')
 
@@ -101,6 +127,9 @@ def main():
     w('    { 0, 0, 0, 0 }')
     w('};')
     open(out, 'w').write('\n'.join(L) + '\n')
-    print('%s: %d versions, %d slots/stubs' % (out, len(tables), nstub))
+    nrev = sum(1 for ver in tables for s in tables[ver]['slots']
+               if natives[ver][s['slot']] != s['slot'])
+    print('%s: %d versions, %d slots/stubs, %d slots reversed by MSVC overload order'
+          % (out, len(tables), nstub, nrev))
 
 main()

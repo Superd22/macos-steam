@@ -76,6 +76,11 @@ static int      (*p_Stats_ClearAchievement)(void *, const char *);
 static int      (*p_Stats_StoreStats)(void *);
 static int      (*p_Stats_ResetAllStats)(void *, int);
 static uint32_t (*p_Stats_GetNumAchievements)(void *);
+/* The two GetStat/SetStat overloads (#78). Valve declares each pair as one
+ * overloaded name; the flat API disambiguates with an Int32/Float suffix, and
+ * Proton's vtable with a `_2`. They are the reason this mode exists. */
+static int      (*p_Stats_GetStatI)(void *, const char *, int32_t *);
+static int      (*p_Stats_GetStatF)(void *, const char *, float *);
 static const char *(*p_Stats_GetAchievementName)(void *, uint32_t);
 static const char *(*p_Stats_GetAchievementDisplayAttribute)(void *, const char *, const char *);
 
@@ -146,6 +151,8 @@ static int resolve_all(HMODULE dll)
     RESOLVE(p_Stats_StoreStats,                 "SteamAPI_ISteamUserStats_StoreStats", 1);
     RESOLVE(p_Stats_ResetAllStats,              "SteamAPI_ISteamUserStats_ResetAllStats", 1);
     RESOLVE(p_Stats_GetNumAchievements,         "SteamAPI_ISteamUserStats_GetNumAchievements", 0);
+    RESOLVE(p_Stats_GetStatI,                   "SteamAPI_ISteamUserStats_GetStatInt32", 0);
+    RESOLVE(p_Stats_GetStatF,                   "SteamAPI_ISteamUserStats_GetStatFloat", 0);
     RESOLVE(p_Stats_GetAchievementName,         "SteamAPI_ISteamUserStats_GetAchievementName", 0);
     RESOLVE(p_Stats_GetAchievementDisplayAttribute, "SteamAPI_ISteamUserStats_GetAchievementDisplayAttribute", 0);
 
@@ -378,6 +385,68 @@ static int get_achieved(const char *name)
     return ach & 0xff;
 }
 
+/* ---- stats mode: the two GetStat overloads (#78) --------------------------
+ *
+ * ISteamUserStats::GetStat is declared twice — once taking int32*, once taking
+ * float* — and MSVC lays a same-name overload set out in REVERSE against the
+ * order the macOS dylib was compiled in. So the shim cannot send the slot it
+ * resolved; it has to send the reversed one. Get that backwards and the call
+ * still succeeds, still returns true, and writes a float through an int32_t*.
+ *
+ * Nothing else in this harness can see that. The achievement modes never touch
+ * an overloaded method, so they pass either way — which is precisely why this
+ * mode exists: it is the only place the reversal is observable from outside.
+ *
+ * Spacewar (480) is the right subject because it defines both kinds against the
+ * same interface: NumGames/NumWins/NumLosses are int32, FeetTraveled and
+ * MaxFeetTraveled are float. A crossed pair shows up immediately as an integer
+ * read out of float bits (or the reverse) rather than as an error.
+ */
+static int mode_stats(void)
+{
+    static const char *ints[]   = { "NumGames", "NumWins", "NumLosses" };
+    static const char *floats[] = { "FeetTraveled", "MaxFeetTraveled" };
+    int bad = 0;
+
+    if (!p_Stats_GetStatI || !p_Stats_GetStatF) {
+        fprintf(stderr, "FATAL: stats mode needs both GetStat overloads; "
+                        "this redistributable exports only one.\n");
+        return 1;
+    }
+
+    for (size_t i = 0; i < sizeof ints / sizeof *ints; i++) {
+        int32_t v = -1;
+        int ok = p_Stats_GetStatI(g_stats, ints[i], &v);
+        tr("GetStat<int32>(\"%s\") ok=%d value=%d", ints[i], ok, (int)v);
+        /* A float read through an int32_t* is not a small error, it is a wild
+         * one: 3.5f reads as 1080033280. Spacewar's counters are small, so an
+         * implausible magnitude is the tell. */
+        if (ok && (v < 0 || v > 1000000)) {
+            tr("  ^ IMPLAUSIBLE for an int32 counter — this is what a crossed "
+               "overload looks like (float bits read as an integer)");
+            bad++;
+        }
+    }
+    for (size_t i = 0; i < sizeof floats / sizeof *floats; i++) {
+        float v = -1.0f;
+        int ok = p_Stats_GetStatF(g_stats, floats[i], &v);
+        tr("GetStat<float>(\"%s\") ok=%d value=%f", floats[i], ok, (double)v);
+        /* And an int32 read through a float* comes back denormal-small. */
+        if (ok && v != 0.0f && (v < 1e-30f && v > -1e-30f)) {
+            tr("  ^ IMPLAUSIBLE for a float stat — integer bits read as a float");
+            bad++;
+        }
+    }
+
+    if (bad) {
+        fprintf(stderr, "FATAL: %d stat(s) came back with the wrong overload's "
+                        "value. The MSVC overload reversal is wrong (#78).\n", bad);
+        return 1;
+    }
+    tr("both GetStat overloads returned plausible values for their own type");
+    return 0;
+}
+
 /* ---- overlay mode (#23) --------------------------------------------------
  *
  * Why a fake title and not a real one: these are calls the GAME makes, and a
@@ -582,7 +651,10 @@ int main(int argc, char **argv)
     }
 
     int rc = 0;
-    if (strcmp(mode, "overlay") == 0) {
+    if (strcmp(mode, "stats") == 0) {
+        rc = mode_stats();
+
+    } else if (strcmp(mode, "overlay") == 0) {
         rc = mode_overlay(sid, ach_or_which);
 
     } else if (strcmp(mode, "status") == 0) {
