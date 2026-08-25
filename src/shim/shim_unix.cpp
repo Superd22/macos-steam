@@ -620,6 +620,89 @@ static NTSTATUS u_overlay_setnotifyinset(void *args)
     return 0;
 }
 
+/* ---- ISteamRemoteStorage (slots 0-23) — the Steam Cloud file surface (#43).
+ *
+ * A title with cloud saves does not open userdata/<id>/<appid>/remote itself; it
+ * asks this interface. Stubbed, FileExists() is false and a complete save is
+ * invisible — Space Marine offers only "New Campaign" (#43). The handle casts to
+ * one class for every version because ISteamRemoteStorage has no same-name
+ * overload anywhere, so Itanium order == MSVC order (see steam_ifaces.h). -------- */
+#define RS(h) ((ISteamRemoteStorage016 *)(h))
+static NTSTATUS u_rs_filewrite(void *args)
+{ auto *p = (sp_rs_filedata *)args;
+  p->ret = RS(p->handle)->FileWrite((const char *)p->name, (const void *)p->data, p->count) ? 1 : 0;
+  ulog("FileWrite(\"%s\", %d bytes) -> %d", (const char *)p->name, p->count, p->ret); return 0; }
+static NTSTATUS u_rs_fileread(void *args)
+{ auto *p = (sp_rs_filedata *)args;
+  p->ret = RS(p->handle)->FileRead((const char *)p->name, (void *)p->data, p->count);
+  ulog("FileRead(\"%s\", %d) -> %d bytes", (const char *)p->name, p->count, p->ret); return 0; }
+static NTSTATUS u_rs_filewriteasync(void *args)
+{ auto *p = (sp_rs_writeasync *)args;
+  p->ret = RS(p->handle)->FileWriteAsync((const char *)p->name, (const void *)p->data, (uint32_t)p->count);
+  ulog("FileWriteAsync(\"%s\", %d bytes) -> call 0x%llx", (const char *)p->name, p->count,
+       (unsigned long long)p->ret); return 0; }
+static NTSTATUS u_rs_filereadasync(void *args)
+{ auto *p = (sp_rs_readasync *)args;
+  p->ret = RS(p->handle)->FileReadAsync((const char *)p->name, (uint32_t)p->offset, (uint32_t)p->toread);
+  ulog("FileReadAsync(\"%s\", off=%d, %d) -> call 0x%llx", (const char *)p->name, p->offset,
+       p->toread, (unsigned long long)p->ret); return 0; }
+static NTSTATUS u_rs_filereadasyncdone(void *args)
+{ auto *p = (sp_rs_readasyncdone *)args;
+  p->ret = RS(p->handle)->FileReadAsyncComplete(p->call, (void *)p->data, (uint32_t)p->toread) ? 1 : 0;
+  ulog("FileReadAsyncComplete(0x%llx, %d) -> %d", (unsigned long long)p->call, p->toread, p->ret); return 0; }
+static NTSTATUS u_rs_fileforget(void *args)
+{ auto *p = (sp_rs_name_i32 *)args; p->ret = RS(p->handle)->FileForget((const char *)p->name) ? 1 : 0; return 0; }
+static NTSTATUS u_rs_filedelete(void *args)
+{ auto *p = (sp_rs_name_i32 *)args; p->ret = RS(p->handle)->FileDelete((const char *)p->name) ? 1 : 0;
+  ulog("FileDelete(\"%s\") -> %d", (const char *)p->name, p->ret); return 0; }
+static NTSTATUS u_rs_fileshare(void *args)
+{ auto *p = (sp_rs_name_u64 *)args; p->ret = RS(p->handle)->FileShare((const char *)p->name); return 0; }
+static NTSTATUS u_rs_setsyncplatforms(void *args)
+{ auto *p = (sp_rs_syncplat *)args;
+  p->ret = RS(p->handle)->SetSyncPlatforms((const char *)p->name, p->platform) ? 1 : 0; return 0; }
+static NTSTATUS u_rs_streamopen(void *args)
+{ auto *p = (sp_rs_name_u64 *)args; p->ret = RS(p->handle)->FileWriteStreamOpen((const char *)p->name);
+  ulog("FileWriteStreamOpen(\"%s\") -> 0x%llx", (const char *)p->name, (unsigned long long)p->ret); return 0; }
+static NTSTATUS u_rs_streamchunk(void *args)
+{ auto *p = (sp_rs_streamchunk *)args;
+  p->ret = RS(p->handle)->FileWriteStreamWriteChunk(p->stream, (const void *)p->data, p->count) ? 1 : 0; return 0; }
+static NTSTATUS u_rs_streamclose(void *args)
+{ auto *p = (sp_rs_stream *)args; p->ret = RS(p->handle)->FileWriteStreamClose(p->stream) ? 1 : 0;
+  ulog("FileWriteStreamClose(0x%llx) -> %d", (unsigned long long)p->stream, p->ret); return 0; }
+static NTSTATUS u_rs_streamcancel(void *args)
+{ auto *p = (sp_rs_stream *)args; p->ret = RS(p->handle)->FileWriteStreamCancel(p->stream) ? 1 : 0; return 0; }
+static NTSTATUS u_rs_fileexists(void *args)
+{ auto *p = (sp_rs_name_i32 *)args; p->ret = RS(p->handle)->FileExists((const char *)p->name) ? 1 : 0;
+  ulog("FileExists(\"%s\") -> %d", (const char *)p->name, p->ret); return 0; }
+static NTSTATUS u_rs_filepersisted(void *args)
+{ auto *p = (sp_rs_name_i32 *)args; p->ret = RS(p->handle)->FilePersisted((const char *)p->name) ? 1 : 0; return 0; }
+static NTSTATUS u_rs_getfilesize(void *args)
+{ auto *p = (sp_rs_name_i32 *)args; p->ret = RS(p->handle)->GetFileSize((const char *)p->name);
+  ulog("GetFileSize(\"%s\") -> %d", (const char *)p->name, p->ret); return 0; }
+static NTSTATUS u_rs_getfiletimestamp(void *args)
+{ auto *p = (sp_rs_name_i64 *)args; p->ret = RS(p->handle)->GetFileTimestamp((const char *)p->name); return 0; }
+static NTSTATUS u_rs_getsyncplatforms(void *args)
+{ auto *p = (sp_rs_name_i32 *)args; p->ret = RS(p->handle)->GetSyncPlatforms((const char *)p->name); return 0; }
+static NTSTATUS u_rs_getfilecount(void *args)
+{ auto *p = (sp_rs_noarg *)args; p->ret = RS(p->handle)->GetFileCount();
+  ulog("GetFileCount() -> %d", p->ret); return 0; }
+static NTSTATUS u_rs_getfilenameandsize(void *args)
+{ auto *p = (sp_rs_namesize *)args;
+  p->ret = (uint64_t)RS(p->handle)->GetFileNameAndSize(p->index, (int32_t *)p->size_out);
+  ulog("GetFileNameAndSize(%d) -> %s", p->index, p->ret ? (const char *)p->ret : "(null)"); return 0; }
+static NTSTATUS u_rs_getquota(void *args)
+{ auto *p = (sp_rs_quota *)args;
+  p->ret = RS(p->handle)->GetQuota((uint64_t *)p->total, (uint64_t *)p->avail) ? 1 : 0; return 0; }
+static NTSTATUS u_rs_cloudforaccount(void *args)
+{ auto *p = (sp_rs_noarg *)args; p->ret = RS(p->handle)->IsCloudEnabledForAccount() ? 1 : 0;
+  ulog("IsCloudEnabledForAccount() -> %d", p->ret); return 0; }
+static NTSTATUS u_rs_cloudforapp(void *args)
+{ auto *p = (sp_rs_noarg *)args; p->ret = RS(p->handle)->IsCloudEnabledForApp() ? 1 : 0;
+  ulog("IsCloudEnabledForApp() -> %d", p->ret); return 0; }
+static NTSTATUS u_rs_setcloudforapp(void *args)
+{ auto *p = (sp_rs_setcloud *)args; RS(p->handle)->SetCloudEnabledForApp(p->enabled != 0);
+  ulog("SetCloudEnabledForApp(%d)", p->enabled); return 0; }
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -654,6 +737,13 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_fr_ov_invite, u_fr_ov_remoteplay, u_fr_ov_connectstring, u_fr_ov_registerprotocol,
     u_overlay_isenabled, u_overlay_needspresent,
     u_overlay_setnotifypos, u_overlay_setnotifyinset,
+    u_rs_filewrite, u_rs_fileread, u_rs_filewriteasync, u_rs_filereadasync,
+    u_rs_filereadasyncdone, u_rs_fileforget, u_rs_filedelete, u_rs_fileshare,
+    u_rs_setsyncplatforms, u_rs_streamopen, u_rs_streamchunk, u_rs_streamclose,
+    u_rs_streamcancel, u_rs_fileexists, u_rs_filepersisted, u_rs_getfilesize,
+    u_rs_getfiletimestamp, u_rs_getsyncplatforms, u_rs_getfilecount,
+    u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
+    u_rs_cloudforapp, u_rs_setcloudforapp,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -680,6 +770,13 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_fr_ov_invite, u_fr_ov_remoteplay, u_fr_ov_connectstring, u_fr_ov_registerprotocol,
     u_overlay_isenabled, u_overlay_needspresent,
     u_overlay_setnotifypos, u_overlay_setnotifyinset,
+    u_rs_filewrite, u_rs_fileread, u_rs_filewriteasync, u_rs_filereadasync,
+    u_rs_filereadasyncdone, u_rs_fileforget, u_rs_filedelete, u_rs_fileshare,
+    u_rs_setsyncplatforms, u_rs_streamopen, u_rs_streamchunk, u_rs_streamclose,
+    u_rs_streamcancel, u_rs_fileexists, u_rs_filepersisted, u_rs_getfilesize,
+    u_rs_getfiletimestamp, u_rs_getsyncplatforms, u_rs_getfilecount,
+    u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
+    u_rs_cloudforapp, u_rs_setcloudforapp,
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a

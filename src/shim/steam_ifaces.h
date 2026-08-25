@@ -22,6 +22,10 @@ typedef int32_t  HSteamUser;
 typedef uint64_t CSteamID_t;       // CSteamID: one uint64 by value (pack(1))
 typedef uint64_t SteamAPICall_t;
 typedef uint32_t AppId_t;
+typedef uint64_t UGCHandle_t;
+typedef uint64_t UGCFileWriteStreamHandle_t;
+typedef uint64_t PublishedFileId_t;
+typedef int32_t  ERemoteStoragePlatform;
 
 class ISteamUser {
  public:
@@ -198,6 +202,52 @@ class ISteamInput006 {
   virtual int  GetConnectedControllers(uint64_t*) = 0;                 // 6
   // ... truncated
 };
+
+// ISteamRemoteStorage, slots 0-23 — the Steam Cloud file surface (#43).
+//
+// This is the interface a title with cloud saves reads its save THROUGH. Left
+// stubbed, FileExists() answers false and a game with a complete save on disk
+// offers only "New Campaign" (Space Marine, 3169520); FileWrite() answers false
+// alongside it, so the same run cannot save either.
+//
+// The class-cast pattern is safe here for a reason worth stating: NO version of
+// ISteamRemoteStorage declares a same-name overload (checked against
+// vtables.json), so the dylib's Itanium order equals the MSVC order the PE side
+// holds. The ISteamFriends caveat — where an overload set swaps slots between
+// the two ABIs — does not apply, and neither does its slot-passing workaround.
+//
+// Slot order from Proton's winISteamRemoteStorage.c; slots 0-23 are identical
+// from v001 through v016. Tail (UGC/workshop/video, slots 24-58) truncated: a
+// different subsystem, and nothing we call reaches past slot 23.
+class ISteamRemoteStorage016 {
+ public:
+  virtual bool     FileWrite(const char*, const void*, int32_t) = 0;            // 0
+  virtual int32_t  FileRead(const char*, void*, int32_t) = 0;                   // 1
+  virtual SteamAPICall_t FileWriteAsync(const char*, const void*, uint32_t) = 0; // 2
+  virtual SteamAPICall_t FileReadAsync(const char*, uint32_t, uint32_t) = 0;    // 3
+  virtual bool     FileReadAsyncComplete(SteamAPICall_t, void*, uint32_t) = 0;  // 4
+  virtual bool     FileForget(const char*) = 0;                                 // 5
+  virtual bool     FileDelete(const char*) = 0;                                 // 6
+  virtual SteamAPICall_t FileShare(const char*) = 0;                            // 7
+  virtual bool     SetSyncPlatforms(const char*, ERemoteStoragePlatform) = 0;   // 8
+  virtual UGCFileWriteStreamHandle_t FileWriteStreamOpen(const char*) = 0;      // 9
+  virtual bool     FileWriteStreamWriteChunk(UGCFileWriteStreamHandle_t, const void*, int32_t) = 0; // 10
+  virtual bool     FileWriteStreamClose(UGCFileWriteStreamHandle_t) = 0;        // 11
+  virtual bool     FileWriteStreamCancel(UGCFileWriteStreamHandle_t) = 0;       // 12
+  virtual bool     FileExists(const char*) = 0;                                 // 13
+  virtual bool     FilePersisted(const char*) = 0;                              // 14
+  virtual int32_t  GetFileSize(const char*) = 0;                                // 15
+  virtual int64_t  GetFileTimestamp(const char*) = 0;                           // 16
+  virtual ERemoteStoragePlatform GetSyncPlatforms(const char*) = 0;             // 17
+  virtual int32_t  GetFileCount() = 0;                                          // 18
+  virtual const char* GetFileNameAndSize(int32_t, int32_t*) = 0;                // 19
+  virtual bool     GetQuota(uint64_t*, uint64_t*) = 0;                          // 20
+  virtual bool     IsCloudEnabledForAccount() = 0;                              // 21
+  virtual bool     IsCloudEnabledForApp() = 0;                                  // 22
+  virtual void     SetCloudEnabledForApp(bool) = 0;                             // 23
+  // ... truncated
+};
+
 
 // ISteamFriends VERSION017 leading block. Only GetPersonaName is needed so far,
 // and it is the same class of bug as ISteamApps::GetCurrentGameLanguage above:

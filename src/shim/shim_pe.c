@@ -970,6 +970,105 @@ static void THISCALL iut_SetOverlayNotificationPosition(struct w_iface *s, int32
 static void THISCALL iut_SetOverlayNotificationInset(struct w_iface *s, int32_t x, int32_t y)
 { struct sp_overlay_inset p; (void)s; p.x = x; p.y = y; seam(C_Overlay_SetNotificationInset, &p); }
 
+/* ---- ISteamRemoteStorage thunks (slots 0-23) (#43) -----------------------
+ *
+ * The Steam Cloud file surface. A title with cloud saves does not read
+ * userdata/<id>/<appid>/remote itself — it asks these, and a stubbed FileExists
+ * makes a complete save invisible: Space Marine offers only "New Campaign" with
+ * 22 KB of campaign progress sitting on disk, and cannot write a new save
+ * either, because FileWrite is stubbed in the same breath.
+ *
+ * Buffers (`data`, `size_out`, the GetQuota out-params) are addresses the GAME
+ * owns, so they zero-extend on i386 and the native side reads and writes through
+ * them in place. GetFileNameAndSize is the one that cannot work that way: its
+ * const char* RETURN points into the dylib's heap above 4 GB, so it goes through
+ * native_str like GetIPCountry. */
+static uint8_t THISCALL irs_FileWrite(struct w_iface *s, const char *name, const void *data, int32_t count)
+{ struct sp_rs_filedata p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name;
+  p.data = (uint64_t)(uintptr_t)data; p.count = count; p.ret = 0;
+  seam(C_RS_FileWrite, &p); return (uint8_t)p.ret; }
+static int32_t THISCALL irs_FileRead(struct w_iface *s, const char *name, void *data, int32_t count)
+{ struct sp_rs_filedata p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name;
+  p.data = (uint64_t)(uintptr_t)data; p.count = count; p.ret = 0;
+  seam(C_RS_FileRead, &p); return p.ret; }
+static uint64_t THISCALL irs_FileWriteAsync(struct w_iface *s, const char *name, const void *data, uint32_t count)
+{ struct sp_rs_writeasync p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name;
+  p.data = (uint64_t)(uintptr_t)data; p.count = (int32_t)count; p.ret = 0;
+  seam(C_RS_FileWriteAsync, &p); return p.ret; }
+static uint64_t THISCALL irs_FileReadAsync(struct w_iface *s, const char *name, uint32_t offset, uint32_t toread)
+{ struct sp_rs_readasync p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name;
+  p.offset = (int32_t)offset; p.toread = (int32_t)toread; p.ret = 0;
+  seam(C_RS_FileReadAsync, &p); return p.ret; }
+static uint8_t THISCALL irs_FileReadAsyncComplete(struct w_iface *s, uint64_t call, void *data, uint32_t toread)
+{ struct sp_rs_readasyncdone p; p.handle = s->handle; p.call = call;
+  p.data = (uint64_t)(uintptr_t)data; p.toread = (int32_t)toread; p.ret = 0;
+  seam(C_RS_FileReadAsyncComplete, &p); return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_FileForget(struct w_iface *s, const char *name)
+{ struct sp_rs_name_i32 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_FileForget, &p); return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_FileDelete(struct w_iface *s, const char *name)
+{ struct sp_rs_name_i32 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_FileDelete, &p); return (uint8_t)p.ret; }
+static uint64_t THISCALL irs_FileShare(struct w_iface *s, const char *name)
+{ struct sp_rs_name_u64 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_FileShare, &p); return p.ret; }
+static uint8_t THISCALL irs_SetSyncPlatforms(struct w_iface *s, const char *name, int32_t platform)
+{ struct sp_rs_syncplat p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name;
+  p.platform = platform; p.ret = 0; seam(C_RS_SetSyncPlatforms, &p); return (uint8_t)p.ret; }
+static uint64_t THISCALL irs_FileWriteStreamOpen(struct w_iface *s, const char *name)
+{ struct sp_rs_name_u64 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_FileWriteStreamOpen, &p); return p.ret; }
+static uint8_t THISCALL irs_FileWriteStreamWriteChunk(struct w_iface *s, uint64_t stream, const void *data, int32_t count)
+{ struct sp_rs_streamchunk p; p.handle = s->handle; p.stream = stream;
+  p.data = (uint64_t)(uintptr_t)data; p.count = count; p.ret = 0;
+  seam(C_RS_FileWriteStreamWriteChunk, &p); return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_FileWriteStreamClose(struct w_iface *s, uint64_t stream)
+{ struct sp_rs_stream p; p.handle = s->handle; p.stream = stream; p.ret = 0;
+  seam(C_RS_FileWriteStreamClose, &p); return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_FileWriteStreamCancel(struct w_iface *s, uint64_t stream)
+{ struct sp_rs_stream p; p.handle = s->handle; p.stream = stream; p.ret = 0;
+  seam(C_RS_FileWriteStreamCancel, &p); return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_FileExists(struct w_iface *s, const char *name)
+{ struct sp_rs_name_i32 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_FileExists, &p);
+  dbg("shim: FileExists(\"%s\") -> %d", name ? name : "(null)", p.ret);
+  return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_FilePersisted(struct w_iface *s, const char *name)
+{ struct sp_rs_name_i32 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_FilePersisted, &p); return (uint8_t)p.ret; }
+static int32_t THISCALL irs_GetFileSize(struct w_iface *s, const char *name)
+{ struct sp_rs_name_i32 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_GetFileSize, &p); return p.ret; }
+static int64_t THISCALL irs_GetFileTimestamp(struct w_iface *s, const char *name)
+{ struct sp_rs_name_i64 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_GetFileTimestamp, &p); return p.ret; }
+static int32_t THISCALL irs_GetSyncPlatforms(struct w_iface *s, const char *name)
+{ struct sp_rs_name_i32 p; p.handle = s->handle; p.name = (uint64_t)(uintptr_t)name; p.ret = 0;
+  seam(C_RS_GetSyncPlatforms, &p); return p.ret; }
+static int32_t THISCALL irs_GetFileCount(struct w_iface *s)
+{ struct sp_rs_noarg p; p.handle = s->handle; p.ret = 0; seam(C_RS_GetFileCount, &p);
+  dbg("shim: GetFileCount() -> %d", p.ret); return p.ret; }
+static const char * THISCALL irs_GetFileNameAndSize(struct w_iface *s, int32_t index, int32_t *size_out)
+{ struct sp_rs_namesize p; const char *r; p.handle = s->handle;
+  p.size_out = (uint64_t)(uintptr_t)size_out; p.index = index; p.ret = 0;
+  seam(C_RS_GetFileNameAndSize, &p);
+  r = native_str(p.ret);
+  dbg("shim: GetFileNameAndSize(%d) -> %s", index, r ? r : "(null)");
+  return r; }
+static uint8_t THISCALL irs_GetQuota(struct w_iface *s, uint64_t *total, uint64_t *avail)
+{ struct sp_rs_quota p; p.handle = s->handle; p.total = (uint64_t)(uintptr_t)total;
+  p.avail = (uint64_t)(uintptr_t)avail; p.ret = 0; seam(C_RS_GetQuota, &p); return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_IsCloudEnabledForAccount(struct w_iface *s)
+{ struct sp_rs_noarg p; p.handle = s->handle; p.ret = 0;
+  seam(C_RS_IsCloudEnabledForAccount, &p); return (uint8_t)p.ret; }
+static uint8_t THISCALL irs_IsCloudEnabledForApp(struct w_iface *s)
+{ struct sp_rs_noarg p; p.handle = s->handle; p.ret = 0;
+  seam(C_RS_IsCloudEnabledForApp, &p);
+  dbg("shim: IsCloudEnabledForApp() -> %d", p.ret); return (uint8_t)p.ret; }
+static void THISCALL irs_SetCloudEnabledForApp(struct w_iface *s, int32_t enabled)
+{ struct sp_rs_setcloud p; p.handle = s->handle; p.enabled = enabled;
+  seam(C_RS_SetCloudEnabledForApp, &p); }
+
 static void build_vtables(void)
 {
     vt_fill_stubs();
@@ -1085,6 +1184,36 @@ static void build_vtables(void)
     wire("SteamInput002", "GetConnectedControllers", (const void *)iin_GetConnectedControllers);
     wire("SteamInput006", "GetConnectedControllers", (const void *)iin_GetConnectedControllers);
 
+    /* ISteamRemoteStorage — the Cloud file surface, slots 0-23 (#43). One
+     * wire_all per method reaches every generated version: slots 0-23 are
+     * shape-identical from v001 to v016, so nothing here can land in the wrong
+     * slot or pop the wrong bytes. Slots 24-58 (UGC/workshop/video) stay stubbed
+     * on purpose — a different subsystem, and a stub there is a dead feature
+     * rather than an invisible save. */
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileWrite", (const void *)irs_FileWrite);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileRead", (const void *)irs_FileRead);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileWriteAsync", (const void *)irs_FileWriteAsync);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileReadAsync", (const void *)irs_FileReadAsync);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileReadAsyncComplete", (const void *)irs_FileReadAsyncComplete);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileForget", (const void *)irs_FileForget);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileDelete", (const void *)irs_FileDelete);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileShare", (const void *)irs_FileShare);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "SetSyncPlatforms", (const void *)irs_SetSyncPlatforms);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileWriteStreamOpen", (const void *)irs_FileWriteStreamOpen);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileWriteStreamWriteChunk", (const void *)irs_FileWriteStreamWriteChunk);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileWriteStreamClose", (const void *)irs_FileWriteStreamClose);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileWriteStreamCancel", (const void *)irs_FileWriteStreamCancel);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FileExists", (const void *)irs_FileExists);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "FilePersisted", (const void *)irs_FilePersisted);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "GetFileSize", (const void *)irs_GetFileSize);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "GetFileTimestamp", (const void *)irs_GetFileTimestamp);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "GetSyncPlatforms", (const void *)irs_GetSyncPlatforms);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "GetFileCount", (const void *)irs_GetFileCount);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "GetFileNameAndSize", (const void *)irs_GetFileNameAndSize);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "GetQuota", (const void *)irs_GetQuota);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "IsCloudEnabledForAccount", (const void *)irs_IsCloudEnabledForAccount);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "IsCloudEnabledForApp", (const void *)irs_IsCloudEnabledForApp);
+    wire_all("STEAMREMOTESTORAGE_INTERFACE_VERSION016", "SetCloudEnabledForApp", (const void *)irs_SetCloudEnabledForApp);
 }
 
 /* ---- flat exports ------------------------------------------------------- */
