@@ -31,7 +31,7 @@ MINGW64=x86_64-w64-mingw32-gcc
 MINGW32=i686-w64-mingw32-gcc
 mkdir -p "$DIST"
 
-# --regen-vtables: re-fetch Proton's PE-side sources and regenerate the tables.
+# --regen-vtables: re-fetch Proton's PE-side sources and re-read vtables.json.
 #
 # Generates EVERY interface version Proton defines (#29), not a curated subset.
 # The subset was how Space Marine failed: it asks for SteamClient021, which was
@@ -51,8 +51,26 @@ if [ "${1:-}" = "--regen-vtables" ]; then
                 --jq '.content' | base64 -d > "$PROTON_DIR/$f"
         done
     python3 extract_vtables.py "$PROTON_DIR" --all > vtables.json
-    python3 gen_vtables.py vtables.json shim_vtables.h
 fi
+
+# The generated tables and thunks are a pure function of vtables.json, which is
+# committed — so regenerate them on EVERY build, not only behind --regen-vtables.
+# Drift between the checked-in headers and the data they came from is then not a
+# state the tree can be in. --regen-vtables re-fetches the DATA; this re-derives
+# the code from it (#20 for the tables, #78 for the thunks).
+python3 gen_vtables.py vtables.json shim_vtables.h
+
+# overrides.json's "hand-written" entries are a claim about shim_pe.c. Check it
+# BEFORE generating: a stale entry means the generator skips a method nothing
+# serves, which is exactly the silent-0 failure #43 cost a session to find.
+python3 check_overrides.py vtables.json overrides.json shim_pe.c
+
+# The generated thunks dispatch on the native side by INDEXING the dylib's
+# vtable with a slot resolved from Proton's MSVC table. That is only correct
+# where the MSVC and Itanium orders agree. Check it against the classes a human
+# transcribed from the SDK, before generating a thousand callers of the claim.
+python3 check_slot_transfer.py vtables.json steam_ifaces.h
+python3 gen_thunks.py vtables.json overrides.json gen
 
 # Every version a real title has been observed to ask for must have a real table.
 # This is the guard that would have caught Space Marine before it crashed: the
@@ -99,7 +117,7 @@ python3 patch_marker.py "$DIST/$SHIM_PATH_PE32"
 
 # --- i386 thiscall is CALLEE-cleanup: every slot must pop the right bytes -----
 $MINGW32 -c -O2 -I../layout/gen -o "$DIST/.shim_pe32.o" shim_pe.c
-python3 verify_abi.py vtables.json shim_pe.c "$DIST/.shim_pe32.o"
+python3 verify_abi.py vtables.json shim_pe.c "$DIST/.shim_pe32.o" gen/shim_gen_arity.json
 rm -f "$DIST/.shim_pe32.o"
 
 # The bottle has no mingw runtime DLLs. Catch a reintroduced dependency here

@@ -195,8 +195,14 @@ static const char *native_str(uint64_t native)
 static const char *native_str(uint64_t native) { return (const char *)(uintptr_t)native; }
 #endif
 
-/* ---- PE-side interface object: MSVC vtable ptr @0, opaque native handle @8 -- */
-struct w_iface { const void **vtable; uint64_t handle; };
+/* ---- PE-side interface object: MSVC vtable ptr @0, opaque native handle @8 --
+ * `desc` is the version descriptor this object's table belongs to, resolved once
+ * at wrap() time. It is not part of the layout steam_api64.dll sees (nothing
+ * outside this file reads past the vtable pointer); it exists because #78's
+ * generated thunks all call native_slot() on every call, and without it that
+ * would rescan all 212 descriptors to answer a question wrap() already knew. */
+struct vt_desc;
+struct w_iface { const void **vtable; uint64_t handle; const struct vt_desc *desc; };
 
 /* The MSVC vtables the game sees: one table per interface VERSION, generated
  * slot-exact from Proton's lsteamclient (shim_vtables.h / gen_vtables.py, #20).
@@ -345,7 +351,7 @@ static const struct vt_desc *vt_of(const void **vtable)
  * wrong slot on ISteamFriends is a call to SetPlayedWith or GetClanTag. */
 static int32_t native_slot(struct w_iface *s, const char *method)
 {
-    const struct vt_desc *d = s ? vt_of(s->vtable) : NULL;
+    const struct vt_desc *d = s ? (s->desc ? s->desc : vt_of(s->vtable)) : NULL;
     const struct vt_method *m = d ? meth_find(d, method) : NULL;
     if (!m) {
         dbg("shim: native_slot(%s): unresolvable (version %s) — call dropped",
@@ -474,7 +480,7 @@ static struct w_iface *wrap(uint64_t handle, const void **vt)
     for (i = 0; i < g_ncache; i++)
         if (g_cache[i].handle == handle && g_cache[i].vt == vt) return g_cache[i].w;
     struct w_iface *w = (struct w_iface *)HeapAlloc(GetProcessHeap(), 0, sizeof *w);
-    w->vtable = vt; w->handle = handle;
+    w->vtable = vt; w->handle = handle; w->desc = vt_of(vt);
     if (g_ncache < 32) { g_cache[g_ncache].handle = handle; g_cache[g_ncache].vt = vt; g_cache[g_ncache].w = w; g_ncache++; }
     return w;
 }
@@ -1112,9 +1118,32 @@ static void THISCALL irs_SetCloudEnabledForApp(struct w_iface *s, int32_t enable
 { struct sp_rs_setcloud p; p.handle = s->handle; p.enabled = enabled;
   seam(C_RS_SetCloudEnabledForApp, &p); }
 
+/* ---- generated thunks (#78) --------------------------------------------
+ *
+ * ~1,100 of them, one per (interface, method, SIGNATURE), emitted from the
+ * typed wrapper bodies that sit one line below the arity in the same Proton
+ * file the tables above come from. Everything they need is already defined:
+ * seam(), native_str() for the const char* copy-down, native_slot() for the
+ * index the unix half will use, and the vt_<version>[] tables themselves.
+ *
+ * They are deliberately NOT hand-editable. A method that needs different
+ * behaviour goes in overrides.json with its reason, so the reason survives the
+ * next regeneration; a patch to this header would not.
+ *
+ * What the generator declined to emit is in gen/REPORT.md, and every declined
+ * slot still carries its logging stub — so the failure mode is a named line in
+ * shim-unix.log (#45), never the silent 0 that cost #43 a whole session. */
+#include "gen/shim_gen_pe.h"
+
 static void build_vtables(void)
 {
     vt_fill_stubs();
+
+    /* First, so that anything hand-written below still wins the slot. Nothing
+     * hand-written is generated (overrides.json, kept honest in both directions
+     * by check_overrides.py), so in practice they do not overlap — this order
+     * is what makes that a safety property rather than a coincidence. */
+    dbg("shim: generated thunks wired into %d vtable slots", gen_wire_all());
 
     wire_getters_all("ISteamClient");
 

@@ -703,6 +703,28 @@ static NTSTATUS u_rs_setcloudforapp(void *args)
 { auto *p = (sp_rs_setcloud *)args; RS(p->handle)->SetCloudEnabledForApp(p->enabled != 0);
   ulog("SetCloudEnabledForApp(%d)", p->enabled); return 0; }
 
+/* ---- generated handlers (#78) -------------------------------------------
+ *
+ * One per generated opcode. Each indexes the native vtable with the slot the PE
+ * half resolved — the ISteamFriends pattern from #23 — instead of casting the
+ * handle to a declared C++ class the way every hand-written block above does.
+ *
+ * That is not a shortcut around steam_ifaces.h; it is what makes 39 interfaces
+ * across 212 versions possible at all. A class cast needs every slot up to the
+ * deepest method transcribed by hand so the compiler emits the right index, and
+ * the transcription is where the risk lives. The slot the PE side already holds
+ * is that index, for free and checked at build time.
+ *
+ * Safe because MSVC's ONLY reordering against the declaration order the dylib
+ * was compiled in is to reverse each contiguous run of same-name overloads, and
+ * gen_thunks.py refuses every method that sits in such a run (gen/REPORT.md
+ * names them). Outside those runs, the MSVC slot IS the Itanium slot.
+ *
+ * A slot the PE side could not name arrives as -1 and is dropped loudly. There
+ * is no safe guess: the wrong index on a 60-method interface is some entirely
+ * different method. */
+#include "gen/shim_gen_unix.h"
+
 /* ---- diagnostics (#45) — the PE half's one must-not-be-missed line ---------
  *
  * shim_pe.c's dbg() goes to OutputDebugStringA and, only when SHIM_PE_LOG is
@@ -754,6 +776,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
     u_rs_cloudforapp, u_rs_setcloudforapp,
     u_log,
+#include "gen/shim_gen_dispatch.h"
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -788,6 +811,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
     u_rs_cloudforapp, u_rs_setcloudforapp,
     u_log,
+#include "gen/shim_gen_dispatch.h"
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a

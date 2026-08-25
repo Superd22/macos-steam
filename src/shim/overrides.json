@@ -1,0 +1,740 @@
+{
+ "_": [
+  "Methods the generator must NOT emit, and why (#78 step 6).",
+  "",
+  "Read by gen_thunks.py, and every entry lands in gen/REPORT.md with its reason.",
+  "This is a declarative list the generator reads, deliberately NOT a patch applied",
+  "to generated output \u2014 a patch would be overwritten on the next run, and the",
+  "reason would live nowhere.",
+  "",
+  "Two classes:",
+  "",
+  "  hand-written      a thunk in shim_pe.c already serves it. check_overrides.py",
+  "                    keeps this half of the list honest in BOTH directions:",
+  "                    every hand-wired method must appear here, and every entry",
+  "                    here must still be hand-wired. Delete a hand-written thunk",
+  "                    and the build tells you to drop its entry, whereupon the",
+  "                    generator picks the method up.",
+  "",
+  "  semantic override the signature is generatable and forwarding it would still",
+  "                    be wrong. IsOverlayEnabled is the standing example: correct",
+  "                    code, wrong behaviour. These are the cases no signature can",
+  "                    express, so they have to be said out loud."
+ ],
+ "skip": [
+  {
+   "interface": "ISteamApps",
+   "method": "BIsCybercafe",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "BIsDlcInstalled",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "BIsLowViolence",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "BIsSubscribed",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "BIsSubscribedApp",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "BIsSubscribedFromFreeWeekend",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "BIsVACBanned",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "GetAppOwner",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "GetAvailableGameLanguages",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "GetCurrentGameLanguage",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "GetEarliestPurchaseUnixTime",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamApps",
+   "method": "GetLaunchQueryParam",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "BReleaseSteamPipe",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "ConnectToGlobalUser",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "CreateSteamPipe",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamAppList",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamApps",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamBilling",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamContentServer",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamController",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamFriends",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamGameSearch",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamGameServer",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamGameServerStats",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamGenericInterface",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamHTMLSurface",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamHTTP",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamInput",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamInventory",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamMasterServerUpdater",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamMatchmaking",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamMatchmakingServers",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamMusic",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamMusicRemote",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamNetworking",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamParentalSettings",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamParties",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamRemotePlay",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamRemoteStorage",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamScreenshots",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamUGC",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamUnifiedMessages",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamUser",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamUserStats",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamUtils",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "GetISteamVideo",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamClient",
+   "method": "ReleaseUser",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "ActivateGameOverlay",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "ActivateGameOverlayInviteDialog",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "ActivateGameOverlayInviteDialogConnectString",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "ActivateGameOverlayRemotePlayTogetherInviteDialog",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "ActivateGameOverlayToStore",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "ActivateGameOverlayToUser",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "ActivateGameOverlayToWebPage",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "GetPersonaName",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamFriends",
+   "method": "RegisterProtocolInOverlayBrowser",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamInput",
+   "method": "BNewDataAvailable",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamInput",
+   "method": "GetConnectedControllers",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamInput",
+   "method": "Init",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamInput",
+   "method": "RunFrame",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamInput",
+   "method": "Shutdown",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileDelete",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileExists",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileForget",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FilePersisted",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileRead",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileReadAsync",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileReadAsyncComplete",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileShare",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileWrite",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileWriteAsync",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileWriteStreamCancel",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileWriteStreamClose",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileWriteStreamOpen",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "FileWriteStreamWriteChunk",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "GetFileCount",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "GetFileNameAndSize",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "GetFileSize",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "GetFileTimestamp",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "GetQuota",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "GetSyncPlatforms",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "IsCloudEnabledForAccount",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "IsCloudEnabledForApp",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "SetCloudEnabledForApp",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamRemoteStorage",
+   "method": "SetSyncPlatforms",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUser",
+   "method": "BLoggedOn",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUser",
+   "method": "GetEncryptedAppTicket",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUser",
+   "method": "GetHSteamUser",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUser",
+   "method": "GetSteamID",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUser",
+   "method": "GetUserDataFolder",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUser",
+   "method": "RequestEncryptedAppTicket",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "ClearAchievement",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "GetAchievement",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "GetAchievementAndUnlockTime",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "GetAchievementDisplayAttribute",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "GetAchievementName",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "GetNumAchievements",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "RequestCurrentStats",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "ResetAllStats",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "SetAchievement",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUserStats",
+   "method": "StoreStats",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "BOverlayNeedsPresent",
+   "reason": "semantic override",
+   "why": "renderer state, not client state \u2014 forwarded to the renderer's own export so the answer is correct by construction: no renderer loaded, no symbol, false (#23)."
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetAPICallFailureReason",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetAPICallResult",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetAppID",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetConnectedUniverse",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetCurrentBatteryPower",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetIPCCallCount",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetIPCountry",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetSecondsSinceAppActive",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetSecondsSinceComputerActive",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetServerRealTime",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "GetSteamUILanguage",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "IsAPICallCompleted",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "IsOverlayEnabled",
+   "reason": "semantic override",
+   "why": "answers ARMED, never loaded. Blind forwarding is correct code and wrong behaviour: a title told `true` with no renderer armed pauses forever waiting for a panel that never comes. Answered by Valve's renderer, not by steamclient.dylib (#23)."
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "RunFrame",
+   "reason": "hand-written",
+   "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "SetOverlayNotificationInset",
+   "reason": "semantic override",
+   "why": "the renderer exports no inset setter, so this is accept-and-ignore by necessity; forwarding it to the client would be a call to nothing (#23)."
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "SetOverlayNotificationPosition",
+   "reason": "semantic override",
+   "why": "renderer state, not client state \u2014 forwarded to the renderer's own export (#23)."
+  },
+  {
+   "interface": "ISteamUtils",
+   "method": "SetWarningMessageHook",
+   "reason": "semantic override",
+   "why": "installs a PE callback the native client would call back INTO, which the seam does not carry \u2014 and deliberately not forwarded even so, for the same reason as IsOverlayEnabled: it is a semantic, not a marshalling, decision."
+  }
+ ]
+}

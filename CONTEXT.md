@@ -54,6 +54,24 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   `src/layout/layout.json`. Asking a switch is reading policy; re-deriving it is drift, and
   the build says so (ADR 0006).
 
+- **Shape** — the unit the shim generates a thunk for: one (interface, method, *signature*),
+  not one method and not one version. It is the unit a single C function can serve, because
+  everything the seam needs — field widths, i386 arity, the return path — is a function of
+  the signature alone. One shape typically covers many interface versions; the same method
+  in two versions with different signatures is two shapes (ADR 0007).
+
+- **Refusal** — the generator declining to emit a thunk, *with a named reason*, recorded in
+  `src/shim/gen/REPORT.md`. A refusal is an outcome, never an omission: the slot keeps its
+  logging stub, so a title that calls it still says so in `shim-unix.log`. The thing a
+  refusal exists to prevent is a silent `0` — a plausible answer a title builds on, which is
+  how a complete cloud save stayed invisible for a whole session.
+
+- **Override** — a method the generator is told not to emit even though it could, declared in
+  `src/shim/overrides.json` with its reason. Two kinds: *hand-written* (a thunk already
+  serves it, and the build checks that claim both ways) and *semantic* (forwarding it would
+  be correct code and wrong behaviour — `IsOverlayEnabled` is the standing example). An
+  override is a list the generator reads, never a patch to what it wrote.
+
 - **Level A** — making the native macOS Steam client *install and launch* a Windows title
   through a compatibility tool (the download + launch half of the destination).
 

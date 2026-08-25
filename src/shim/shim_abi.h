@@ -214,6 +214,13 @@ enum shim_call
      * half of the stack already reports. */
     C_Log,
 
+    /* Every method the generator emitted (#78): one opcode per (interface,
+     * method, SIGNATURE), appended after every hand-written opcode above so no
+     * existing index moves. ~1,100 of them, against the ~90 hand-typed ones —
+     * which is the point of #78. What it declined to emit, and why, is in
+     * gen/REPORT.md. */
+#include "gen/shim_gen_opcodes.h"
+
     C_COUNT
 };
 
@@ -330,3 +337,11 @@ struct sp_rs_setcloud      { uint64_t handle; int32_t enabled; };               
 
 /* ---- diagnostics (#45) ---- */
 struct sp_log              { uint64_t msg; };                                     /* a PE-side line, into shim-unix.log */
+
+/* ---- generated params structs (#78) ----
+ * The same widest-first, fixed-width discipline as everything above, applied by
+ * gen_thunks.py instead of by hand — and held to it by the same check: every
+ * struct here goes through check_abi_layout.py's i686-vs-x86_64 offset compare
+ * on every build, so a generated layout that is not bitness-neutral fails the
+ * build rather than a title. */
+#include "gen/shim_gen_params.h"
