@@ -185,3 +185,113 @@ handover), both drawing the overlay.
   `tools/overlay-probe/`.
 - Issues: #21 (feasibility), #22 (which closed (a2) on a mute negative — corrected by B1–B2),
   #24 (App Management), #23 (out-of-process routing, ships regardless).
+
+## Correction, 2026-08-25: `DEBUG_PROCESS` cannot cover the child that matters
+
+The decision stands — inject at process creation, from inside Wine — but the
+child-coverage half of it was built on an assumption that does not hold, and #27
+was right to call it "untested code carrying an implicit claim". It was worse
+than untested: it could not have worked.
+
+> *"**`DEBUG_PROCESS`, so children are covered too.** A title that relaunches itself —
+> a launcher exe, **a 32-bit stub that starts a 64-bit binary** — would otherwise
+> render in a process we never touched. As a debugger we receive
+> `CREATE_PROCESS_DEBUG_EVENT` for each child and re-arm."*
+
+The example the ADR chose is precisely the one the mechanism cannot handle.
+**A 32-bit debugger cannot debug a 64-bit child** — a hard rule on Windows, and
+Wine behaves the same way. Warhammer 40,000: Space Marine – Master Crafted
+Edition is exactly that shape: `SpaceMarineBootstrapper.exe` is PE32 and starts
+`SpaceMarine.exe`, which is PE32+ (its `.ini` says `ApplicationPath=SpaceMarine.exe`,
+`WaitForExit=0`).
+
+Measured: **no `CREATE_PROCESS_DEBUG_EVENT` arrives at all.** The debug loop logs
+no child, the game receives the payload only later through the ordinary
+`steam_api` → registry route — by which time its `DllMain` reports
+`d3d12=LOADED dxgi=LOADED` — and `/tmp/gameoverlayrenderer.<pid>.log` contains
+**zero `Hooking` lines**. The overlay simply did not exist for that title, and
+the top-level injection had reported success, exactly as #27 predicted.
+
+### The mechanism is a hook on the parent's `CreateProcess`
+
+The parent's own `CreateProcess` is the one place guaranteed to run before the
+child executes anything, and the payload is already inside the parent as its
+first static import. So it IAT-hooks `CreateProcessA/W` (only under
+`SHIM_OVERLAY`), forces `CREATE_SUSPENDED`, and hands the child's pid to
+`overlayinject<child's bitness>.exe --attach`, which performs the same import
+patch this ADR already specifies — in the right bitness. The hook then resumes
+the child, unless the caller asked for a suspended process itself.
+
+The bitness problem is *removed* rather than worked around: the patch is always
+performed by a process of the child's own bitness, so no cross-bitness memory
+write or PE parse is ever attempted.
+
+Confirmed on Space Marine, launched through its bootstrapper:
+
+```
+--- overlayinject (64-bit) --attach pid=768
+  patched imports: C:\shim\steamclient64.dll is now import [0] of 25
+  attached: payload is the child's first static import
+gameoverlayrenderer.<game pid>.log: Hooking=5
+```
+
+`DEBUG_PROCESS` is kept. It still covers same-bitness children, and it is the
+only thing that reports a child created by a module whose `CreateProcess` import
+was resolved before our hook went in. The two are complementary; neither is
+sufficient alone.
+
+### Consequence for "we take on a debugger loop"
+
+The coupling this ADR accepted is now smaller in practice: the common
+relaunch shape is covered by the hook, which is not a debugger and carries none
+of the debugger's failure modes. The `DEBUG_PROCESS` caveat above still applies
+to the cases only it covers.
+
+## Addendum, 2026-08-25: input parity is better than expected (#28)
+
+The Consequences above say *"Input parity is not addressed here… Gamepad and dinput
+behaviour while the overlay is up is a separate, still-unpriced problem."* It has
+now been measured, and the pessimism was misplaced.
+
+#28's reasoning was: on Windows and in Proton, `lsteamclient` raises
+`GameOverlayActivated_t` and fires a `keybd_event`, and the *consumers* of that
+gate live in Valve's Wine fork (`winex11.drv`, `dinput`, `hidclass.sys`,
+`xinput1_3`). CrossOver's Wine has none of them, so the half of the mechanism
+that tells the game to stop reacting to input should simply be absent.
+
+**It is absent, and input is gated anyway** — because Valve's renderer does not
+rely on that path at all. It swizzles
+`nextEventMatchingMask:untilDate:inMode:dequeue:`, so it consumes events at the
+**Cocoa event pump, below Wine**, before `winemac.drv` ever converts them into
+Windows messages. Nothing in Wine has to co-operate.
+
+Measured two ways. With `inputprobe` (`tools/overlay-probe/`), a real D3D11
+overlay target that logs every input channel against the overlay's state:
+synthesised keystrokes and mouse motion reach the title's message queue with the
+overlay down, and produce **nothing at all** with it up — while the title keeps
+rendering, and `gameoverlayui` is running against its pid. The control matters:
+the same synthetic sequence traced exact coordinates with the overlay closed, so
+"no events" is a gate, not a broken instrument.
+
+And on Space Marine, with a real Xbox controller:
+
+| channel | overlay up |
+|---|---|
+| keyboard | swallowed |
+| gamepad — buttons and both sticks | swallowed |
+| mouse clicks | swallowed |
+| mouse *position* (hover highlight in-game) | **still reaches the title** |
+| on close | full functionality returns, cursor included |
+
+The gamepad result is the surprising one, and it is the one #28 called out as
+having "no consumer at all in CrossOver's Wine".
+
+**The one leak is hover, and it is parity, not a regression.** The same
+behaviour was observed in a bottle running real Windows Steam, so it is how this
+title behaves under Valve's own overlay rather than something our route
+introduces. Recorded as a known limitation; not worth chasing.
+
+Note this removes the ADR's implied prerequisite that shipping the overlay would
+first require reimplementing the `GameOverlayActivated_t` input gate PE-side.
+It would not. The remaining blocker on turning the overlay on by default is the
+Steamworks overlay API surface (#23), not input.
