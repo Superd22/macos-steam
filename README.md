@@ -148,6 +148,7 @@ call: `src/` is the beta cut.
 CONTEXT.md                  the glossary — read this first
 docs/adr/                   the decisions, and why the alternatives were rejected
 docs/research/              the measured evidence behind each decision
+  INDEX.md                  which of it is still true — read before any doc in here
 
 src/                        reaches a user's machine
   installer/                install.sh — the one command that deploys everything

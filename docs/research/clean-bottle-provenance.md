@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: CrossOver upgrade — measured on CrossOver 25.1.1; the bottle recipe is version-sensitive
+---
+
 # Clean bottle & provenance: proving the shim is what answered
 
 Findings for [#13](https://github.com/Superd22/macos-steam/issues/13). Everything below was

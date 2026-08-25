@@ -14,8 +14,7 @@ API. So the overlay problem was never "write a renderer" or "reverse Valve's IPC
 one problem only: **get that dylib into the game process, early enough.**
 
 Three facts, all measured on this machine, define the whole solution space. They are recorded in
-`docs/research/steam-overlay-feasibility.md` (Addendum 2), `instruments/overlay-probe/` and
-`attic/overlay-probe/`.
+`docs/research/overlay-injection.md`, `instruments/overlay-probe/` and `attic/overlay-probe/`.
 
 **1. The renderer arms itself exactly once, at load, and the deadline is `NSApplication`.**
 `metalprobe5` moves a `dlopen` of the renderer across a program's startup and bisects it:
@@ -34,7 +33,7 @@ CrossOver's `wineloader` is hardened-runtime signed without
 insertion means putting an entitled binary inside CrossOver.app, which macOS 14+ gates behind an
 **App Management** TCC prompt and which must be redone after every CrossOver update (#24). Mirror
 roots do not rescue it: `ntdll` resolves the loader relative to its own path, and a copied
-`ntdll.so` in a mirror root SIGSEGVs (Addendum A5).
+`ntdll.so` in a mirror root SIGSEGVs (`docs/research/overlay-injection.md`, Wrong turns).
 
 **3. But the Mac display driver is demand-loaded, which reopens the whole thing.**
 `winemac.so` — and with it `NSApplication` — does *not* come up with `user32`. `u32probe` holds a
@@ -185,9 +184,10 @@ handover), both drawing the overlay.
 - Supersedes the injection half of #24's two shipping stories (CodeWeavers ask / in-place re-sign).
   The CodeWeavers ask for `allow-dyld-environment-variables` remains worth sending — it would delete
   this ADR's machinery entirely — but it is not a dependency of anything now.
-- Evidence: `docs/research/steam-overlay-feasibility.md` Addendum 2 (B1–B7); harnesses in
-  `instruments/overlay-probe/` + `attic/overlay-probe/`.
-- Issues: #21 (feasibility), #22 (which closed (a2) on a mute negative — corrected by B1–B2),
+- Evidence: `docs/research/overlay-injection.md` §1–§6; harnesses in
+  `instruments/overlay-probe/` + `attic/overlay-probe/`. The feasibility study that preceded it,
+  and the binary-level anatomy it still holds, are in `docs/research/steam-overlay-feasibility.md`.
+- Issues: #21 (feasibility), #22 (which closed (a2) on a mute negative — since corrected),
   #24 (App Management), #23 (out-of-process routing, ships regardless).
 
 ## Correction, 2026-08-25: `DEBUG_PROCESS` cannot cover the child that matters

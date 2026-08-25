@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: Steam client update — live-tested against client build `1785799196`
+---
+
 # `app_mappings` is a self-contained, shippable compat-tool mapping — and `appid 0` is a global catch-all
 
 Live-tested against the running macOS Steam client on 2026-08-13 (client build

@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: Steam client update — the inventory is a snapshot of client `1785187029`'s JS surface
+---
+
 # `window.SteamClient` on macOS — full API inventory
 
 Captured **2026-08-13** from macOS Steam client **`1785187029`** (Apple Silicon,
@@ -13,10 +18,11 @@ Windows/Linux/Deck clients.
 ## How to reproduce
 
 1. `touch "~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/.cef-enable-remote-debugging"`
-   — the **install** dir inside the app bundle, *not* the data dir (the recipe in
-   `compatibilitytools-d-macos.md` is wrong about this; corrected on
-   [#9](https://github.com/Superd22/macos-steam/issues/9)). The `-cef-enable-debugging`
-   launch flag is an equivalent, per-run alternative.
+   — the **install** dir inside the app bundle, *not* the data dir. The data dir was tried
+   first and the file is simply never read; corrected on
+   [#9](https://github.com/Superd22/macos-steam/issues/9), and it is the same install-vs-data
+   mistake `compatibilitytools-d-macos.md` records. The `-cef-enable-debugging` launch flag is
+   an equivalent, per-run alternative.
 2. Restart Steam; `curl -s http://127.0.0.1:8080/json/list` within ~15s of UI paint.
 3. Pick the target with `"title": "SharedJSContext"` and speak CDP over its
    `webSocketDebuggerUrl` — `Runtime.evaluate` with `awaitPromise: true,

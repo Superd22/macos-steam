@@ -33,7 +33,7 @@ cd "$B/drive_c" && env -u SteamNoOverlayUIDrawing \
 ```
 
 It answers yes: 5/5 hooks, and `ValveGetScreenSize( 640, 480 )` / `ValveGetOutputBounds` show the
-renderer tracking the **D3D window's** drawable. Detail in Addendum 2 §B8.
+renderer tracking the **D3D window's** drawable. Detail in `docs/research/overlay-injection.md` §5.
 
 **Two traps this probe fell into first, both relevant to #25's injector:** a console exe loses the
 race before `main` (the console attach reaches USER, which demand-loads `winemac.so`), and a static

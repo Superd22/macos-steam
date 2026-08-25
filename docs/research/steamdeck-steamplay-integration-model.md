@@ -1,3 +1,7 @@
+---
+status: current
+---
+
 # Steam Deck / Steam Play integration model: per-title controls and ProtonDB
 
 Research for [#17](https://github.com/Superd22/macos-steam/issues/17). Decision this settles:

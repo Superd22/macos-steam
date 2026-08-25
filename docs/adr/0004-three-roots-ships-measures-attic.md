@@ -73,7 +73,8 @@ into the attic destroys it.
   the harness to `SteamAPI_Init()=1` with real achievement reads and no Windows Steam.
 - The payload-layout work (#32) reads much more obviously once the shipping modules sit
   together, which is why it comes next.
-- `attic/shimprobe/` has no `FINDINGS.md`; its conclusions are in
-  `docs/research/clean-bottle-provenance.md`, and a README in the module now says so.
+- `attic/shimprobe/` has no findings of its own; its conclusions are in
+  `docs/research/clean-bottle-provenance.md`, and both its README and a `FINDINGS.md` stub
+  point there.
 - `instruments/native-probe/FINDINGS.md` stays on the instruments side even though most of
   the binaries it describes are archived: the claim it records is one that gets re-verified.

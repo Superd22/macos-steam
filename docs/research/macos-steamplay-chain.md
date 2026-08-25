@@ -1,9 +1,13 @@
+---
+status: current
+---
+
 # Where the SteamPlay chain breaks on macOS
 
 **Scope:** what the native macOS Steam client actually implements of the Steam Play /
 compatibility-tool pipeline, and where the chain from *"tool is registered"* to *"Steam installs a
 Windows depot and launches it through the tool"* is broken. The `compatibilitytools.d` discovery
-question is settled in `compatibilitytools-d-macos.md` (and its correction); this document starts
+question is settled in `compatibilitytools-d-macos.md`; this document starts
 downstream of registration.
 
 **Investigated:** 2026-08-03.

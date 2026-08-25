@@ -62,7 +62,7 @@ must be unset — the renderer bails on it explicitly.
 
 Holds a Wine process at three stages while `vmmap` samples it. Absent at process init, still absent
 after `user32.dll` is loaded, present only after one `GetDesktopWindow()` — so the driver is
-demand-loaded and every `DllMain` beats it (Addendum 2 §B7).
+demand-loaded and every `DllMain` beats it (`docs/research/overlay-injection.md` §4).
 
 ```sh
 i686-w64-mingw32-gcc -o u32probe.exe u32probe.c

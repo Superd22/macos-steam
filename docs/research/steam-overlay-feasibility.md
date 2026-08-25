@@ -1,4 +1,24 @@
+---
+status: superseded
+superseded-by: overlay-injection.md
+still-cited-for: the binary-level anatomy of the macOS overlay (§1–§4) and the Proton/Valve comparison (§6), which nothing else in the repo covers
+---
+
 # Can the Steam in-game overlay work over the bridge? — a feasibility study
+
+> [!NOTE]
+> **The verdict here is settled, and it is elsewhere.** This study asked whether an in-game
+> composited overlay is possible and ranked five ways to build one. The answer is yes, it is
+> built, and the measured arrangement — what loads, when, and why the alternatives cost more —
+> lives in **`overlay-injection.md`**. Go there for anything operational.
+>
+> What this document is still the reference for is the ground underneath that answer: the
+> anatomy of Valve's macOS overlay binaries (§1), where the seam in our own rendering path is
+> (§2), macOS injection policy as measured on this machine (§3), input ownership (§4), and what
+> Proton does and Valve says (§6). None of that has been overturned.
+>
+> §5's ranking and §7–§8's open questions are historical; they close out in
+> [Where §5 landed](#where-5-landed) and [Wrong turns](#wrong-turns) at the bottom.
 
 **Scope:** whether an *in-game composited* Steam overlay is achievable for a Windows title running
 in the CrossOver **bottle**, driven by the **native macOS Steam client** through our **bridge**, with
@@ -7,6 +27,7 @@ present chain, macOS code-injection policy, and four candidate architectures. Ov
 in `macossteamplayresearch.md` §7 step 5; this document establishes what scoping it back in costs.
 
 **Investigated:** 2026-08-23.
+
 
 **Primary sources.** All macOS binary citations are against the live install at
 `~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/`:
@@ -106,7 +127,8 @@ The six findings that change the picture:
 **What that adds up to:** the overlay problem reduces to (a) getting one Valve dylib into the game's
 Wine process at the right moment, (b) getting the native client to spawn `gameoverlayui` for that
 process, and (c) accepting a defined degradation where dyld *interposition* (as opposed to ObjC
-swizzling) cannot be recovered. None of it requires reverse-engineering Valve's overlay IPC, writing
+swizzling) cannot be recovered — (b) and (c) both turned out not to be requirements at all; see
+[Wrong turns](#wrong-turns). None of it requires reverse-engineering Valve's overlay IPC, writing
 a Metal renderer, or reimplementing the overlay UI. That is a fundamentally different — and much
 smaller — problem than the one this project scoped out.
 
@@ -116,17 +138,26 @@ renderer inserted into a purpose-built Metal program that runs real `nextDrawabl
 is gated on something other than the graphics API — almost certainly the client-side handshake
 (`SteamOverlayRunning_%llu`, `GameOverlayRender_PIDStream`), which means it cannot be demonstrated
 without the native client agreeing to start an overlay instance for a Windows-platform app (§7 S-1,
-S-3). That agreement is the single thing that could still sink architecture (a1), and it is an
-experiment, not a research question.
+S-3).
+
+> **Settled, and the guess was wrong.** Arming is not the gate and the handshake is not the
+> gate. The renderer must simply be loaded before `NSApplication` is instantiated, and it arms
+> for a process the client has no relationship with. What made this look like a client-side
+> mystery is that the renderer writes no log unless `STEAM_OVERLAY_LOGGING` is set, so no stage
+> could be named. `overlay-injection.md` §1–§2.
 
 **The cheapest move nobody has made yet.** `com.apple.security.cs.allow-dyld-environment-variables`
 is a one-line change in CodeWeavers' build, it is the entitlement Valve's own documentation says the
 overlay requires, and CrossOver already ships the harder-to-justify `disable-library-validation`
 alongside it. **[I]** Asking CodeWeavers to add it would remove the re-signed-loader hack, the
 notarisation problem and the licensing question in a single stroke. (Basis: §3.1's entitlement dump
-and §6.3's Valve citation.) That should be tried before any of §5(a1)'s engineering.
+and §6.3's Valve citation.)
+
+> **Still true, no longer on the critical path.** The shipping route needs no `DYLD_*` at all, so
+> it needs no entitlement. The ask stands as the thing that would make the (a1) fallback cheap.
 
 ---
+
 
 ## 1. Anatomy of the macOS overlay, from the binaries
 
@@ -563,10 +594,26 @@ the overlay is up.
 
 ## 5. Architectures, ranked
 
+> **How this landed:** (d) shipped first as planned (#23). (a2) — Valve's renderer `dlopen`'d
+> from inside the Wine process — is what the overlay actually runs on, once the reason it looked
+> dead turned out to be load *time*. (a1) is the fallback, at the shipping cost §3 priced. (b),
+> (c) and (e) are closed as written here. `overlay-injection.md` is the live account; the
+> per-architecture reasoning below is preserved because it is what the ranking was made of.
+
 Effort figures assume one engineer already fluent in this codebase, and count *to a working overlay
 on one title*, not to a shippable feature.
 
-### (a1) Reuse Valve's `gameoverlayrenderer.dylib`, inserted at launch via a re-signed loader — **RECOMMENDED**
+Effort figures assume one engineer already fluent in this codebase, and count *to a working overlay
+on one title*, not to a shippable feature.
+
+### (a1) Reuse Valve's `gameoverlayrenderer.dylib`, inserted at launch via a re-signed loader
+
+> **Settled: the fallback, not the route.** Everything below about the graphics is right and
+> everything about the *binary to re-sign* is wrong — it is the loader in the lib tree, not
+> `bin/wineloader` (`overlay-injection.md` §7). The mirror root of step 1 does not survive
+> contact with `ntdll`, and step 2's spike S-2 fails. What kills it as the primary route is not
+> engineering but distribution: installing an entitled loader needs an App Management grant over
+> CrossOver.app.
 
 **Verdict: feasible. Highest fidelity, and the only option that reaches parity with native macOS
 Steam games.** This is architecture (a) from the brief, in its full-fidelity form.
@@ -608,7 +655,12 @@ technical one). It also breaks on every CrossOver update: the copy must be re-ma
 install/upgrade time, and `crossover-bridge-surface.md` §6 already prescribes exactly that
 idempotent-reapply discipline for our other bottle edits.
 
-### (a2) Reuse Valve's renderer, `dlopen`'d from our unixlib — **the fallback with a known ceiling**
+### (a2) Reuse Valve's renderer, `dlopen`'d from our unixlib — **this is what ships**
+
+> **Settled, with both halves of the description wrong.** The ceiling below is imaginary: the
+> 15 interposes are not needed at all for the Metal path. And it cannot be done *from our
+> unixlib* — by `SteamAPI_Init` the window is already up. The renderer has to be pulled in at
+> process init, which is what `src/overlay-inject/` does. See `overlay-injection.md` §2–§3, §6.
 
 **Verdict: feasible, degraded, and cheap.** No re-signing, no mirror root, no CrossOver-update
 fragility, no licensing question. `shim_unix.so` calls `dlopen("…/gameoverlayrenderer.dylib")` after
@@ -706,10 +758,12 @@ Vulkan at all. A Vulkan-layer overlay would only apply to titles that go through
 MoltenVK, and Valve ships no macOS build of that layer in this install (no `.json` manifest or layer
 dylib is present in the Steam MacOS directory [V, `ls`]). Closed.
 
-**Ranked: (d) now → (a1) as the real target → (a2) as its fallback → (c) only if S-3 kills (a1) →
-(b) never.**
+**Ranked at the time: (d) now → (a1) as the real target → (a2) as its fallback → (c) only if S-3
+kills (a1) → (b) never.** As it landed: **(d) shipped → (a2) is the overlay → (a1) the fallback →
+(c) unbuilt → (b) never.**
 
 ---
+
 
 ## 6. What Proton does, and what Valve says out loud
 
@@ -920,494 +974,85 @@ lowers (c)'s cost meaningfully and de-risks its *rendering* (though not its *con
 
 ## 7. Spikes that resolve the remaining unknowns
 
-Each is a concrete experiment with a pass/fail oracle, in the house style (`macossteamplayresearch.md`
-§7, issue #19's "Done when"). They are ordered so that a failure kills the cheapest thing first.
+Each was a concrete experiment with a pass/fail oracle. All of them have since been run; the
+results are in `overlay-injection.md` and ADR 0003. Kept as a table rather than in full, because
+the open question is the part that dated, not the method.
 
-### S-1 — What gates the renderer's Metal hooks? (measured to be *not* graphics)
+| Spike | Question | Outcome |
+|---|---|---|
+| S-1 | What gates the renderer's Metal hooks? | **Answered, and not by S-1's own hypothesis.** The gate is not the client handshake — it is that the renderer must load before `NSApplication` is instantiated. What made S-1 unanswerable at the time is that the renderer logs nothing without `STEAM_OVERLAY_LOGGING`. |
+| S-2 | Can CrossOver's front door be made to use our re-signed loader? | **No.** `BinPath`, `CX_ROOT` and the mirror root all take effect and the game still relocates from the stock loader — `ntdll` resolves it relative to its own path. |
+| S-3 | Will the native client start `gameoverlayui` for a compat-tool-launched Windows title? | **Yes, and more than asked.** It arms the overlay for a process it has no relationship with at all. |
+| S-4 | Does the swizzled present actually see D3DMetal's frames? | **Yes.** A D3D11 program in the bottle gets 5/5 hooks and real `ValveGetOutputBounds` geometry. |
+| S-5 | How bad is the cursor without the interposes? | **Moot for the Metal path** — the interposes turned out to be unnecessary. Input parity is still unpriced, but for the reasons in §6.2, not this one. |
+| S-6 | Does the PE side need the `keybd_event` repair? | Open. Folded into the input-parity work (#28). |
+| S-7 | Can the renderer be loaded before `winemac.so` inside a Wine process? | **Yes.** `winemac.so` is demand-loaded on the first USER call, so any DLL loaded at process init beats it. |
+| S-8 | What mechanism gets a DLL of ours loaded at process init? | **Import-table injection** into a `CREATE_SUSPENDED` process. `CREATE_SUSPENDED` + `CreateRemoteThread` is not early enough under Wine. |
 
-**Already partly run, and the result narrows the question.** [V] With the renderer
-DYLD-inserted into a purpose-built x86_64 Metal program that creates an `MTLDevice`, a
-`CAMetalLayer`, and runs three full `nextDrawable` → `presentDrawable:` → `commit` cycles, with
-`SteamOverlayGameId=480`, `STEAM_OVERLAY_LOGGING=1` and `SteamNoOverlayUIDrawing` unset,
-`/tmp/gameoverlayrenderer.97916.log` contains **only** the header
-(`GameID = 480, AppID = 480, OverlayGameID = 480, PID: 97916 … Executable: metaltest`) and the module
-list. **No `Hooking …` line, and no `Failed to hook …` line.** The same is true of the
-`wineloader` run in §3.3 and the bare `dlopen` in §3.4.
+The full method for each — harness, oracle, and what a failure would have meant — is in this
+file's history; the answers supersede them.
 
-**[I] Therefore the trigger is not "Metal is in use" — it is the client-side handshake.** The
-plausible gate is the `SteamOverlayRunning_%llu` named semaphore and/or a reply on
-`GameOverlayRender_PIDStream`, neither of which exists unless the real Steam client has decided to run
-an overlay instance for that game id. (Basis: those objects exist in the renderer's string table [V];
-the renderer's `Disabling overlay for N seconds (%d seconds since last frame from ui process was
-seen)` log family [V] shows it tracks liveness of the UI process; and Metal exercise alone provably
-does not fire the hook.)
-
-**Run.** Attach `lldb` (or set a `dtrace`/`DYLD_PRINT_*` trace) to the `metaltest` harness above and
-break on `class_replaceMethod` / `class_addMethod` — then repeat with each candidate gate satisfied by
-hand: (i) `sem_open("SteamOverlayRunning_<gameid64>", O_CREAT)` pre-created; (ii) a fake
-`GameOverlayRender_PIDStream` reader. Alternatively, skip straight to S-3 and observe the hook fire
-for real.
-
-**Oracle.** A `Hooking …` log line naming a concrete `AGX…`/`CAMetalLayer` class, or a
-`class_replaceMethod` call in the debugger. FAIL — and this is the honest disproof of the whole
-thesis — if the hook never installs even with a live client-spawned `gameoverlayui`.
-
-**Why it matters.** This is the **one** unverified link in the chain from §1 to §5(a1). Everything
-either side of it is measured.
-
-### S-2 — Can CrossOver's front door be made to use our re-signed loader?
-
-**Run.** With the mirror root at `$MIRROR`, invoke `CrossOver.app/.../bin/wine --bottle steam-shim`
-with `CX_ROOT=$MIRROR` (and, as a second arm, `WINELOADER=$MIRROR/bin/wineloader` to confirm it is
-ignored). Compare against the control run of `steamclient-shim-launch.sh`.
-
-**Oracle.** The launched `Mars.exe` still reaches its main menu **and** `INSERTED-OK`-style evidence
-appears — i.e. a marker dylib's constructor fires in the game process — **and** the CrossOver
-per-title tweak database still loads (no `err:cxcompatdb:compatdb_init couldn't get path to JSON
-database`, the exact symptom issue #19 traced the MoltenVK regression to). FAIL if D3DMetal is lost:
-the game's log must still show `AMD Compatibility Mode` and `API d3d12`, not `[mvk-info]`.
-
-**Why it matters.** This is the one place where (a1) can fail architecturally rather than
-incidentally. If it fails, (a1) collapses into (a2) or (c).
-
-### S-3 — Will the native client start `gameoverlayui` for a compat-tool-launched Windows title?
-
-**Run.** With S-1 and S-2 passing, launch Mars through `Steam (macOS Play).app` with the overlay
-env restored, and watch (i) `ps` for a `gameoverlayui` process, (ii)
-`~/Library/Application Support/Steam/logs/gameoverlay_ui.txt` and `gameoverlay_renderer.txt` (both
-filenames are in `steamclient.dylib` [V]), (iii) the client's own log for
-`GameOverlay: started '%s' (pid %d) for game process %d`.
-
-**Oracle.** A `gameoverlayui` process exists with `-pid` equal to the Wine process hosting
-`Mars.exe`. FAIL if the client logs `GameOverlay: failed to execute process` or logs nothing at all.
-
-**If it fails**, the next question is *why*, and the app-config keys found in §1.3 are the levers to
-try in order: `allow_overlay`, `DisableOverlay`, `DisableOverlay_OSX`, `DisableOverlayInjection`,
-`GameOverlay_CompatMode`, `GameOverlay_TestMode` (the last two are settable via `config/` per the
-string forms `config/GameOverlay_CompatMode`, `config/GameOverlay_TestMode` [V]). A hard refusal keyed
-on the app's platform, with no override, is the finding that would send us to (c).
-
-### S-4 — Does the swizzled present actually see D3DMetal's frames?
-
-**Run.** With S-1–S-3 passing, press Shift+Tab in Mars.
-
-**Oracle.** The overlay draws over the game. Weaker but still decisive intermediate oracle if it does
-not: `STEAM_OVERLAY_FRAME_TIME_LOGGING=1` [V, env var read by the renderer] produces per-frame lines,
-proving the hook is on the hot path even if compositing is wrong.
-
-**The specific failure to look for.** D3DMetal or DXMT caching an `IMP`, subclassing `CAMetalLayer`
-privately, or presenting through a path that does not route through `-[MTLCommandBuffer presentDrawable:]`
-(e.g. `MTLDrawable presentAfterMinimumDuration:` — note Valve hooks that one too [V]). If the hook is
-installed but never fires, this is the reason, and the fix is CodeWeavers/Apple territory, not ours.
-
-### S-5 — How bad is the cursor without the interposes?
-
-**Run.** Only under (a2). Compare a windowed, cursor-visible title against a relative-mouse title with
-the overlay open.
-
-**Oracle.** In the relative-mouse title, does the OS cursor track the overlay UI, or does the game
-keep warping it? FAIL (i.e. (a2) is not shippable as-is) if the overlay cannot be clicked.
-
-### S-6 — Does the PE side need the `keybd_event` repair?
-
-**Run.** With the overlay opening, check whether the game behaves as though Shift and Tab are stuck
-down after the overlay closes.
-
-**Oracle.** Reproduce Proton's symptom (`steamclient_main.c:528-550`); if present, port the repair to
-the **shim**'s callback pump using Wine's input injection. This spike exists to confirm the repair is
-*needed* before writing it — `lsteamclient-mechanics.md` §9 currently lists it under "skip entirely".
-
----
 
 ## 8. What could not be determined here
 
-Stated plainly, because a labelled unknown is worth more than a guess.
+Stated plainly at the time, because a labelled unknown is worth more than a guess. Six items; four
+are closed.
 
-1. **What gates the renderer's Metal hooks.** Measured [V]: exercising Metal — device, layer,
-   `nextDrawable`, `presentDrawable:`, `commit` — inside a process with the renderer inserted and
-   `SteamOverlayGameId` set produces **no** `Hooking …` line. So the gate is not the graphics API. The
-   remaining hypothesis is the client-side handshake (`SteamOverlayRunning_%llu` /
-   `GameOverlayRender_PIDStream`), which is **inference**, not fact. S-1/S-3. Everything in
-   §5(a1)/(a2) rests on this single link.
-2. **Whether the native client will run an overlay instance for a Windows-platform app.** §1.3's
-   sequence is inference from string ownership, not from observation. S-3.
-3. **Whether `CX_ROOT` redirection is sufficient and supported.** Read from `bin/wine` lines 713/806,
-   never run. S-2.
-4. **The exact content path for architecture (c).** Whether `SteamClient.Overlay.GetOverlayBrowserInfo`
-   yields anything a foreign process can render from was not tested; only the method's existence is
-   established (`steamclient-js-api-macos.md` ~line 216).
-5. **Licensing.** Whether redistributing an ad-hoc- or Developer-ID-re-signed copy of CodeWeavers'
-   `wineloader` is permitted by the CrossOver licence. This is not a technical question and it was not
-   investigated. It could invalidate (a1) on grounds nothing in this document can measure.
-6. **Whether any of this survives a CrossOver update.** CrossOver has already moved from 25.1.1 /
-   wine-10.0 (the version the earlier research documents were written against) to 26.2 / wine-11.0
-   during this project's life [V]. The mirror root must be rebuilt on every such move.
+1. ~~**What gates the renderer's Metal hooks.**~~ **Closed** — load order, not the client
+   handshake. `overlay-injection.md` §2.
+2. ~~**Whether the native client will run an overlay instance for a Windows-platform app.**~~
+   **Closed** — it will, for any process at all. `overlay-injection.md` §1.
+3. ~~**Whether `CX_ROOT` redirection is sufficient and supported.**~~ **Closed** — it is
+   steerable and it is not sufficient. `overlay-injection.md` §7.
+4. **The exact content path for architecture (c).** Still unknown, and now moot unless (a2) and
+   (a1) both fail. Whether `SteamClient.Overlay.GetOverlayBrowserInfo` yields anything a foreign
+   process can render from was never tested; only the method's existence is established
+   (`steamclient-js-api-macos.md`).
+5. ~~**Licensing.**~~ **Moot on the route taken.** Nothing in `CrossOver.app` is copied,
+   re-signed or modified by the shipping overlay path. It returns if (a1) ever does.
+6. **Whether any of this survives a CrossOver update.** Open, and permanently so. CrossOver moved
+   from 25.1.1 / wine-10.0 to 26.2 / wine-11.0 during this project's life [V], and the load-order
+   deadline in `overlay-injection.md` §4 is a property of the Wine loader, which CodeWeavers owns.
+
 
 ---
 
-# Addendum — measured 2026-08-23, session of #22 and #24
+## Where §5 landed
 
-Everything below was measured on this machine after the study above was written. Three of its
-conclusions are **corrected**; two of its unknowns are **closed**; one new blocker is identified that
-the study did not anticipate and that decides how, or whether, this can ship.
-
-CrossOver 26.2.0.39821, wine-11.0-8723-g7e8a47752e3, bottle `steam-shim`.
-
-## A1. Arming passes — the study's biggest risk is retired [V]
-
-S-3 asked whether the native client will start `gameoverlayui` for a Windows-platform app. It does
-better than that: it arms the overlay for a process it has **no relationship with**. `metalprobe`
-(`attic/overlay-probe/`) is a plain unsigned Metal binary — not launched by Steam, never calling
-Steamworks — and with `SteamOverlayGameId` set to a real appid, `DYLD_INSERT_LIBRARIES` pointing at
-`gameoverlayrenderer.dylib`, and `SteamNoOverlayUIDrawing` unset, Shift+Tab draws the real overlay
-over its `CAMetalLayer`.
-
-This retires the risk that could have degraded (a1) to (c). Graphics and arming are both settled;
-only injection remains.
-
-## A2. (a2) is dead — load order, not interposition [V]
-
-Same harness, same environment, only load time varies: inserted at launch the overlay draws;
-`dlopen`'d it does not, with 13 of 15 interposes rebound making no difference. The interpose-recovery
-mechanism itself works exactly as §3.4 predicted — parsing `__DATA,__interpose` and matching each
-entry's dyld-bound `original` against `dlsym` identifies **15/15** and hands back Valve's own
-replacements — it simply is not what `dlopen` loses. `CFRunLoopRun`/`InMode` could not be tested:
-Valve's replacements do not pump a run loop they did not set up. Detail in #22.
-
-## A3. §5(a1) step 1 re-signs the wrong binary [V] — correction
-
-The study has us re-signing `bin/wineloader`. That is only the **first stage**. The binary that
-becomes the game process is reached by a second exec and lives in the lib tree:
-
-```
-game process → /var/folders/…/winetemp-174243904-…/wineloader
-inode 174243904 → …/CrossOver/lib/wine/x86_64-unix/wine
-```
-
-`bin/wineloader` is a different inode (174242871) and is irrelevant to injection. Note also
-`CrossOver-Hosted Application/wineloader` is a **hard link to `bin/wineloader`** (same inode), so it
-is not a third variant and not the differentiator it looked like.
-
-## A4. Relocation preserves entitlements [V] — correction, and it is good news
-
-The study's §3 reasoning assumed the relocated loader is a rewritten copy. It is not. The `winetemp`
-path in `ntdll.so` (single xref to `/winetemp-%llu-%llu-%lu-%lu/` at `0x22648`) runs:
-
-```
-asprintf → strlcat → mkdir → symlink("<dir>/ntdll.so") → stat → link → symlink (fallback) → posix_spawn
-```
-
-`link()` is a **hard link**: same inode, therefore the same signature and entitlements as the source.
-An earlier reading of "three different sha256s" as evidence of rewriting was wrong — the differing
-hashes were three *different files* (stock, our re-signed copy, and a link to stock), not three
-versions of one. **An entitled source yields an entitled game process.** This is what keeps (a1)
-alive at all.
-
-## A5. The front door is fully steerable — and it is not enough [V]
-
-Three mechanisms, all confirmed:
-
-- **`[Wine] BinPath`** is a bottle config key (`bin/wine:654`), takes a `:`-separated list
-  (`cxwhich`, `bin/wine:25`), and steers `WINELOADER` — proven with a planted marker loader. `LibPath`
-  is its sibling.
-- **`DYLD_*` cannot be passed in from outside.** `/usr/bin/perl` is SIP-restricted and dyld
-  *removes* `DYLD_*` from the environment, so nothing survives the front door from the caller's
-  shell. `[EnvironmentVariables]` in `cxbottle.conf` sets them **inside** perl before the exec
-  (`CXBottle.pm:9-29`); only `CX_BOTTLE` and `WINEPREFIX` are rejected.
-- **`CX_ROOT` cannot be set from the environment** — `locate_cx_root` (`bin/wine:45-82`) computes it
-  from `cxwhich($ENV{PATH}, $0)` and overwrites `$ENV{CX_ROOT}`. Only invoking a `wine` inside a
-  mirror root steers it; the symlink-following loop short-circuits once `bin/cxmenu` exists beside it.
-
-A mirror root was built and **`CX_LOG` confirms all three take effect**:
-
-```
-CX_ROOT    = …/steam-shim/drive_c/cxroot
-WINELOADER = …/cxroot/bin/wineloader
-WINESERVER = …/cxroot/bin/wineserver
-```
-
-**And the game still relocates from the stock loader.** So `ntdll` ignores both `CX_ROOT` and
-`WINELOADER` and resolves the real loader **relative to its own path** — consistent with the
-disassembly, which symlinks `<tempdir>/ntdll.so` → `dirname(source)/ntdll.so`.
-
-**[I] That defeats the mirror-root family**, because `ntdll.so` cannot be given a mirror-side path:
-
-| `ntdll.so` in the mirror | result |
-|---|---|
-| symlink | works, but resolves back into CrossOver's tree — stock sibling wins |
-| copy | **SIGSEGV** (exit 139, no output) — signature verifies clean, so not a signing fault |
-| hard link | `Operation not permitted` across the app bundle |
-
-## A6. `codesign` on the shipped loader fails — sign a copy instead [V]
-
-`codesign --force --sign -` directly on `lib/wine/x86_64-unix/wine` returns **`internal error in
-Code Signing subsystem`**. The inode had 19 links — one real path plus 18 accumulated `winetemp`
-dirs. The failure is atomic: signature, inode, size and validity all unchanged afterwards, and
-CrossOver still runs. Signing a copy in `/tmp` (one link) succeeds and yields a correctly entitled
-binary.
-
-## A7. The blocker that decides shippability: App Management [V]
-
-Installing that entitled binary over CrossOver's own fails:
-
-```
-cp /tmp/wine.entitled "$W"
-→ Operation not permitted
-```
-
-Not POSIX permissions and not `schg` — `ls -lO` shows no flags, and even `touch` of a *new* file in
-that directory fails. CrossOver.app is a signed, notarized third-party bundle
-(`TeamIdentifier=9C6B7X7Z8E`), and since macOS 14 modifying another app's bundle requires the
-**App Management** TCC grant for the writing process.
-
-**[I] This reframes the whole approach.** Shipping the in-place re-sign means an installer that (1)
-prompts the user to grant App Management over CrossOver, (2) rewrites a CodeWeavers binary inside
-their signed bundle, and (3) silently re-does it after every CrossOver update. That is a great deal
-of fragile, user-visible surface for a feature.
-
-The study treated "ask CodeWeavers to add `com.apple.security.cs.allow-dyld-environment-variables`"
-as step 0, a courtesy before the real engineering. On this evidence it is not a courtesy — it is the
-only route that avoids a TCC prompt, a vendor-bundle modification, and per-update repair
-simultaneously, and CrossOver already ships the harder-to-justify half
-(`disable-library-validation`). Valve's own documentation names both entitlements as the macOS
-overlay's requirement, so the ask has a citable rationale.
-
-## A8. Where (a1) stands
-
-Unresolved, by one test. With App Management granted, `cp /tmp/wine.entitled "$W"` and a launch would
-prove or kill (a1) outright — everything else in the chain is measured and works. Until then:
-
-- **(a1)** viable, injection unproven end-to-end, and its shipping story depends on the CodeWeavers ask.
-- **(a2)** closed (A2).
-- **(c)** unchanged, and now the fallback of record if (a1)'s injection cannot be made to ship.
-- **(d)** unchanged and still worth shipping first (#23).
-
----
-
-# Addendum 2 — measured 2026-08-24, re-test of (a2)
-
-**A2 above is wrong, and A8's "(a2) closed" with it.** `dlopen` *is* a way in. The failure #22
-recorded was one of load *time*, and the timing it tested is not the timing (a2) would have.
-
-## B1. The renderer's log is opt-in — #22 ran blind [V]
-
-`STEAM_OVERLAY_LOGGING` (and `STEAM_OVERLAY_LOGGING_FLUSH`) are `getenv` calls in the dylib
-(`0x1e194`, `0x1e17e` in the x86_64 slice), gating `/tmp/gameoverlayrenderer.%d.log`. #22 concluded
-the renderer "writes no log in either case" and therefore could not name the stage the `dlopen` path
-reached. With the variable set, the log is written in every run and answers the question directly:
-
-```
-GameID = 3215050, AppID = 3215050, OverlayGameID = 3215050, PID: 98558 Executable: metalprobe5
-Modules at GameOverlayRenderer.dll attach
-----------------------------
-Hooking _MTLCommandBuffer::presentDrawable: for MTLCommandBuffer
-Hooking _MTLCommandBuffer::presentDrawable:atTime: for MTLCommandBuffer
-Hooking _MTLCommandBuffer::presentDrawable:afterMinimumDuration: for MTLCommandBuffer
-Hooking AGXG15XFamilyCommandBuffer::commit for MTLCommandBuffer
-Hooking _MTLCommandBuffer::addScheduledHandler: for MTLCommandBuffer
-ValveGetScreenSize( 640, 480 )
-Detected hot-key via base input, now requesting overlay enable
-Enabling overlay
-```
-
-**[I]** Any future overlay run should set it. A mute failure was what made A2's negative look
-structural.
-
-## B2. `dlopen` before `NSApplication` hooks and arms — overlay confirmed drawing [V]
-
-`attic/overlay-probe/metalprobe5.m` is `metalprobe` with the `dlopen` movable across startup by
-`DLOPEN_WHEN`. Renderer, environment and render loop are otherwise identical; the only variable is
-the call site.
-
-| `DLOPEN_WHEN` | dlopen happens | `Hooking` lines | overlay |
-|---|---|---|---|
-| `ctor`   | `__attribute__((constructor))`, before `main` | 5/5 | ✅ draws |
-| `main`   | first statement of `main`                     | 5/5 | ✅ draws |
-| `nsapp`  | after `[NSApplication sharedApplication]`      | 0 | ❌ |
-| `device` | after `MTLCreateSystemDefaultDevice()`        | 0 | ❌ |
-| `layer`  | after the `CAMetalLayer` is created and attached | 0 | ❌ |
-| `late`   | after the window is on screen (#22's row 2)   | 0 | ❌ |
-
-`ctor` reproduced across three runs. The overlay was visually confirmed over `metalprobe5`'s layer
-on Shift+Tab, and the log's `Enabling overlay` corroborates it.
-
-**The gate is `NSApplication` instantiation**, not `dyld`'s interposition window, not the Metal
-device, not the layer. Load before `NSApp` exists and attach installs the five `MTLCommandBuffer`
-hooks; load after and attach still runs and still prints its module list, but hooks nothing.
-
-## B3. The interposes are confirmed unnecessary [V]
-
-`metalprobe5` links no `fishhook`, parses no `__DATA,__interpose`, and rebinds nothing — and the
-overlay draws. §3.4's "precisely-known hole" and #21's GOT-rebinding plan are both moot for the
-Metal path. The recovery code in `metalprobe3` remains valid and remains useful only for #21's
-inserted-stub idea.
-
-## B4. What this changes
-
-(a2) needs **no entitlement, no re-signed loader, no mirror root, no App Management prompt, and no
-modification of CrossOver.app** — the three things A5–A7 identified as the shipping blockers for
-(a1) all belong to injection-at-launch, which this route does not use. It needs one thing instead:
-
-> our unixlib must `dlopen` `gameoverlayrenderer.dylib` before `winemac.so` instantiates
-> `NSApplication`.
-
-That is the remaining unknown, and it is a Wine-internal ordering question rather than a macOS
-platform one. `ntdll`'s unixlib initialises long before the graphics driver is loaded, so the
-window exists on paper; it has not been measured. **Spike S-7.**
-
-## B5. Standing corrections
-
-- **A2 is withdrawn.** (a2) is not closed; #22's rows 2–5 establish only that *late* `dlopen` fails.
-- **A8's ranking is superseded**: (a2) returns as the leading candidate precisely because it is the
-  one route with no shipping-story cost, and (a1) becomes its fallback with S-2/App Management still
-  in the way.
-- Unchanged: **(d)** (#23) ships first regardless; **(c)** stays the fallback of record.
-
-## B6. (a2) from the shim's unixlib is too late — measured on Among Us [V]
-
-The constructor in `steamclient.so` fires, and Valve's renderer loads and attaches inside the real
-game process — `SHIM_OVERLAY=1`, Among Us (945360) through the compat tool:
-
-```
-GameID = 945360, AppID = 945360, OverlayGameID = 945360, PID: 10454 Executable: Among Us.exe
-Modules at GameOverlayRenderer.dll attach
-----------------------------
-                                        <- nothing. no Hooking lines.
-```
-
-Two things are settled by that log:
-
-- **Library validation lets the Valve dylib in.** A dylib signed by team `MXGJJ98X76` loads into the
-  CodeWeavers-signed, hardened game process. §3.1's reading of `disable-library-validation` holds in
-  practice, not just on paper.
-- **We are late.** Line 527 of the same module list is
-  `…/lib/wine/x86_64-unix/winemac.so` — the mac driver was **already loaded** when our constructor
-  ran, so `NSApplication` already existed, and by B2 that is exactly the state in which attach
-  installs nothing.
-
-The cause is structural, not a tuning problem: our unixlib is `dlopen`'d by ntdll when the PE
-`steamclient.dll` is loaded, and that happens when the title calls `SteamAPI_Init` — by which point
-the engine has long since brought up its window. No arrangement of the shim can move that earlier,
-because the trigger belongs to the game.
-
-**[I]** So (a2) needs a loader that does not depend on the title's own call order. The candidate
-that keeps (a2)'s "no entitlement, no bundle modification" property is a **mirror CrossOver root**
-(`SHIM_CXROOT`, already in the compat tool) holding a copy of `ntdll.so` with an added
-`LC_LOAD_DYLIB` for `gameoverlayrenderer.dylib` — dyld then loads the renderer as a dependency,
-before `ntdll.so`'s own initialiser and long before `winemac.so`. Nothing in CrossOver.app is
-touched, so App Management (A7) does not apply. Unverified: whether the mirror root's `wine` still
-needs A3/A4's entitlements to run at all, which §3.3 suggests an ad-hoc re-sign can supply.
-**Spike S-7.**
-
-## B7. The Mac driver is lazy — an in-Wine hook can still win the race [V]
-
-B6 leaves one question: is there *any* point inside a Wine process early enough to beat
-`NSApplication`? Two mechanisms were checked.
-
-**`AppInit_DLLs` does not exist here.** The string appears nowhere in CrossOver's Wine tree —
-not in `user32.dll`, `win32u.dll`, `ntdll.dll`, nor anywhere under `lib/wine/`. Wine has never
-implemented it. Route dead; it is not a registry value we are failing to set.
-
-**But `winemac.so` loads far later than assumed.** `attic/overlay-probe/u32probe.c` holds at three
-stages while `vmmap` samples the process:
-
-| stage | `winemac.so` mapped? |
-|---|---|
-| A — process init, before `user32` is loaded | no |
-| B — `user32.dll` loaded, no USER call made | **no** |
-| C — after a single `GetDesktopWindow()` | **yes**, 7 mappings |
-
-C is the control that makes A and B mean something: `vmmap` can see the module, it simply is not
-there yet. **The display driver is demand-loaded on the first USER call**, not at `user32`
-initialisation.
-
-**[I]** That is the finding route 1 needed. Every PE `DllMain` in the process runs during loader
-init, before the title's entry point and therefore before its first USER call — so *any* DLL we can
-get loaded at process init beats `winemac.so`, and with it `NSApplication`. The race is winnable
-from inside Wine, with no entitlement, no bundle modification and no TCC prompt.
-
-What remains is purely a mechanism for getting a DLL of ours loaded at process init. `AppInit_DLLs`
-being absent, the candidates are an import-time sideload in the title's own directory (per-title,
-needs export forwarding) or `CREATE_SUSPENDED` + remote injection from the compat tool (title-
-agnostic, the shape Valve's own Windows overlay uses). **Spike S-8.**
-
-## B8. S-4 passes — the swizzles do see D3DMetal's frames [V]
-
-The last substantive unknown. Every prior measurement drew through a plain `CAMetalLayer`; a real
-title draws through Direct3D, which CrossOver translates to Metal. `instruments/overlay-probe/d3dprobe.c`
-is a Windows D3D11 program run inside the bottle — `D3D11CreateDeviceAndSwapChain` (feature level
-`0xb000`), a real swap chain, `Present` in a loop:
-
-```
-GameID = 945360, AppID = 945360, OverlayGameID = 945360, PID: 40608 Executable: wineloader
-Modules at GameOverlayRenderer.dll attach          <- winemac.so NOT in the list
-----------------------------
-Hooking _MTLCommandBuffer::presentDrawable: for MTLCommandBuffer
-Hooking _MTLCommandBuffer::presentDrawable:atTime: for MTLCommandBuffer
-Hooking _MTLCommandBuffer::presentDrawable:afterMinimumDuration: for MTLCommandBuffer
-Hooking AGXG15XFamilyCommandBuffer::commit for MTLCommandBuffer
-Hooking _MTLCommandBuffer::addScheduledHandler: for MTLCommandBuffer
-ValveGetScreenSize( 640, 480 )
-ValveGetOutputBounds( 104, 130, 632, 446 )
-SetScaleFactors( 1.01, 1.08, 0.99, 0.93 )
-Detected hot-key via base input, now requesting overlay enable
-Enabling overlay
-```
-
-`ValveGetScreenSize( 640, 480 )` is the probe's client area and `ValveGetOutputBounds` its on-screen
-rectangle: the renderer is not merely loaded, it is tracking **the D3D window's own swapchain
-drawable** and computing overlay geometry from it. §2's argument holds — Valve hooks Apple's
-`MTLCommandBuffer`, and D3DMetal bottoms out into it like everything else.
-
-**No sideload was needed.** The rig #26 planned (shadow a DLL the title imports, forward its
-exports) was never built: we own the probe, so it pulls the renderer in from the top of `WinMain`,
-before it makes any USER call. That is the same ordering #25's injector will create for titles we do
-not own.
-
-**[I] Two build notes for #25, both learned the hard way here.** The first probe was a console exe
-with `printf` and a static `d3d11` import, and it found `winemac.so` **already loaded** at attach:
-
-- **A console attach reaches USER**, so a console process has lost the race before its first
-  statement. The injector's payload must not assume a quiet CRT.
-- **Static imports run their `DllMain` before `main`.** `d3d11.dll` is `LoadLibrary`d by hand here
-  for that reason. This is precisely why ADR 0003 specifies `CREATE_SUSPENDED` rather than the
-  initial debug breakpoint: at the breakpoint every static import has already initialised, and any
-  one of them touching USER ends it.
-
-### Where the overlay stands after B8
-
-Graphics (§1), arming (A1), load timing (B2), the Wine-side deadline (B7) and now D3DMetal (B8) are
-all measured and all pass. **Nothing unproven remains between here and an overlay over a Windows
-title except building the loader** — ADR 0003 / #25. The remaining known cost is input parity
-(§6.2), which B8 does not touch.
-
-## B9. The loader ordering, and the overlay working on both titles [V]
-
-#25 built, and the first two real titles disagreed — which is how the last real flaw surfaced.
-
-`CREATE_SUSPENDED` + `CreateRemoteThread` puts the payload in **after** the title's static imports
-under Wine, not before, because `LdrInitializeThunk` runs on whichever thread runs first and with the
-main thread suspended that is our injected thread. Measured on Surviving Mars: the payload's
-`DllMain` reports `user32=LOADED dxgi=LOADED`, `winemac.so` is in the renderer's module list, and no
-hooks are installed. Among Us survives the same mechanism only because its imports never touch USER.
-
-**Import-table injection fixes it by ordering rather than by speed.** In the suspended process the
-exe's import directory is rewritten so the payload is import `[0]`; the loader initialises it before
-the title's own imports initialise:
-
-| title | bitness | result |
+| | as ranked here | as it landed |
 |---|---|---|
-| Surviving Mars | 64-bit | `import [0] of 23` · `winemac` absent at attach · 5/5 hooks · `ValveGetScreenSize( 1766, 1097 )` · overlay draws |
-| Among Us | 32-bit (via handover) | `import [0]` · `winemac` absent · 5/5 hooks · overlay draws |
-| `d3dprobe` | 64-bit, self-pull off | `import [0] of 11` · `winemac` absent · 5/5 hooks |
+| (d) out-of-process `ActivateGameOverlayTo*` | ships first regardless | shipped (#23) |
+| (a1) insert Valve's renderer at launch | the real target | fallback — blocked on App Management, not on engineering |
+| (a2) `dlopen` Valve's renderer | fallback with a known ceiling | **the overlay**, with no ceiling and no shipping cost |
+| (c) write our own renderer and UI | only if S-3 kills (a1) | unbuilt; S-3 passed |
+| (b) reuse the PE renderer in the bottle | never | never |
+| (e) Vulkan implicit layer | not available | not available |
 
-**[I]** `dxgi=LOADED` at our `DllMain` is expected and harmless: the loader maps every dependency
-before running any `DllMain`. **Mapped is not initialised**, and it is initialisation that brings up
-the driver. Reading that field as a failure would have sent the fix in the wrong direction.
+## Wrong turns
 
-### Where the overlay stands
+Things this study asserted that a later measurement overturned. The corrections themselves, with
+their evidence, are in `overlay-injection.md`.
 
-Graphics, arming, load timing, the Wine-side deadline, D3DMetal and now the loader ordering are all
-measured and passing, and the overlay draws over two real Windows titles of both bitnesses through
-the shipped compat tool. What remains is not feasibility: child-process injection is written but
-untested (neither title relaunches itself), and input parity (§6.2) is still unpriced.
+- **§5(a1) step 1 re-signs the wrong binary.** The study has us re-signing `bin/wineloader`. That
+  is only the first stage; the binary that becomes the game process is reached by a second exec
+  and lives at `lib/wine/x86_64-unix/wine`. `bin/wineloader` is a different inode and is
+  irrelevant to injection.
+- **§3 assumed the relocated loader is a rewritten copy.** It is a **hard link** — same inode,
+  therefore the same signature and entitlements as its source. The "three different sha256s" that
+  suggested rewriting were three *different files* (stock, our re-signed copy, and a link to
+  stock), not three versions of one. This is good news: an entitled source yields an entitled
+  game process.
+- **§5(a2)'s "known ceiling" does not exist.** The 15 dyld interposes of §3.4 are not needed for
+  the Metal path at all — a harness that links no `fishhook`, parses no `__DATA,__interpose` and
+  rebinds nothing draws the overlay correctly. §3.4's "precisely-known hole" and #21's
+  GOT-rebinding plan are both moot.
+- **§5(a2) cannot run from our unixlib.** The unixlib is `dlopen`'d when the title calls
+  `SteamAPI_Init`, long after its window is up. The architecture is right; the call site in its
+  own description is not.
+- **The mirror root does not steer the loader.** §5(a1) step 2 assumed `CX_ROOT` redirection would
+  reach the game process. All three front-door mechanisms take effect and the game still
+  relocates from the stock loader.
+- **The one-line summary of the blocker — "the blocker is not graphics, it is one entitlement" —
+  is half right.** The entitlement blocks launch-injection, and launch-injection turned out not
+  to be the route; the real blocker on that route is App Management, which the study did not
+  anticipate. Graphics was never the problem, which is the half that held.

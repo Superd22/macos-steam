@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: CrossOver upgrade — pinned to CrossOver 25.1.1 / `wine-10.0-8474`; the project now also exercises 26.2 / `wine-11.0-8723`, so this doc is behind the tested matrix
+---
+
 # CrossOver bridge surface — what this machine actually exposes
 
 **Scope:** the CrossOver install and bottle on *this* Mac, and the viable transports for

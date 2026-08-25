@@ -1,3 +1,21 @@
+---
+status: historical
+superseded-by: the whole of `docs/research/`, `docs/adr/` and `CONTEXT.md`
+---
+
+> [!NOTE]
+> **Historical — the opening brief, 2026-08-03. Nothing shipping depends on it.**
+> This is where the project started: a survey of the landscape and a list of open
+> questions, written before any of them had been measured. It says so itself below —
+> "not a finished design".
+>
+> Every question it raises has since been answered, and several of its guesses were
+> wrong — notably §3's "cross-process overlay rendering relies on Linux/X11-specific
+> injection and compositing tricks that don't map to macOS", which
+> `overlay-injection.md` disproves outright, and §7 step 5's scoping-out of the overlay
+> on that basis. Read it for the shape of the original problem, not for its answers;
+> the answers live in `INDEX.md`'s `current` rows and in `docs/adr/`.
+
 # macOS "Steam Play" — Research Brief
 
 ## Goal

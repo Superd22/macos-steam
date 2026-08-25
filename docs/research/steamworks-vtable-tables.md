@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: Proton bump — slot orders are read from `proton_11.0`'s generated PE-side files
+---
+
 # Steamworks interface vtable tables — the authoritative slot order
 
 **Why this exists.** The shim presents MSVC vtables to `steam_api64.dll`. A wrong

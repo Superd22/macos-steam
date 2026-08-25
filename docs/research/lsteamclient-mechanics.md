@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: Proton bump — pinned to `proton_11.0` @ `0745bfbc4cf4`, the same tree the vtable generator reads
+---
+
 # How Proton's `lsteamclient` actually works — and the minimum subset for one achievement
 
 **Scope:** the mechanics of Proton's `lsteamclient/` — the PE↔unix seam, the versioned-interface

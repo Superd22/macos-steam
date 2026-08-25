@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: Steam client update — every address here is a file offset in one `steamclient.dylib` build (`1785187029`), and `src/compat-enabler/enabler.c` patches against it
+---
+
 # `compat.vdf` / `SetAppPlatformOverride` on macOS Steam
 
 Resolves [#16](https://github.com/Superd22/macos-steam/issues/16). Client build `1785187029`, macOS 26.5.2, Apple Silicon.
