@@ -111,8 +111,17 @@ static std::string renderer_path()
 
 __attribute__((constructor)) static void overlay_load(void)
 {
+    /* ON unless explicitly disabled. The default flipped with #21: the route is
+     * proven, so the shipped behaviour is an overlay. `SHIM_OVERLAY=0` opts out.
+     *
+     * Note the asymmetry this creates, which every caller above now has to
+     * respect: *unset* means ON, so a launcher that wants the overlay off must
+     * export a literal 0 rather than simply omit the variable. The compat-tool
+     * launch script does exactly that in its no-injector branch, because
+     * dlopening the renderer into a process with nothing to place it is the one
+     * state worse than not having an overlay at all. */
     const char *on = getenv("SHIM_OVERLAY");
-    if (!on || !*on || *on == '0') return;
+    if (on && (!*on || *on == '0')) return;
     std::string path = renderer_path();
     g_overlay = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
     ulog("overlay: dlopen(%s) -> %p pid=%d%s%s", path.c_str(), g_overlay, (int)getpid(),

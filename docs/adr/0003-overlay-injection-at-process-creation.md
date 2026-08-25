@@ -120,14 +120,17 @@ stopping after `Modules at GameOverlayRenderer.dll attach` means we did not.
 - **We take on a debugger loop.** Being the title's debugger is a real coupling: a title that
   objects to being debugged, or that wants to be its own debugger, is a failure mode we do not have
   today. Mitigation if it bites: fall back to `CREATE_SUSPENDED` alone and lose child coverage.
-- **The overlay stays off by default** (`SHIM_OVERLAY`) until it is proven on real titles. A title
-  that believes an overlay exists can wait on one forever.
+- ~~**The overlay stays off by default** (`SHIM_OVERLAY`) until it is proven on real titles. A title
+  that believes an overlay exists can wait on one forever.~~ **Superseded 2026-08-25** — the route
+  is proven across titles and the default is now ON; `SHIM_OVERLAY=0` opts out. See the addendum
+  below for what carried over and what did not.
 - **Valve's renderer is loaded from the user's own Steam install** and never redistributed, so this
   raises no licensing question — the same shape as ADR 0002's vehicle A.
-- **Input parity is not addressed here.** `lsteamclient`'s `GameOverlayActivated_t` / `keybd_event`
-  gate has consumers in Valve's Wine fork (`winex11.drv`, `dinput`, `hidclass.sys`, `xinput1_3`)
-  that CrossOver's Wine does not have (#21). Gamepad and dinput behaviour while the overlay is up
-  is a separate, still-unpriced problem.
+- ~~**Input parity is not addressed here.**~~ **Priced 2026-08-25 (#28)** — the concern was that
+  `lsteamclient`'s `GameOverlayActivated_t` / `keybd_event` gate has consumers in Valve's Wine fork
+  (`winex11.drv`, `dinput`, `hidclass.sys`, `xinput1_3`) that CrossOver's Wine lacks. Measured, the
+  bill is small: gamepad is fine, and the only leak is hover — which reproduces under real Windows
+  Steam in a bottle, so it is parity, not a regression. See the #28 addendum.
 
 ### The one unknown this decision does not resolve
 
@@ -378,3 +381,34 @@ One of the five renderer logs (a child process) has zero `Hooking` lines and did
 not arm. Consistent with #27: the injector covers the child, but a helper
 process with no swapchain has nothing to hook, and `IsOverlayEnabled` correctly
 answers `false` there rather than being forced true by the parent's state.
+
+
+## Addendum, 2026-08-25: the overlay is on by default (#21)
+
+The Consequences section above made the default conditional on "proven on real
+titles". It has been, across titles, so the default is flipped. `SHIM_OVERLAY=0`
+opts out, at the installer (`SHIM_OVERLAY=0 ./install.sh`, which bakes the value
+into the launcher) or per-launch.
+
+**What did not flip is the interlock.** "On by default" is still conditional on
+being able to deliver a renderer: the compat-tool launch script keeps requiring
+both `overlayinject{32,64}.exe` before arming anything, because a title told an
+overlay exists can wait on one forever, and no injector means no compositor.
+
+**The asymmetry this introduces is the part to be careful about.** *Unset* now
+means ON. Every layer that wants the overlay off must therefore export a literal
+`SHIM_OVERLAY=0` rather than simply omit the variable — omission used to mean
+"off" and now means the opposite. Three places were changed for this and all
+three are load-bearing:
+
+- `install.sh` always writes the value into the launcher, `1` or `0`, never
+  omits it — a reinstall is how a user turns the overlay off, and "off" has to
+  reach the bottle as a statement
+- the launch script's no-injector branch exports `SHIM_OVERLAY=0` explicitly,
+  which is what stops the unixlib's new default from `dlopen`ing a renderer into
+  a process with nothing to place it
+- `run.sh` does the same in its disabled branch, so the negative control stays a
+  real control
+
+Verified both directions: unset → `overlay: dlopen(...) -> 0x1b3580`, and
+`SHIM_OVERLAY=0` → no `dlopen` line at all.

@@ -30,13 +30,20 @@ TOOLDIR="$PAYLOAD/compatibilitytools.d/crossover-steam-shim"
 
 log() { printf '[install] %s\n' "$*"; }
 
-# Overlay spike (#21). SHIM_OVERLAY=1 ./install.sh bakes the flag into the
-# launcher so the compat tool sees it — Steam does not forward arbitrary env to
-# a compat tool, so the launcher is where it has to live. Default off.
-OVERLAY_ENV=""
-if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
-    OVERLAY_ENV=1
-    log "SHIM_OVERLAY=1 baked into the launcher (overlay spike)"
+# Overlay (#21). ON by default: the flag is baked into the launcher so the compat
+# tool sees it — Steam does not forward arbitrary env to a compat tool, so the
+# launcher is where it has to live. `SHIM_OVERLAY=0 ./install.sh` opts out.
+#
+# The launcher always states the value rather than relying on the default. A
+# reinstall is how a user turns the overlay off, and "off" has to mean an
+# explicit 0 reaching the bottle: every layer below now treats *unset* as ON, so
+# an absent variable would silently mean the opposite of what was asked for.
+OVERLAY_ENV=1
+if [ "${SHIM_OVERLAY:-1}" = 0 ]; then
+    OVERLAY_ENV=0
+    log "SHIM_OVERLAY=0 baked into the launcher (overlay disabled)"
+else
+    log "overlay ON (default) — SHIM_OVERLAY=0 ./install.sh to disable"
 fi
 
 if [ "${1:-}" = "--uninstall" ]; then
@@ -95,8 +102,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSEnvironment</key>
   <dict>
     <key>DYLD_INSERT_LIBRARIES</key><string>$PAYLOAD/libcompat-enabler.dylib</string>
-    <key>STEAM_EXTRA_COMPAT_TOOLS_PATHS</key><string>$PAYLOAD/compatibilitytools.d</string>${OVERLAY_ENV:+
-    <key>SHIM_OVERLAY</key><string>1</string>}
+    <key>STEAM_EXTRA_COMPAT_TOOLS_PATHS</key><string>$PAYLOAD/compatibilitytools.d</string>
+    <key>SHIM_OVERLAY</key><string>$OVERLAY_ENV</string>
   </dict>
 </dict>
 </plist>
@@ -105,10 +112,11 @@ cat > "$APP/Contents/MacOS/launcher" <<LAUNCHER
 #!/bin/sh
 # LSEnvironment above is what actually delivers the two variables; exporting
 # them here too keeps a direct invocation of this script equivalent to a Finder
-# launch. Then hand off to Valve's own binary, unmodified.
+# launch. SHIM_OVERLAY is always stated, 1 or 0, never omitted — unset means ON
+# below this point, so omitting it cannot express "off". Then hand off to Valve's own binary, unmodified.
 export DYLD_INSERT_LIBRARIES="$PAYLOAD/libcompat-enabler.dylib"
-export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$PAYLOAD/compatibilitytools.d"${OVERLAY_ENV:+
-export SHIM_OVERLAY=1}
+export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$PAYLOAD/compatibilitytools.d"
+export SHIM_OVERLAY=$OVERLAY_ENV
 exec "$STEAM_OSX" "\$@"
 LAUNCHER
 chmod +x "$APP/Contents/MacOS/launcher"

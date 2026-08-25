@@ -12,8 +12,9 @@
 #   arg  = achievement name for set; for `overlay`, which slot to fire
 #          (all|store|web|friends|user|invite|remoteplay|connect|protocol).
 #
-# SHIM_OVERLAY=1 ./run.sh overlay is the #23 pair: with it, IsOverlayEnabled
-# must answer true only if injection actually armed; without it, false.
+# ./run.sh overlay and SHIM_OVERLAY=0 ./run.sh overlay are the #23 pair: armed,
+# IsOverlayEnabled answers true only if injection actually landed; disabled, it
+# must answer false.
 set -eu
 cd "$(dirname "$0")"
 
@@ -43,14 +44,22 @@ export WINEDEBUG="${WINEDEBUG:-+debugstr}"
 export SHIM_UNIX_LOG="/tmp/shim_unix.log"
 export SteamAppId=480          # gives the dylib's ISteamUserStats its app context
 export SteamGameId=480
-# Overlay (#21). SHIM_OVERLAY=1 arms it: the unixlib's constructor dlopens
-# Valve's renderer, and STEAM_OVERLAY_LOGGING makes it say whether that landed
-# before NSApplication (the gate measured in tools/overlay-probe/).
-if [ "${SHIM_OVERLAY:-0}" = 1 ]; then
+# Overlay (#21). ON by default, matching what ships; `SHIM_OVERLAY=0 ./run.sh` is
+# the negative control. The unixlib's constructor dlopens Valve's renderer and
+# STEAM_OVERLAY_LOGGING makes it say whether that landed before NSApplication
+# (the gate measured in tools/overlay-probe/).
+#
+# The harness is a console exe with no swapchain, so the renderer LOADS here and
+# never ARMS — IsOverlayEnabled() stays 0. That is the correct answer, and the
+# discriminator #23 turns on: a real title returns 1 from the same code.
+if [ "${SHIM_OVERLAY:-1}" = 1 ]; then
+    export SHIM_OVERLAY=1
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$SteamAppId"
     export STEAM_OVERLAY_LOGGING=1 STEAM_OVERLAY_LOGGING_FLUSH=1
 else
+    # Explicit 0, not merely unset: unset means ON to the unixlib now.
+    export SHIM_OVERLAY=0
     export SteamNoOverlayUIDrawing=1
     export SteamOverlayGameId=0
 fi

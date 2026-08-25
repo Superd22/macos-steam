@@ -168,11 +168,15 @@ fi
 
 export SteamAppId="$APPID"
 export SteamGameId="$APPID"
-# Overlay (#21/#24). Off by default: without an inserted gameoverlayrenderer.dylib
-# there is no compositor, and a title that believes an overlay exists can wait on
-# one forever. SHIM_OVERLAY=1 flips it for the spike — the renderer checks BOTH of
+# Overlay (#21). ON by default since #23 closed the API surface and the route was
+# proven across titles. `SHIM_OVERLAY=0` opts out. The renderer checks BOTH of
 # these and bails on SteamNoOverlayUIDrawing, so it must be unset, not just empty.
-if [ "${SHIM_OVERLAY:-0}" = 1 ] && [ "$HAVE_INJECT" = 1 ]; then
+#
+# The default flipped here, at the policy layer, but the INTERLOCK below did not:
+# no injector means no compositor, and a title that believes an overlay exists
+# can wait on one forever. So "on by default" is still conditional on being able
+# to deliver, and the off branch says so out loud rather than defaulting quietly.
+if [ "${SHIM_OVERLAY:-1}" = 1 ] && [ "$HAVE_INJECT" = 1 ]; then
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$APPID"
     # Export, not just read: the unixlib's constructor getenv()s this to decide
@@ -188,7 +192,16 @@ if [ "${SHIM_OVERLAY:-0}" = 1 ] && [ "$HAVE_INJECT" = 1 ]; then
 else
     # Off, and off HARD: a title told an overlay exists can wait on one forever,
     # so never arm the env without an injector to deliver the renderer.
-    [ "${SHIM_OVERLAY:-0}" = 1 ] && log "overlay requested but no injector in $SHIM_DIST — staying off"
+    #
+    # Exporting SHIM_OVERLAY=0 is load-bearing now that the unixlib's own default
+    # is ON. Leaving it merely unset used to mean "off" everywhere; since the
+    # flip it means "on", so this branch would have dlopened the renderer into a
+    # process with no injector to place it — the exact thing the interlock above
+    # exists to prevent. Say 0, do not imply it.
+    if [ "${SHIM_OVERLAY:-1}" = 1 ]; then
+        log "overlay ON by default but no injector in $SHIM_DIST — staying off"
+    fi
+    export SHIM_OVERLAY=0
     export SteamNoOverlayUIDrawing=1
     export SteamOverlayGameId=0
 fi
@@ -223,7 +236,7 @@ EXE_WIN="$EXE"
 case "$EXE" in
     /*) EXE_WIN="Z:$(printf '%s' "$EXE" | tr '/' '\\')" ;;
 esac
-if [ "${SHIM_OVERLAY:-0}" = 1 ] && [ "$HAVE_INJECT" = 1 ] && [ -f "$EXE" ]; then
+if [ "${SHIM_OVERLAY:-1}" = 1 ] && [ "$HAVE_INJECT" = 1 ] && [ -f "$EXE" ]; then
     # The injector creates the title suspended, puts the shim PE in before any of
     # the title's own code runs, and resumes — that ordering is the whole overlay
     # (ADR 0003). It stays for the title's lifetime and exits with the title's
