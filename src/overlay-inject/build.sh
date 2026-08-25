@@ -15,18 +15,25 @@
 set -eu
 cd "$(dirname "$0")"
 
+# The deploy contract (#32): the two artifact names below, and the payload path
+# the injector compiles in, both come from src/layout/layout.json.
+../layout/build.sh
+. ../layout/gen/shim_paths.sh
+
 MINGW64=x86_64-w64-mingw32-gcc
 MINGW32=i686-w64-mingw32-gcc
-mkdir -p dist
+mkdir -p "$SHIM_PATH_DIST"
 
 for cc in "$MINGW64" "$MINGW32"; do
     command -v "$cc" >/dev/null || { echo "missing $cc (brew install mingw-w64)"; exit 2; }
 done
 
 echo "--- 64-bit ---"
-"$MINGW64" -O2 -Wall -Wextra -o dist/overlayinject64.exe overlayinject.c
+"$MINGW64" -O2 -Wall -Wextra -I../layout/gen \
+    -o "$SHIM_PATH_DIST/$SHIM_PATH_INJECT64" overlayinject.c
 echo "--- 32-bit ---"
-"$MINGW32" -O2 -Wall -Wextra -o dist/overlayinject32.exe overlayinject.c
+"$MINGW32" -O2 -Wall -Wextra -I../layout/gen \
+    -o "$SHIM_PATH_DIST/$SHIM_PATH_INJECT32" overlayinject.c
 
-ls -l dist/
-echo "built overlayinject64.exe, overlayinject32.exe"
+ls -l "$SHIM_PATH_DIST/"
+echo "built $SHIM_PATH_INJECT64, $SHIM_PATH_INJECT32"

@@ -42,6 +42,12 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   an **attic** entry, whose question is closed and whose answer is written down elsewhere; the
   difference is tense, not code quality.
 
+- **Deploy contract** — where every shipped artifact lands: the payload root, the in-bottle
+  payload path, the log dir, and the basename of each file. One manifest owns it
+  (`src/layout/layout.json`), and every module reads it as generated *names* rather than
+  restating the path. A module that types one of those literals again is drift, and the
+  build says so.
+
 - **Level A** — making the native macOS Steam client *install and launch* a Windows title
   through a compatibility tool (the download + launch half of the destination).
 

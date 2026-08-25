@@ -151,6 +151,7 @@ docs/research/              the measured evidence behind each decision
   INDEX.md                  which of it is still true — read before any doc in here
 
 src/                        reaches a user's machine
+  layout/                   the deploy contract — one manifest of every shipped path
   installer/                install.sh — the one command that deploys everything
   compat-enabler/           the m_bCompatEnabled injector (Level A)
   compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)

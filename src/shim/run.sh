@@ -18,15 +18,21 @@
 set -eu
 cd "$(dirname "$0")"
 
+# The deploy contract (#32). This is a test-time script, but it plants the same
+# payload under the same names as the real launch — sharing the manifest is what
+# keeps the acceptance run testing what ships.
+../layout/build.sh
+. ../layout/gen/shim_paths.sh
+
 MODE="${1:-loop}"
 ARG="${2:-}"
 BOTTLE_NAME="shim-clean"
-CXROOT="$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver"
+CXROOT="$HOME/$SHIM_PATH_CX_APP_REL/Contents/SharedSupport/CrossOver"
 WL="$CXROOT/CrossOver-Hosted Application/wineloader"
-BOTTLE="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE_NAME"
-DIST="$(pwd)/dist"
+BOTTLE="$HOME/$SHIM_PATH_CX_BOTTLES_REL/$BOTTLE_NAME"
+DIST="$(pwd)/$SHIM_PATH_DIST"
 HARNESS="$(cd ../../instruments/harness/build && pwd)"
-SHIMDIR="$BOTTLE/drive_c/shim"
+SHIMDIR="$BOTTLE/$SHIM_PATH_SHIM_SUBDIR"
 
 [ -d "$BOTTLE" ] || { echo "bottle '$BOTTLE_NAME' missing"; exit 2; }
 [ -f "$HARNESS/harness.exe" ] || { echo "harness.exe missing — run 'make' in instruments/harness"; exit 2; }
@@ -67,8 +73,8 @@ fi
 
 # Plant the shim (both halves co-located; the .so is found here via WINEDLLPATH).
 mkdir -p "$SHIMDIR"
-cp "$DIST/steamclient64.dll" "$SHIMDIR/steamclient64.dll"
-cp "$DIST/steamclient64.so"  "$SHIMDIR/steamclient64.so"
+cp "$DIST/$SHIM_PATH_PE64"   "$SHIMDIR/$SHIM_PATH_PE64"
+cp "$DIST/$SHIM_PATH_UNIX64" "$SHIMDIR/$SHIM_PATH_UNIX64"
 
 # The game exe + Valve's steam_api64.dll + steam_appid.txt.
 cp "$HARNESS/harness.exe"      "$BOTTLE/drive_c/harness.exe"
@@ -77,7 +83,7 @@ cp "$HARNESS/steam_appid.txt"  "$BOTTLE/drive_c/steam_appid.txt"
 
 # The single load-bearing registry value (#13): point steam_api64.dll at our PE.
 "$WL" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
-    /v SteamClientDll64 /t REG_SZ /d "C:\\shim\\steamclient64.dll" /f >/dev/null 2>&1
+    /v SteamClientDll64 /t REG_SZ /d "$SHIM_PATH_PE64_WIN" /f >/dev/null 2>&1
 
 echo "=== running harness ($MODE${ARG:+ $ARG}) through the shim, no Windows Steam ==="
 cd "$BOTTLE/drive_c"

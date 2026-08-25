@@ -32,6 +32,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+/* The deploy contract (#32) — generated from src/layout/layout.json. */
+#include "shim_paths.h"
+
 static FILE *g_log;
 
 static void ilog(const char *fmt, ...)
@@ -58,8 +61,8 @@ static const wchar_t *payload_path(void)
 {
     static wchar_t buf[MAX_PATH];
     if (GetEnvironmentVariableW(L"SHIM_OVERLAY_PAYLOAD", buf, MAX_PATH)) return buf;
-    lstrcpynW(buf, sizeof(void *) == 8 ? L"C:\\shim\\steamclient64.dll"
-                                       : L"C:\\shim\\steamclient.dll", MAX_PATH);
+    lstrcpynW(buf, sizeof(void *) == 8 ? SHIM_PATH_PE64_WIN_W
+                                       : SHIM_PATH_PE32_WIN_W, MAX_PATH);
     return buf;
 }
 
@@ -185,8 +188,8 @@ static int patch_imports(HANDLE proc)
     IMAGE_DATA_DIRECTORY *dir;
     IMAGE_IMPORT_DESCRIPTOR *blob = NULL;
     void *image, *remote;
-    const char *name = sizeof(void *) == 8 ? "C:\\shim\\steamclient64.dll"
-                                           : "C:\\shim\\steamclient.dll";
+    const char *name = sizeof(void *) == 8 ? SHIM_PATH_PE64_WIN
+                                           : SHIM_PATH_PE32_WIN;
     SIZE_T got = 0, n = 0, descs, blob_size, off_int, off_iat, off_ibn, off_name;
     DWORD rva, oldprot;
     int ok = -1;
@@ -314,7 +317,7 @@ static int relaunch_for_bitness(int want64, char *cmdline)
     GetModuleFileNameA(NULL, self, MAX_PATH);
     lstrcpynA(sib, self, MAX_PATH);
     slash = strrchr(sib, '\\');
-    lstrcpyA(slash ? slash + 1 : sib, want64 ? "overlayinject64.exe" : "overlayinject32.exe");
+    lstrcpyA(slash ? slash + 1 : sib, want64 ? SHIM_PATH_INJECT64 : SHIM_PATH_INJECT32);
     ilog("target is %d-bit, we are %d-bit -> handing over to %s",
          want64 ? 64 : 32, (int)sizeof(void *) * 8, sib);
 

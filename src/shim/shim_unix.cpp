@@ -27,6 +27,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* The deploy contract (#32) — generated from src/layout/layout.json. */
+#include "shim_paths.h"
+
 #include "shim_abi.h"
 #include "steam_ifaces.h"
 
@@ -55,9 +58,9 @@ static FILE *open_log()
         const char *home = getenv("HOME");
         if (!home || !*home) { struct passwd *pw = getpwuid(getuid()); home = pw ? pw->pw_dir : nullptr; }
         if (!home) return nullptr;
-        snprintf(path, sizeof(path), "%s/Library/Logs/macos-steam-shim", home);
+        snprintf(path, sizeof(path), "%s/" SHIM_PATH_LOG_DIR_REL, home);
         mkdir(path, 0700);                       /* ~/Library/Logs always exists */
-        strncat(path, "/shim-unix.log", sizeof(path) - strlen(path) - 1);
+        strncat(path, "/" SHIM_PATH_LOG_UNIX, sizeof(path) - strlen(path) - 1);
     }
     fd = open(path, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
     return fd < 0 ? nullptr : fdopen(fd, "a");
@@ -89,8 +92,7 @@ static std::string dylib_path()
 {
     const char *home = getenv("HOME");
     if (!home) { struct passwd *pw = getpwuid(getuid()); home = pw ? pw->pw_dir : "/tmp"; }
-    return std::string(home) +
-        "/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steamclient.dylib";
+    return std::string(home) + "/" SHIM_PATH_STEAM_DYLIB_REL;
 }
 
 static bool ensure_dylib()
@@ -135,8 +137,7 @@ static std::string renderer_path()
 {
     const char *home = getenv("HOME");
     if (!home) { struct passwd *pw = getpwuid(getuid()); home = pw ? pw->pw_dir : "/tmp"; }
-    return std::string(home) +
-        "/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/gameoverlayrenderer.dylib";
+    return std::string(home) + "/" SHIM_PATH_OVERLAY_DYLIB_REL;
 }
 
 __attribute__((constructor)) static void overlay_load(void)

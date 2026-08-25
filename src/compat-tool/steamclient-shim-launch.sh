@@ -45,6 +45,22 @@
 #   CX_APP           CrossOver.app path                     (default: ~/Applications/CrossOver.app)
 set -eu
 
+# --- the deploy contract (#32) ------------------------------------------------
+# Every payload path and basename below is a name from src/layout/layout.json,
+# not a literal typed here. The fragment sits beside us in the deployed payload
+# (install.sh copies it into the tool dir) and two levels up in the dev tree.
+# It is sourced before anything else, including the log setup, because the log
+# path is part of the contract too.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+for _p in "$HERE/shim_paths.sh" "$HERE/../layout/gen/shim_paths.sh"; do
+    [ -f "$_p" ] && { . "$_p"; break; }
+done
+unset _p
+if [ -z "${SHIM_PATH_PE64:-}" ]; then
+    printf 'shim-launch: shim_paths.sh not found beside %s or in ../layout/gen — reinstall\n' "$HERE" >&2
+    exit 2
+fi
+
 # Steam invokes us with stderr detached, so a stderr-only log is invisible when
 # a launch fails from the Play button. Tee to a file as well (#12).
 #
@@ -60,7 +76,7 @@ set -eu
 # save file and config it writes from then on — a hardening change has no
 # business doing that.
 if [ -z "${SHIM_LAUNCH_LOG:-}" ]; then
-    SHIM_LAUNCH_LOG="$HOME/Library/Logs/macos-steam-shim/shim-launch.log"
+    SHIM_LAUNCH_LOG="$HOME/$SHIM_PATH_LOG_LAUNCH_REL"
     _oldumask="$(umask)"
     umask 077
     mkdir -p "$(dirname "$SHIM_LAUNCH_LOG")" 2>/dev/null || true
@@ -93,8 +109,7 @@ EXE="${1:-}"
 log "verb=$VERB exe=$EXE args=$*"
 
 # --- locate CrossOver + the shim ---------------------------------------------
-HERE="$(cd "$(dirname "$0")" && pwd)"
-CX_APP="${CX_APP:-$HOME/Applications/CrossOver.app}"
+CX_APP="${CX_APP:-$HOME/$SHIM_PATH_CX_APP_REL}"
 CXROOT="$CX_APP/Contents/SharedSupport/CrossOver"
 # Overlay (#24) needs an entitled wineloader, and CX_ROOT is derived by bin/wine
 # from its OWN path (bin/wine:69) — env CX_ROOT is overwritten, not read. So the
@@ -108,24 +123,24 @@ CXWINE="$CXROOT/bin/wine"
 # Shim location: env override, else the deployed copy beside this script
 # (payload layout, ADR 0002), else the repo dev tree.
 if [ -z "${SHIM_DIST:-}" ]; then
-    for cand in "$HERE/dist" "$HERE/../shim/dist"; do
-        [ -f "$cand/steamclient64.dll" ] && { SHIM_DIST="$cand"; break; }
+    for cand in "$HERE/$SHIM_PATH_DIST" "$HERE/../shim/$SHIM_PATH_DIST"; do
+        [ -f "$cand/$SHIM_PATH_PE64" ] && { SHIM_DIST="$cand"; break; }
     done
 fi
-[ -n "${SHIM_DIST:-}" ] && [ -f "$SHIM_DIST/steamclient64.dll" ] && [ -f "$SHIM_DIST/steamclient64.so" ] \
-    || { log "shim not found (looked in \$SHIM_DIST, $HERE/dist, $HERE/../shim/dist)"; exit 2; }
+[ -n "${SHIM_DIST:-}" ] && [ -f "$SHIM_DIST/$SHIM_PATH_PE64" ] && [ -f "$SHIM_DIST/$SHIM_PATH_UNIX64" ] \
+    || { log "shim not found (looked in \$SHIM_DIST, $HERE/$SHIM_PATH_DIST, $HERE/../shim/$SHIM_PATH_DIST)"; exit 2; }
 
 # The 32-bit half is optional so an old payload still launches 64-bit titles,
 # but a 32-bit title without it fails as "Could not sign in to your Steam
 # account" — steam_api.dll finds no steamclient.dll and SteamAPI_Init returns 0,
 # which the game reports as a login problem (#20). Say so plainly here.
 HAVE32=0
-[ -f "$SHIM_DIST/steamclient.dll" ] && [ -f "$SHIM_DIST/steamclient.so" ] && HAVE32=1
+[ -f "$SHIM_DIST/$SHIM_PATH_PE32" ] && [ -f "$SHIM_DIST/$SHIM_PATH_UNIX32" ] && HAVE32=1
 
-BOTTLE_NAME="${SHIM_BOTTLE:-steam-shim}"
-BOTTLE="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE_NAME"
+BOTTLE_NAME="${SHIM_BOTTLE:-$SHIM_PATH_BOTTLE_DEFAULT}"
+BOTTLE="$HOME/$SHIM_PATH_CX_BOTTLES_REL/$BOTTLE_NAME"
 [ -d "$BOTTLE" ] || { log "bottle '$BOTTLE_NAME' missing"; exit 2; }
-SHIMDIR="$BOTTLE/drive_c/shim"
+SHIMDIR="$BOTTLE/$SHIM_PATH_SHIM_SUBDIR"
 
 # --- app id from Valve's contract (falls back to whatever Steam exported) -----
 APPID="${STEAM_COMPAT_APP_ID:-${SteamAppId:-0}}"
@@ -140,16 +155,16 @@ fi
 
 # --- plant Half B (idempotent) ------------------------------------------------
 mkdir -p "$SHIMDIR"
-cp -f "$SHIM_DIST/steamclient64.dll" "$SHIMDIR/steamclient64.dll"
-cp -f "$SHIM_DIST/steamclient64.so"  "$SHIMDIR/steamclient64.so"
+cp -f "$SHIM_DIST/$SHIM_PATH_PE64"   "$SHIMDIR/$SHIM_PATH_PE64"
+cp -f "$SHIM_DIST/$SHIM_PATH_UNIX64" "$SHIMDIR/$SHIM_PATH_UNIX64"
 if [ "$HAVE32" = 1 ]; then
     # 32-bit titles (Among Us and most of the older Unity catalogue) load
     # steam_api.dll, which looks for steamclient.dll and the SteamClientDll
     # registry value — different file, different value, same shim (#20). The
     # .so is the same x86_64 unix half under the 32-bit PE's basename, because
     # ntdll derives the .so name from the builtin PE it just loaded.
-    cp -f "$SHIM_DIST/steamclient.dll" "$SHIMDIR/steamclient.dll"
-    cp -f "$SHIM_DIST/steamclient.so"  "$SHIMDIR/steamclient.so"
+    cp -f "$SHIM_DIST/$SHIM_PATH_PE32"   "$SHIMDIR/$SHIM_PATH_PE32"
+    cp -f "$SHIM_DIST/$SHIM_PATH_UNIX32" "$SHIMDIR/$SHIM_PATH_UNIX32"
 else
     log "WARNING: no 32-bit shim in $SHIM_DIST — a 32-bit title will fail with"
     log "         \"Could not sign in to your Steam account\". Run src/shim/build.sh."
@@ -162,14 +177,16 @@ fi
 # there, not from x86_64-windows, and overriding DllPath replaces CrossOver's
 # own default rather than adding to it (#20).
 CONF="$BOTTLE/cxbottle.conf"
-DLLPATH='${CX_ROOT}/lib/wine/x86_64-windows:${CX_ROOT}/lib/wine/i386-windows:${WINEPREFIX}/drive_c/shim:${CX_ROOT}/lib/wine'
+# ${CX_ROOT}/${WINEPREFIX} stay literal — the perl launcher expands them, we do
+# not — while the shim subdir comes from the contract.
+DLLPATH='${CX_ROOT}/lib/wine/x86_64-windows:${CX_ROOT}/lib/wine/i386-windows:${WINEPREFIX}/'"$SHIM_PATH_SHIM_SUBDIR"':${CX_ROOT}/lib/wine'
 if ! grep -q '^"DllPath"' "$CONF" 2>/dev/null; then
     printf '\n[Wine]\n"DllPath" = "%s"\n' "$DLLPATH" >> "$CONF"
     log "planted [Wine] DllPath in cxbottle.conf"
 else
     # A bottle provisioned before #20 has a DllPath without i386-windows. Leave
     # the operator's line alone, but do not let a 32-bit launch fail silently.
-    grep -q 'drive_c/shim' "$CONF" || log "WARNING: cxbottle.conf [Wine] DllPath does not include drive_c/shim — the shim will not be found"
+    grep -q "$SHIM_PATH_SHIM_SUBDIR" "$CONF" || log "WARNING: cxbottle.conf [Wine] DllPath does not include $SHIM_PATH_SHIM_SUBDIR — the shim will not be found"
     if [ "$HAVE32" = 1 ] && ! grep -q 'i386-windows' "$CONF"; then
         log "NOTE: cxbottle.conf [Wine] DllPath has no i386-windows entry; if a 32-bit"
         log "      title fails to start, set it to: $DLLPATH"
@@ -180,9 +197,9 @@ fi
 # the title's PE header and hands over to its 32-bit sibling when they disagree,
 # because CreateRemoteThread cannot cross a bitness boundary.
 HAVE_INJECT=0
-if [ -f "$SHIM_DIST/overlayinject64.exe" ] && [ -f "$SHIM_DIST/overlayinject32.exe" ]; then
-    cp -f "$SHIM_DIST/overlayinject64.exe" "$SHIMDIR/overlayinject64.exe"
-    cp -f "$SHIM_DIST/overlayinject32.exe" "$SHIMDIR/overlayinject32.exe"
+if [ -f "$SHIM_DIST/$SHIM_PATH_INJECT64" ] && [ -f "$SHIM_DIST/$SHIM_PATH_INJECT32" ]; then
+    cp -f "$SHIM_DIST/$SHIM_PATH_INJECT64" "$SHIMDIR/$SHIM_PATH_INJECT64"
+    cp -f "$SHIM_DIST/$SHIM_PATH_INJECT32" "$SHIMDIR/$SHIM_PATH_INJECT32"
     HAVE_INJECT=1
 fi
 
@@ -234,10 +251,10 @@ export CX_BOTTLE="$BOTTLE_NAME"
 # launch regardless of the title's bitness: it is one cheap reg add, and it
 # means the bottle is correct for whatever gets launched in it next.
 "$CXWINE" --bottle "$BOTTLE_NAME" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
-    /v SteamClientDll64 /t REG_SZ /d "C:\\shim\\steamclient64.dll" /f >/dev/null 2>&1
+    /v SteamClientDll64 /t REG_SZ /d "$SHIM_PATH_PE64_WIN" /f >/dev/null 2>&1
 if [ "$HAVE32" = 1 ]; then
     "$CXWINE" --bottle "$BOTTLE_NAME" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
-        /v SteamClientDll /t REG_SZ /d "C:\\shim\\steamclient.dll" /f >/dev/null 2>&1
+        /v SteamClientDll /t REG_SZ /d "$SHIM_PATH_PE32_WIN" /f >/dev/null 2>&1
 fi
 
 # --- run the title's .exe through CrossOver's front door ----------------------
@@ -261,8 +278,8 @@ if [ "${SHIM_OVERLAY:-1}" = 1 ] && [ "$HAVE_INJECT" = 1 ] && [ -f "$EXE" ]; then
     # the title's own code runs, and resumes — that ordering is the whole overlay
     # (ADR 0003). It stays for the title's lifetime and exits with the title's
     # own code, which is what Steam reads back through this tool.
-    log "launching (front door, injected): wine --bottle $BOTTLE_NAME overlayinject64.exe $EXE $*"
-    exec "$CXWINE" --bottle "$BOTTLE_NAME" "$SHIMDIR/overlayinject64.exe" "$EXE_WIN" "$@"
+    log "launching (front door, injected): wine --bottle $BOTTLE_NAME $SHIM_PATH_INJECT64 $EXE $*"
+    exec "$CXWINE" --bottle "$BOTTLE_NAME" "$SHIMDIR/$SHIM_PATH_INJECT64" "$EXE_WIN" "$@"
 fi
 log "launching (front door, cwd=$PWD): wine --bottle $BOTTLE_NAME $EXE $*"
 exec "$CXWINE" --bottle "$BOTTLE_NAME" "$EXE" "$@"
