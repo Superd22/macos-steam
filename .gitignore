@@ -11,40 +11,54 @@
 *.dSYM/
 
 # Compiled tool output. Sources only — the build lines live in
-# tools/native-probe/FINDINGS.md and tools/compat-enabler/build.sh.
-tools/native-probe/*
-!tools/native-probe/*.cpp
-!tools/native-probe/*.h
-!tools/native-probe/*.md
+# instruments/native-probe/FINDINGS.md and src/compat-enabler/build.sh.
+src/compat-enabler/*
+!src/compat-enabler/*.c
+!src/compat-enabler/*.h
+!src/compat-enabler/*.md
+!src/compat-enabler/build.sh
 
-tools/compat-enabler/*
-!tools/compat-enabler/*.c
-!tools/compat-enabler/*.h
-!tools/compat-enabler/*.md
-!tools/compat-enabler/build.sh
+src/shim/dist/
+src/overlay-inject/dist/
 
-tools/seam-spike/*
-!tools/seam-spike/*.c
-!tools/seam-spike/*.cpp
-!tools/seam-spike/*.h
-!tools/seam-spike/*.py
-!tools/seam-spike/*.md
-!tools/seam-spike/build.sh
-!tools/seam-spike/run.sh
+instruments/native-probe/*
+!instruments/native-probe/*.cpp
+!instruments/native-probe/*.h
+!instruments/native-probe/*.md
 
-tools/harness/build/
-tools/harness/build32/
+instruments/overlay-probe/*
+!instruments/overlay-probe/*.c
+!instruments/overlay-probe/*.h
+!instruments/overlay-probe/*.md
+!instruments/overlay-probe/build.sh
+!instruments/overlay-probe/input-parity-run.sh
 
-tools/shimprobe/steamclient64.dll
-tools/shimprobe/shimprobe.log
-tools/shim/dist/
+instruments/harness/build/
+instruments/harness/build32/
 
-tools/overlay-probe/*
-!tools/overlay-probe/*.m
-!tools/overlay-probe/*.c
-!tools/overlay-probe/*.h
-!tools/overlay-probe/*.md
-!tools/overlay-probe/build.sh
-!tools/overlay-probe/input-parity-run.sh
+attic/native-probe/*
+!attic/native-probe/*.cpp
+!attic/native-probe/*.h
+!attic/native-probe/*.md
 
-tools/overlay-inject/dist/
+attic/overlay-probe/*
+!attic/overlay-probe/*.m
+!attic/overlay-probe/*.c
+!attic/overlay-probe/*.h
+!attic/overlay-probe/*.md
+!attic/overlay-probe/build.sh
+
+attic/seam-spike/*
+!attic/seam-spike/*.c
+!attic/seam-spike/*.cpp
+!attic/seam-spike/*.h
+!attic/seam-spike/*.py
+!attic/seam-spike/*.md
+!attic/seam-spike/build.sh
+!attic/seam-spike/run.sh
+
+attic/shimprobe/steamclient64.dll
+attic/shimprobe/shimprobe.log
+
+# Python bytecode
+__pycache__/

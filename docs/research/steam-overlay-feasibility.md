@@ -21,7 +21,7 @@ is *newer* than the CrossOver 25.1.1 / wine-10.0 that `crossover-bridge-surface.
 `lsteamclient-mechanics.md` were written against; the ground has moved. Repo context is
 `CONTEXT.md`, ADR 0001/0002, `docs/research/lsteamclient-mechanics.md`,
 `docs/research/crossover-bridge-surface.md`, `docs/research/compat-vdf-platform-override.md`,
-`tools/shim/FINDINGS.md`, and issues #18 / #19. External primary sources: `ValveSoftware/Proton`
+`src/shim/FINDINGS.md`, and issues #18 / #19. External primary sources: `ValveSoftware/Proton`
 branches `proton_9.0` and `proton_11.0` and `ValveSoftware/wine` branch `proton_9.0` (fetched via
 `raw.githubusercontent.com`); `apple-oss-distributions/dyld` tag **dyld-1378**; Apple's entitlement
 and Hardened Runtime documentation; Valve's Steamworks partner documentation; and Valve's Steam
@@ -41,7 +41,7 @@ Every claim below is marked **[V]** VERIFIED (a command was run, a file was read
 project has assumed.** The pessimism recorded in `macossteamplayresearch.md` §3 — "cross-process
 overlay rendering relies on Linux/X11-specific injection and compositing tricks that don't map to
 macOS" — is **wrong on the facts as they stand in August 2026**. So is the "Metal/MoltenVK stack is a
-red herring" note in `tools/shim/FINDINGS.md` ~line 95, *once overlay is in scope*: that note is
+red herring" note in `src/shim/FINDINGS.md` ~line 95, *once overlay is in scope*: that note is
 correct about what it observed (frameworks mapped, no thread running in them) and wrong as a
 conclusion about the overlay, because Valve's own macOS overlay renderer is a Metal renderer.
 
@@ -229,7 +229,7 @@ install on graphics activity alone, so "appears without the game's help" is true
 
 **[V]** `SteamNoOverlayUIDrawing` and `SteamNoOverlayUI` are read by the renderer and the client
 respectively; the renderer logs `SteamNoOverlayUIDrawing was set`. Our launch path sets it to `1`
-(`tools/compat-tool/steamclient-shim-launch.sh:155`, `tools/shim/run.sh:39`) together with
+(`src/compat-tool/steamclient-shim-launch.sh:155`, `src/shim/run.sh:39`) together with
 `SteamOverlayGameId=0` (`:156`, `:40`). Turning overlay on begins by removing those two lines.
 
 **[V]** `steamloader.dylib` (2021) is a DRM shim, not overlay machinery: its only export is
@@ -678,7 +678,7 @@ a Windows-platform app, which is (a1)'s single biggest unknown.
 **Verdict: feasible, days of work, and it is what should ship first regardless of what else happens.**
 No compositing. `ISteamFriends::ActivateGameOverlayToStore/ToUser/ToWebPage/InviteDialog` and
 `ISteamUtils::IsOverlayEnabled` are currently `vt_unmapped` stubs
-(`tools/shim/shim_vtables.h:1878-1888`, `:1968-1972`, `:3564-3594`). Forwarding them to the native
+(`src/shim/shim_vtables.h:1878-1888`, `:1968-1972`, `:3564-3594`). Forwarding them to the native
 `steamclient.dylib` — which implements every one of them **[V]**: `strings steamclient.dylib` shows
 `ActivateGameOverlay`, `ActivateGameOverlayToUser`, `ActivateGameOverlayToStore`,
 `ActivateGameOverlayToWebPage`, `ActivateGameOverlayInviteDialog`,
@@ -1057,7 +1057,7 @@ CrossOver 26.2.0.39821, wine-11.0-8723-g7e8a47752e3, bottle `steam-shim`.
 
 S-3 asked whether the native client will start `gameoverlayui` for a Windows-platform app. It does
 better than that: it arms the overlay for a process it has **no relationship with**. `metalprobe`
-(`tools/overlay-probe/`) is a plain unsigned Metal binary — not launched by Steam, never calling
+(`attic/overlay-probe/`) is a plain unsigned Metal binary — not launched by Steam, never calling
 Steamworks — and with `SteamOverlayGameId` set to a real appid, `DYLD_INSERT_LIBRARIES` pointing at
 `gameoverlayrenderer.dylib`, and `SteamNoOverlayUIDrawing` unset, Shift+Tab draws the real overlay
 over its `CAMetalLayer`.
@@ -1215,7 +1215,7 @@ structural.
 
 ## B2. `dlopen` before `NSApplication` hooks and arms — overlay confirmed drawing [V]
 
-`tools/overlay-probe/metalprobe5.m` is `metalprobe` with the `dlopen` movable across startup by
+`attic/overlay-probe/metalprobe5.m` is `metalprobe` with the `dlopen` movable across startup by
 `DLOPEN_WHEN`. Renderer, environment and render loop are otherwise identical; the only variable is
 the call site.
 
@@ -1308,7 +1308,7 @@ B6 leaves one question: is there *any* point inside a Wine process early enough 
 not in `user32.dll`, `win32u.dll`, `ntdll.dll`, nor anywhere under `lib/wine/`. Wine has never
 implemented it. Route dead; it is not a registry value we are failing to set.
 
-**But `winemac.so` loads far later than assumed.** `tools/overlay-probe/u32probe.c` holds at three
+**But `winemac.so` loads far later than assumed.** `attic/overlay-probe/u32probe.c` holds at three
 stages while `vmmap` samples the process:
 
 | stage | `winemac.so` mapped? |
@@ -1334,7 +1334,7 @@ agnostic, the shape Valve's own Windows overlay uses). **Spike S-8.**
 ## B8. S-4 passes — the swizzles do see D3DMetal's frames [V]
 
 The last substantive unknown. Every prior measurement drew through a plain `CAMetalLayer`; a real
-title draws through Direct3D, which CrossOver translates to Metal. `tools/overlay-probe/d3dprobe.c`
+title draws through Direct3D, which CrossOver translates to Metal. `instruments/overlay-probe/d3dprobe.c`
 is a Windows D3D11 program run inside the bottle — `D3D11CreateDeviceAndSwapChain` (feature level
 `0xb000`), a real swap chain, `Present` in a loop:
 

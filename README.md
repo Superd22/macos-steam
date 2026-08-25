@@ -55,7 +55,7 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
 2. **Build and deploy.**
 
    ```sh
-   ./tools/installer/install.sh
+   ./src/installer/install.sh
    ```
 
    This builds anything missing and lays down two things:
@@ -76,13 +76,13 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
 The Steam overlay is **on by default**. To turn it off, reinstall (and quit & relaunch) with it disabled:
 
 ```sh
-SHIM_OVERLAY=0 ./tools/installer/install.sh
+SHIM_OVERLAY=0 ./src/installer/install.sh
 ```
 
 ### Uninstall
 
 ```sh
-./tools/installer/install.sh --uninstall
+./src/installer/install.sh --uninstall
 ```
 
 Removes the launcher and the payload. Steam itself was never modified, so there is nothing
@@ -141,19 +141,38 @@ Others that came up in the research:
 
 ## Repo layout
 
+Three roots, one admission rule each. Whether a module ships is a **path**, not a judgement
+call: `src/` is the beta cut.
+
 ```
-CONTEXT.md            the glossary — read this first
-docs/adr/             the decisions, and why the alternatives were rejected
-docs/research/        the measured evidence behind each decision
-tools/installer/      install.sh — the one command that deploys everything
-tools/compat-enabler/ the m_bCompatEnabled injector (Level A)
-tools/compat-tool/    the compat tool + launch script (the Level A ↔ Level B seam)
-tools/shim/           the bridge: PE steamclient(64).dll + native .so (Level B)
-tools/overlay-inject/ gets Valve's overlay renderer into the game process
-tools/harness/        Spacewar (480) achievement harness — the reference instrument
-tools/*-probe/        the instruments used to measure the claims in docs/research
+CONTEXT.md                  the glossary — read this first
+docs/adr/                   the decisions, and why the alternatives were rejected
+docs/research/              the measured evidence behind each decision
+
+src/                        reaches a user's machine
+  installer/                install.sh — the one command that deploys everything
+  compat-enabler/           the m_bCompatEnabled injector (Level A)
+  compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)
+  shim/                     the bridge: PE steamclient(64).dll + native .so (Level B)
+  overlay-inject/           gets Valve's overlay renderer into the game process
+
+instruments/                rerun to re-verify a claim after a CrossOver or Steam bump
+  harness/                  Spacewar (480) achievements — the acceptance test src/shim/run.sh drives
+  overlay-probe/            d3dprobe (#26), inputprobe + input-parity-run.sh (#28)
+  native-probe/             connprobe — the native-side connection oracle
+
+attic/                      question closed; kept as evidence, never rerun
+  seam-spike/               superseded wholesale by src/shim (ADR 0001)
+  shimprobe/                the clean-bottle decoy dll
+  overlay-probe/            metalprobe{,3,5}, u32probe, vendored fishhook
+  native-probe/             probe, machprobe, interpose
 ```
 
-Every `tools/*/FINDINGS.md` is a record of what was measured live, on real hardware, with
-the exact versions, including the negative controls. When something disagrees with this
-README, the FINDINGS file is the one that was measured.
+**The admission rules.** A module belongs in `src/` if removing it breaks a user's install;
+in `instruments/` if you would run it again to re-establish a claim the docs make; in
+`attic/` if its question is closed and the answer is written down elsewhere. Nothing is in
+two roots. Moving a module out of `src/` is a release-surface change.
+
+Every `FINDINGS.md` under these roots is a record of what was measured live, on real
+hardware, with the exact versions, including the negative controls. When something
+disagrees with this README, the FINDINGS file is the one that was measured.

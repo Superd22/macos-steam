@@ -34,7 +34,7 @@ Prior research had already removed the helper's supposed advantages:
 
 The one open question was a fact, not a preference: does CrossOver's builtin loader impose
 any gate beyond the `"Wine builtin DLL"` marker that would stop a third-party unixlib from
-loading? That was settled by building the seam spike (`tools/seam-spike/`, stage 1 of #10)
+loading? That was settled by building the seam spike (`attic/seam-spike/`, stage 1 of #10)
 rather than by argument.
 
 ## Decision
@@ -47,7 +47,7 @@ no IPC on the hot path.
 The spike proved this works on the shipped CrossOver 25.1.1 with an unsigned `.so`: the PE
 loads **as a builtin** on the `0x40` marker alone (no allowlist or signature gate), the
 unix entry runs in the same process, and a magic value round-trips. Details and the
-reproduce recipe are in `tools/seam-spike/FINDINGS.md`.
+reproduce recipe are in `attic/seam-spike/FINDINGS.md`.
 
 The native-helper + IPC option is **rejected**, and recorded as the documented fallback if —
 and only if — a later stage hits one of two triggers:

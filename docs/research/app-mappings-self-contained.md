@@ -89,7 +89,7 @@ Steam offers no per-title *opt-out*, only opt-in to a specific tool.
   title (473690).
 - **Zero downloads** — `display_status` reads only.
 - Gate flipped with the in-memory DYLD injector
-  (`tools/compat-enabler/libcompat-enabler.dylib`, pattern-scan, 1 site patched per launch);
+  (`src/compat-enabler/libcompat-enabler.dylib`, pattern-scan, 1 site patched per launch);
   **no Valve file modified**. Full restore afterward (tool removed, `config.vdf` restored,
   CDP port 8080 closed, `steamclient.dylib` byte-for-byte stock).
 

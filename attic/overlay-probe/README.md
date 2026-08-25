@@ -1,9 +1,13 @@
-# overlay-probe — is Valve's macOS overlay reachable from a process we control?
+# overlay-probe (archive) — is Valve's macOS overlay reachable from a process we control?
 
-Harnesses for #22 / #21. Each presents a real `CAMetalLayer` through
+Question closed. These are the Metal-side harnesses that answered #22 / #21; they are kept
+as the evidence behind ADR 0003 and are not part of re-verification. The two probes that
+*are* rerun after a CrossOver or Steam bump — `d3dprobe` and `inputprobe` — live in
+`instruments/overlay-probe/`.
+
+Each of these presents a real `CAMetalLayer` through
 `nextDrawable → presentDrawable: → commit`, which is the cycle
 `gameoverlayrenderer.dylib` swizzles.
-
 ```sh
 ./build.sh                      # ARCH=x86_64 ./build.sh to match the bottle
 R="$HOME/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/gameoverlayrenderer.dylib"
@@ -54,34 +58,6 @@ must be unset — the renderer bails on it explicitly.
   (`metalprobe3` kept the recovery code; it is what proved the interposes were not
   the gate, and it stays useful for #21's inserted-stub idea.)
 
-## `d3dprobe` — S-4: does the overlay see D3DMetal's frames? (#26)
-
-`metalprobe` proves the Metal path; a real title renders through Direct3D. `d3dprobe.c` is a
-Windows D3D11 program (real device, real swap chain, real `Present`) run **inside the bottle**,
-which pulls the renderer in from the top of `WinMain` — before it makes any USER call, which is
-early enough because `winemac.so` is demand-loaded.
-
-```sh
-x86_64-w64-mingw32-gcc -mwindows -o d3dprobe.exe d3dprobe.c -luuid
-B="$HOME/Library/Application Support/CrossOver/Bottles/steam-shim"
-cp d3dprobe.exe "$B/drive_c/"          # needs C:\shim from tools/shim (both halves)
-
-CX="$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver"
-cd "$B/drive_c" && env -u SteamNoOverlayUIDrawing \
-  WINEPREFIX="$B" CX_ROOT="$CX" CX_BOTTLE=steam-shim \
-  WINEDLLPATH="$CX/lib/wine/x86_64-windows:$B/drive_c/shim" \
-  SHIM_OVERLAY=1 STEAM_OVERLAY_LOGGING=1 STEAM_OVERLAY_LOGGING_FLUSH=1 \
-  SteamAppId=945360 SteamGameId=945360 SteamOverlayGameId=945360 \
-  "$CX/CrossOver-Hosted Application/wineloader" c:\\d3dprobe.exe
-```
-
-It answers yes: 5/5 hooks, and `ValveGetScreenSize( 640, 480 )` / `ValveGetOutputBounds` show the
-renderer tracking the **D3D window's** drawable. Detail in Addendum 2 §B8.
-
-**Two traps this probe fell into first, both relevant to #25's injector:** a console exe loses the
-race before `main` (the console attach reaches USER, which demand-loads `winemac.so`), and a static
-`d3d11` import runs its `DllMain` before `main`. Hence no console and a hand-`LoadLibrary`d d3d11.
-
 ## `u32probe` — when does the Mac driver load?
 
 Holds a Wine process at three stages while `vmmap` samples it. Absent at process init, still absent
@@ -95,11 +71,8 @@ i686-w64-mingw32-gcc -o u32probe.exe u32probe.c
 
 ## Read the log, always
 
-`STEAM_OVERLAY_LOGGING` is a `getenv` in the dylib (`0x1e194`), so the log is
-opt-in. #22 concluded "(a2) is dead" from runs where it was unset and no log was
-written, which is why the failure looked mechanism-less. With it on, the failing
-runs stop after `Modules at GameOverlayRenderer.dll attach` and the succeeding
-ones continue into `Hooking …` — the whole finding above is one grep on that file.
+`STEAM_OVERLAY_LOGGING` is the switch that made all of the above legible — see the section
+of the same name in `instruments/overlay-probe/README.md`.
 
 `fishhook` is Facebook's, BSD-licensed, vendored unmodified; `fishhook.h` is
-reconstructed from its API.
+reconstructed from its API. Only `metalprobe3` includes it.

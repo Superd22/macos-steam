@@ -33,6 +33,15 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   it over Valve's own IPC; **no Windows Steam runs**. This "no Windows Steam" property is the
   whole point of the effort.
 
+- **Ship-set** — the exact set of modules that reach a user's machine. It is a path, `src/`,
+  not a judgement call: a beta cut, a CI target and the release payload all read the same
+  directory. Widening or narrowing it is a release-surface change (ADR 0004).
+
+- **Instrument** — a tool kept because it would be *rerun* to re-establish a claim the docs
+  make, after a CrossOver, Steam client or macOS bump. Lives in `instruments/`. Distinct from
+  an **attic** entry, whose question is closed and whose answer is written down elsewhere; the
+  difference is tense, not code quality.
+
 - **Level A** — making the native macOS Steam client *install and launch* a Windows title
   through a compatibility tool (the download + launch half of the destination).
 

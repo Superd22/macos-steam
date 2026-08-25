@@ -27,7 +27,7 @@ VERIFY reset: achieved=0                      PASS
 ```
 
 Every achievement-critical line is **byte-identical** to
-`tools/harness/traces/2026-08-13-windows-steam-480-loop.txt` (produced against real Windows
+`instruments/harness/traces/2026-08-13-windows-steam-480-loop.txt` (produced against real Windows
 Steam). Only wall-clock timestamps differ — init is ~4× slower through the seam (5.1 s vs
 1.1 s), the callback intervals are comparable. The achievement genuinely unlocked (the
 `UserAchievementStored_t` with a real unlock time is the server's acknowledgement) and was
@@ -38,7 +38,7 @@ rescope: achievement e2e on Spacewar, Mars = boot+init proof.)
 
 ## What was built
 
-`tools/shim/` — a real `steamclient64.dll` (the file the game's `steam_api64.dll` loads),
+`src/shim/` — a real `steamclient64.dll` (the file the game's `steam_api64.dll` loads),
 in two halves crossing the #8/#10 unixlib seam:
 
 - **`steamclient64.dll`** (PE, mingw, marker-stamped builtin): presents Valve's flat C
@@ -144,7 +144,7 @@ on this path.)
 ## Reproduce
 
 ```sh
-cd tools/harness && make && cd ../shim
+cd instruments/harness && make && cd ../../src/shim
 ../native-probe/connprobe-x86_64          # assert Steam_BConnected = TRUE first
 ./build.sh
 ./run.sh loop                             # expect: === LOOP PASS ===

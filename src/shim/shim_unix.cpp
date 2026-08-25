@@ -114,7 +114,7 @@ static bool ensure_dylib()
 /* ---- overlay: load Valve's renderer while we are still early enough (#21) --
  *
  * (a2). The renderer must be in the process before winemac.so instantiates
- * NSApplication — measured in tools/overlay-probe/, Addendum 2 §B2: load before
+ * NSApplication — measured in attic/overlay-probe/, Addendum 2 §B2: load before
  * NSApp and it installs its five MTLCommandBuffer hooks and arms; load after and
  * it hooks nothing. A dylib constructor here is the earliest point we own: dyld
  * runs it when ntdll.so dlopens this unixlib, which is what SHIM_OVERLAY=1 is

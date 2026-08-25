@@ -3,7 +3,7 @@
  * ADR 0003 / #25. The renderer arms itself exactly once, when it loads, and the
  * deadline is NSApplication. Inside a Wine process that deadline is generous but
  * absolute: winemac.so (and with it NSApp) is demand-loaded on the process's
- * FIRST USER CALL, not with user32 — measured in tools/overlay-probe/u32probe.c.
+ * FIRST USER CALL, not with user32 — measured in attic/overlay-probe/u32probe.c.
  * So anything running before the title's entry point wins, and anything after
  * its first window call has already lost.
  *
@@ -17,7 +17,7 @@
  *
  * Why suspended rather than the initial debug breakpoint: at the breakpoint every
  * static-import DllMain has already run, and one USER call in any of them loads
- * the driver. tools/overlay-probe/d3dprobe.c hit exactly that — as a console exe
+ * the driver. instruments/overlay-probe/d3dprobe.c hit exactly that — as a console exe
  * it lost the race before main, because the console attach reaches USER.
  *
  * Child processes (a launcher exe, a 32-bit stub starting a 64-bit binary) render
@@ -53,7 +53,7 @@ static void ilog(const char *fmt, ...)
 
 /* The shim PE for OUR bitness, which is the target's (see relaunch_for_bitness).
  * Its DllMain binds the unixlib when SHIM_OVERLAY is set; that is the whole
- * payload — see tools/shim/shim_pe.c. */
+ * payload — see src/shim/shim_pe.c. */
 static const wchar_t *payload_path(void)
 {
     static wchar_t buf[MAX_PATH];

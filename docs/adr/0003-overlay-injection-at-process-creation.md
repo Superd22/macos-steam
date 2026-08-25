@@ -14,7 +14,8 @@ API. So the overlay problem was never "write a renderer" or "reverse Valve's IPC
 one problem only: **get that dylib into the game process, early enough.**
 
 Three facts, all measured on this machine, define the whole solution space. They are recorded in
-`docs/research/steam-overlay-feasibility.md` (Addendum 2) and `tools/overlay-probe/`.
+`docs/research/steam-overlay-feasibility.md` (Addendum 2), `instruments/overlay-probe/` and
+`attic/overlay-probe/`.
 
 **1. The renderer arms itself exactly once, at load, and the deadline is `NSApplication`.**
 `metalprobe5` moves a `dlopen` of the renderer across a program's startup and bisects it:
@@ -97,7 +98,7 @@ compat tool (steamclient-shim-launch.sh)
 - `overlayhook.dll` — PE, both bitnesses. Its `DllMain(DLL_PROCESS_ATTACH)` does one thing: force
   our unixlib to load. It carries no overlay logic of its own.
 - `steamclient{,64}.so` — the existing unixlib. Its constructor already `dlopen`s the renderer under
-  `SHIM_OVERLAY` (`tools/shim/shim_unix.cpp`). Unchanged by this ADR.
+  `SHIM_OVERLAY` (`src/shim/shim_unix.cpp`). Unchanged by this ADR.
 - The env the renderer reads — `SteamOverlayGameId=$APPID`, `SteamNoOverlayUIDrawing` **unset**,
   `STEAM_OVERLAY_LOGGING=1` — is already exported by the launch script.
 - Exit code and stdio must pass through the injector unchanged: Steam reads the title's exit status
@@ -185,7 +186,7 @@ handover), both drawing the overlay.
   The CodeWeavers ask for `allow-dyld-environment-variables` remains worth sending — it would delete
   this ADR's machinery entirely — but it is not a dependency of anything now.
 - Evidence: `docs/research/steam-overlay-feasibility.md` Addendum 2 (B1–B7); harnesses in
-  `tools/overlay-probe/`.
+  `instruments/overlay-probe/` + `attic/overlay-probe/`.
 - Issues: #21 (feasibility), #22 (which closed (a2) on a mute negative — corrected by B1–B2),
   #24 (App Management), #23 (out-of-process routing, ships regardless).
 
@@ -268,7 +269,7 @@ rely on that path at all. It swizzles
 **Cocoa event pump, below Wine**, before `winemac.drv` ever converts them into
 Windows messages. Nothing in Wine has to co-operate.
 
-Measured two ways. With `inputprobe` (`tools/overlay-probe/`), a real D3D11
+Measured two ways. With `inputprobe` (`instruments/overlay-probe/`), a real D3D11
 overlay target that logs every input channel against the overlay's state:
 synthesised keystrokes and mouse motion reach the title's message queue with the
 overlay down, and produce **nothing at all** with it up — while the title keeps

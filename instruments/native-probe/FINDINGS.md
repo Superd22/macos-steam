@@ -121,16 +121,19 @@ remains open.
 
 ## Reproducing
 
+`connprobe` is the part of this that still gets rerun, and it lives here. The binaries that
+produced the verdict above — `probe`, `machprobe`, `interpose` — are archived in
+`attic/native-probe/`, with their build lines in that directory's README.
+
 ```sh
-clang++ -std=c++17 -g -O0 -arch arm64  -o probe-arm64  probe.cpp
-clang++ -std=c++17 -g -O0 -arch x86_64 -o probe-x86_64 probe.cpp
-clang++ -std=c++17 -g -O0 -arch arm64  -o connprobe-arm64 connprobe.cpp
-clang++ -std=c++17 -g -O0 -arch arm64  -o machprobe-arm64  machprobe.cpp
-clang++ -std=c++17 -dynamiclib   -arch arm64 -o interpose.dylib interpose.cpp
+clang++ -std=c++17 -g -O0 -arch arm64  -o connprobe-arm64  connprobe.cpp
+clang++ -std=c++17 -g -O0 -arch x86_64 -o connprobe-x86_64 connprobe.cpp
 
 # Steam must be running AND online.
-SteamAppId=1086940 PROBE_ACHIEVEMENT=BG3_Quest01 ./probe-arm64 1086940
 ./connprobe-arm64      # Steam_BConnected — the honest check
+
+# the full read path, from attic/native-probe/:
+SteamAppId=1086940 PROBE_ACHIEVEMENT=BG3_Quest01 ./probe-arm64 1086940
 ```
 
 Achievement API names can be recovered from

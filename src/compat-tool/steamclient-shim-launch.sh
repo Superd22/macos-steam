@@ -152,7 +152,7 @@ if [ "$HAVE32" = 1 ]; then
     cp -f "$SHIM_DIST/steamclient.so"  "$SHIMDIR/steamclient.so"
 else
     log "WARNING: no 32-bit shim in $SHIM_DIST — a 32-bit title will fail with"
-    log "         \"Could not sign in to your Steam account\". Run tools/shim/build.sh."
+    log "         \"Could not sign in to your Steam account\". Run src/shim/build.sh."
 fi
 
 # Shim dir on WINEDLLPATH through the front door: cxbottle.conf [Wine] DllPath.

@@ -1,6 +1,6 @@
 // Minimal Steamworks vtable declarations for the seam spike's unix half.
 //
-// Copied down from tools/native-probe/steam_min.h (proven against the live
+// Copied down from instruments/native-probe/steam_min.h (proven against the live
 // dylib in #2) and trimmed to exactly the interfaces stage 2 calls through:
 // ISteamClient (to GetISteamFriends), ISteamUser, ISteamFriends. Only the
 // leading vtable slots up to the method we call need to be declared; the tail

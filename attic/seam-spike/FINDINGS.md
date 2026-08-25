@@ -1,6 +1,15 @@
 # Seam spike — one real Steamworks call across the Wine boundary
 
-Two stages, one throwaway harness (`tools/seam-spike/`), bottle `seamspike`.
+> **Archived.** Question closed: the transport fork was decided and this spike was
+> superseded wholesale by `src/shim`. **ADR 0001** holds the conclusion. Nothing here is
+> rerun; it is kept as the evidence behind that ADR.
+>
+> One exception worth knowing about: `bridge_pe.c` holds the **only latency instrumentation
+> in the repo** — ~40 ns for the bare seam, ~16–40 µs for `GetPersonaName`. `src/shim` has
+> none. If seam cost ever needs re-measuring, extract that QPC loop rather than writing a
+> new one.
+
+Two stages, one throwaway harness (`attic/seam-spike/`), bottle `seamspike`.
 
 - **Stage 1 (#8)** settled the *transport fork*: does a third-party unixlib even load
   in the shipped CrossOver, and does control cross `__wine_unix_call` into an unsigned

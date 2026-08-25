@@ -25,7 +25,7 @@ gets written deliberately, per-run, and torn back down (see protocol below).
 
 ## How `SteamAPI_Init` actually resolves steamclient64.dll (measured, not read)
 
-Instrument: `tools/shimprobe/` — a decoy `steamclient64.dll` that logs `DllMain` attach and
+Instrument: `attic/shimprobe/` — a decoy `steamclient64.dll` that logs `DllMain` attach and
 every `CreateInterface(name)` request to `shimprobe.log` beside itself, then returns NULL.
 Two copies planted: one **beside the EXE**, one at `C:\FakeSteam\`. Registry state varied
 between runs; S_API diagnostics captured via `WINEDEBUG=+debugstr`.
@@ -70,7 +70,7 @@ nothing found outside the bottle. S_API's own diagnostics confirm where it gave 
 result must be able to flip back to.
 
 ```sh
-cd tools/harness && make && cd build
+cd instruments/harness && make && cd build
 "$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine" \
     --bottle shim-clean "$(pwd)/harness.exe" status   # expect: SteamAPI_Init() = 0, FATAL
 ```

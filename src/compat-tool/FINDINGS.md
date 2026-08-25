@@ -18,7 +18,7 @@ engineering artifact, and hands the rest to a human runbook (below).
 **Proven this session (autonomous):**
 
 - The one **unbuilt artifact** the whole map converged on — the compat-tool **launch script**
-  that ADR 0002 named as "the boundary with Half B (#12)" — is built: `tools/compat-tool/`.
+  that ADR 0002 named as "the boundary with Half B (#12)" — is built: `src/compat-tool/`.
 - The **Half A ↔ Half B seam holds through the production launch vehicle.** Driving the launch
   script exactly as Steam's compat-tool contract invokes it —
   `steamclient-shim-launch.sh waitforexitandrun C:\harness.exe loop`, with **only Valve's
@@ -48,7 +48,7 @@ script reconstructs the **proven** Half B shim environment (#11/#13) around that
 | `SteamAppId`/`SteamGameId` ← `STEAM_COMPAT_APP_ID` | #11 | gives the dylib's `ISteamUserStats` its app context; derived from Valve's contract var |
 | exec `wineloader <exe>` | — | runs the title in the bottle; the game's `steam_api64.dll` does the rest |
 
-`tools/compat-tool/` layout (mirrors ADR 0002's external-payload spec):
+`src/compat-tool/` layout (mirrors ADR 0002's external-payload spec):
 
 - `steamclient-shim-launch.sh` — the `commandline` target (this seam).
 - `toolmanifest.vdf` — `version 2`, `commandline`, `use_sessions 1`.
@@ -58,18 +58,18 @@ script reconstructs the **proven** Half B shim environment (#11/#13) around that
 ## Reproduce (the 480 seam proof)
 
 ```sh
-cd tools/harness && make            # builds harness.exe + steam_api64.dll (+ steam_appid.txt)
+cd instruments/harness && make            # builds harness.exe + steam_api64.dll (+ steam_appid.txt)
 cd ../shim && ./build.sh            # builds dist/steamclient64.{dll,so}
 # native macOS Steam must be running AND online; NO Windows steam.exe anywhere:
 ps aux | grep -i steam.exe | grep -v grep   # must be empty
 
 BOTTLE="$HOME/Library/Application Support/CrossOver/Bottles/shim-clean"
-cp tools/harness/build/harness.exe     "$BOTTLE/drive_c/"
-cp tools/harness/build/steam_api64.dll "$BOTTLE/drive_c/"
-cp tools/harness/build/steam_appid.txt "$BOTTLE/drive_c/"
+cp instruments/harness/build/harness.exe     "$BOTTLE/drive_c/"
+cp instruments/harness/build/steam_api64.dll "$BOTTLE/drive_c/"
+cp instruments/harness/build/steam_appid.txt "$BOTTLE/drive_c/"
 
 STEAM_COMPAT_APP_ID=480 SHIM_BOTTLE=shim-clean SHIM_UNIX_LOG=/tmp/shim_unix.log \
-  tools/compat-tool/steamclient-shim-launch.sh waitforexitandrun 'C:\harness.exe' loop
+  src/compat-tool/steamclient-shim-launch.sh waitforexitandrun 'C:\harness.exe' loop
 # expect: === LOOP PASS ===
 
 # negative control:
@@ -97,15 +97,15 @@ rm "$BOTTLE"/drive_c/shim/steamclient64.*   # + delete HKCU\...\SteamClientDll64
 
 ## HITL runbook — the real Surviving Mars end-to-end (a human drives this)
 
-Preconditions: `tools/shim/build.sh` and `tools/compat-tool/` present; native macOS Steam
+Preconditions: `src/shim/build.sh` and `src/compat-tool/` present; native macOS Steam
 installed; **no Windows Steam** (`ps aux | grep -i steam.exe` empty — quit bottle `Steam-2`
 if needed, as this session did).
 
 1. **Flip the gate (resident):** launch `steam_osx` with
-   `DYLD_INSERT_LIBRARIES=…/libcompat-enabler.dylib` (`tools/compat-enabler/`). Confirm
+   `DYLD_INSERT_LIBRARIES=…/libcompat-enabler.dylib` (`src/compat-enabler/`). Confirm
    `/tmp/compat-enabler.log` shows `patched 1 site(s)`. Keep Steam online.
 2. **Register the tool:** launch with
-   `STEAM_EXTRA_COMPAT_TOOLS_PATHS=<abs path to tools/compat-tool>`. Confirm in `compat_log`:
+   `STEAM_EXTRA_COMPAT_TOOLS_PATHS=<abs path to src/compat-tool>`. Confirm in `compat_log`:
    `Processing local tool list … crossover-steam-shim` and
    `Mapping AppID 0 to tool "crossover-steam-shim" with priority 100`.
 3. **Install:** find Surviving Mars (`3215050`) in the library; its `display_status` should
@@ -216,7 +216,7 @@ and pre-#18 shim binaries (before the full vtable transcription). It had been ha
 once and never re-synced, so the registered production tool was one that #18/#19 had already
 proven *would crash*, while the repo looked correct.
 
-Deployment is now one reproducible command, `tools/installer/install.sh`, which builds what is
+Deployment is now one reproducible command, `src/installer/install.sh`, which builds what is
 missing and copies the built artifacts into both shipped surfaces — the external payload dir
 and the `Steam (macOS Play).app` launcher (previously hand-made and not in the repo at all).
 `--uninstall` removes both; Valve's files are never touched, so there is nothing else to undo.

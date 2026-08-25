@@ -25,11 +25,11 @@ CXROOT="$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver"
 WL="$CXROOT/CrossOver-Hosted Application/wineloader"
 BOTTLE="$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE_NAME"
 DIST="$(pwd)/dist"
-HARNESS="$(cd ../harness/build && pwd)"
+HARNESS="$(cd ../../instruments/harness/build && pwd)"
 SHIMDIR="$BOTTLE/drive_c/shim"
 
 [ -d "$BOTTLE" ] || { echo "bottle '$BOTTLE_NAME' missing"; exit 2; }
-[ -f "$HARNESS/harness.exe" ] || { echo "harness.exe missing — run 'make' in tools/harness"; exit 2; }
+[ -f "$HARNESS/harness.exe" ] || { echo "harness.exe missing — run 'make' in instruments/harness"; exit 2; }
 
 # Native Steam must be running AND online (map trap #1); the harness aborts on
 # BLoggedOn=false, and the unix side logs Steam_BConnected for the record.
@@ -47,7 +47,7 @@ export SteamGameId=480
 # Overlay (#21). ON by default, matching what ships; `SHIM_OVERLAY=0 ./run.sh` is
 # the negative control. The unixlib's constructor dlopens Valve's renderer and
 # STEAM_OVERLAY_LOGGING makes it say whether that landed before NSApplication
-# (the gate measured in tools/overlay-probe/).
+# (the gate measured in attic/overlay-probe/).
 #
 # The harness is a console exe with no swapchain, so the renderer LOADS here and
 # never ARMS — IsOverlayEnabled() stays 0. That is the correct answer, and the

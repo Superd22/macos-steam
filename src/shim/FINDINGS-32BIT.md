@@ -252,7 +252,7 @@ Addressables, meanwhile, never was the problem — `Player.log` now reads
 ## Reproduce
 
 ```sh
-cd tools/shim && ./build.sh          # builds both bitnesses; fails on any ABI mismatch
+cd src/shim && ./build.sh          # builds both bitnesses; fails on any ABI mismatch
 cd ../harness && make all all32      # 32-bit harness uses Among Us's own steam_api.dll
 ../native-probe/connprobe-x86_64     # assert Steam_BConnected = TRUE first (map trap 1)
 
@@ -261,7 +261,7 @@ cp build32/harness.exe "$B/drive_c/harness32.exe"
 cp build32/steam_api.dll "$B/drive_c/"; printf 480 > "$B/drive_c/steam_appid.txt"
 
 STEAM_COMPAT_APP_ID=480 SHIM_BOTTLE=steam-shim \
-  tools/compat-tool/steamclient-shim-launch.sh waitforexitandrun 'C:\harness32.exe' loop
+  src/compat-tool/steamclient-shim-launch.sh waitforexitandrun 'C:\harness32.exe' loop
 # expect: === LOOP PASS ===
 
 # negative control: rm "$B/drive_c/shim/steamclient.dll" + delete SteamClientDll -> Init = 0
@@ -274,7 +274,7 @@ AU="$HOME/Library/Application Support/Steam/steamapps/common/Among Us/Among Us.e
 rm -f "$B/drive_c/steam_appid.txt"          # let the title supply its own appid
 SHIM_UNIX_LOG=/tmp/au.unix.log SHIM_PE_LOG=/tmp/au.pe.log \
 STEAM_COMPAT_APP_ID=945360 SHIM_BOTTLE=steam-shim \
-  tools/compat-tool/steamclient-shim-launch.sh waitforexitandrun "$AU"
+  src/compat-tool/steamclient-shim-launch.sh waitforexitandrun "$AU"
 # expect in /tmp/au.unix.log:
 #   RequestEncryptedAppTicket(cb=0) -> call=<nonzero>
 #   GetEncryptedAppTicket(max=1024) -> 1 (159 bytes)
@@ -291,7 +291,7 @@ answer (§2 above).
 
 1. `strings -a <steam_api[64].dll> | grep -E '^(STEAM|Steam)[A-Za-z]*_?[A-Z_]*(INTERFACE_VERSION)?_?[0-9]{3}$' | sort -u`
    — mind the irregular suffixes (`..._VERSION_005`, `..._V003`), which a tighter pattern drops.
-2. Add any new versions to `tools/shim/interface-versions.txt`.
+2. Add any new versions to `src/shim/interface-versions.txt`.
 3. `./build.sh --regen-vtables` (needs network + `gh`), then `./build.sh`.
 4. Run it with `SHIM_PE_LOG` set and grep the log for `(unmapped)`. Wire anything the title
    actually calls — and treat every unmapped method that returns a `SteamAPICall_t` as a
