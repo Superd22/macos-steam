@@ -12,7 +12,14 @@ build time against Proton's own DEFINE_THISCALL_WRAPPER counts (which include
 This is what caught SteamInput002::Init(this) vs SteamInput006::Init(this,bool):
 same method name, different signature, one C thunk originally serving both.
 
-Usage: verify_abi.py <vtables.json> <shim_pe.c> <i386-object-file>
+Since #78 it is also the generator's arity test. ~1,100 thunks are emitted from
+Proton's typed signatures, and this re-derives every one of their `ret N` from
+the compiled i386 binary and compares it against Proton's OWN
+DEFINE_THISCALL_WRAPPER count for the same method. The two numbers come from
+different halves of Proton's source and meet in a disassembly: a generated thunk
+whose type map got a parameter width wrong cannot reach a title.
+
+Usage: verify_abi.py <vtables.json> <shim_pe.c> <i386-object-file> [<arity.json>]
 """
 import json, re, subprocess, sys
 
@@ -83,11 +90,29 @@ def main():
             bad.append('thunk %s (%s.%s): pops %d, MSVC pushes %d — needs a '
                        'version-specific thunk' % (fn, ver, meth, got[fn], slot[0]['bytes'] - 4))
 
+    # Generated thunks (#78). gen_thunks.py wrote down what each one's caller
+    # pushes, straight from the same DEFINE_THISCALL_WRAPPER the stubs above are
+    # checked against; here we read what the compiler actually emitted.
+    gen = json.load(open(sys.argv[4])) if len(sys.argv) > 4 else {}
+    ngen = 0
+    for fn, byts in sorted(gen.items()):
+        if fn not in got:
+            continue                      # not reached by this build's codegen
+        checked += 1; ngen += 1
+        if got[fn] < 0:
+            bad.append('generated thunk %s: inconsistent ret across exit paths' % fn); continue
+        if got[fn] != byts - 4:
+            bad.append('generated thunk %s: pops %d, MSVC pushes %d — the type '
+                       'map in gen_thunks.py has a parameter width wrong'
+                       % (fn, got[fn], byts - 4))
+
     if bad:
         print('i386 thiscall cleanup MISMATCH (%d):' % len(bad), file=sys.stderr)
         for b in bad:
             print('  ' + b, file=sys.stderr)
         sys.exit(1)
-    print('i386 thiscall cleanup verified: %d entry points match Proton exactly' % checked)
+    print('i386 thiscall cleanup verified: %d entry points match Proton exactly '
+          '(%d of them generated, %d generated thunks declared)'
+          % (checked, ngen, len(gen)))
 
 main()

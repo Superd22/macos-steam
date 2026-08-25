@@ -12,13 +12,21 @@ unix process: its addresses ARE low addresses in that one address space.)
 That is a property of the header, and someone will eventually add a struct with
 a bare pointer or an odd field order and quietly break it. So compare every
 field offset under i686-mingw against the 64-bit layout, at build time.
+
+Since #78 most of those structs are GENERATED, which raises the stakes rather
+than lowering them: gen_thunks.py emits ~280 layouts from a type map, and a type
+mapped to the wrong width would be a silent seam corruption across a thousand
+methods. This check does not trust the generator any more than it trusts a
+human — the generated header is scanned exactly like the hand-written one.
 """
 import re, subprocess, sys, tempfile, os
 
-HDR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shim_abi.h')
+HERE = os.path.dirname(os.path.abspath(__file__))
+HDR = os.path.join(HERE, 'shim_abi.h')
+HDRS = [HDR, os.path.join(HERE, 'gen', 'shim_gen_params.h')]
 
 def structs():
-    src = re.sub(r'/\*.*?\*/', '', open(HDR).read(), flags=re.S)
+    src = re.sub(r'/\*.*?\*/', '', '\n'.join(open(h).read() for h in HDRS), flags=re.S)
     out = []
     for name, body in re.findall(r'struct\s+(sp_\w+)\s*\{([^}]*)\}', src):
         fields = []

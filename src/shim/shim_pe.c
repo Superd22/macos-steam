@@ -195,8 +195,14 @@ static const char *native_str(uint64_t native)
 static const char *native_str(uint64_t native) { return (const char *)(uintptr_t)native; }
 #endif
 
-/* ---- PE-side interface object: MSVC vtable ptr @0, opaque native handle @8 -- */
-struct w_iface { const void **vtable; uint64_t handle; };
+/* ---- PE-side interface object: MSVC vtable ptr @0, opaque native handle @8 --
+ * `desc` is the version descriptor this object's table belongs to, resolved once
+ * at wrap() time. It is not part of the layout steam_api64.dll sees (nothing
+ * outside this file reads past the vtable pointer); it exists because #78's
+ * generated thunks all call native_slot() on every call, and without it that
+ * would rescan all 212 descriptors to answer a question wrap() already knew. */
+struct vt_desc;
+struct w_iface { const void **vtable; uint64_t handle; const struct vt_desc *desc; };
 
 /* The MSVC vtables the game sees: one table per interface VERSION, generated
  * slot-exact from Proton's lsteamclient (shim_vtables.h / gen_vtables.py, #20).
@@ -215,8 +221,51 @@ struct w_iface { const void **vtable; uint64_t handle; };
 static unsigned int vt_unmapped(const char *version, int slot, const char *name);
 #include "shim_vtables.h"
 
+/* A title just called a slot nothing is wired into, and got 0 back.
+ *
+ * That 0 is the most expensive value in this file. It is not an error the caller
+ * can see: FileExists answers "no such save", GetFileCount answers "no files",
+ * BIsSubscribed answers "not owned" — each a plausible answer the title acts on.
+ * Space Marine spent a whole session offering "New Campaign" over a complete
+ * cloud save because of exactly this, and nothing anywhere said why (#43).
+ *
+ * dbg() alone was not enough: it writes to OutputDebugStringA, and to a file
+ * only when SHIM_PE_LOG is set, so a normal run recorded nothing. So this also
+ * crosses the seam into shim-unix.log, unconditionally — the whole point is to
+ * be readable from a run nobody thought to instrument in advance.
+ *
+ * Once per (version, slot): a method called every frame would otherwise bury the
+ * log it is supposed to be found in. Both strings come from the generated tables
+ * and are static, so comparing pointers is the identity we want. Past the cap we
+ * stop recording rather than stop logging — a truncated diagnosis is worse than
+ * a repetitive one. */
 static unsigned int vt_unmapped(const char *version, int slot, const char *name)
-{ dbg("shim: %s slot %d %s (unmapped)", version, slot, name); return 0; }
+{
+    static const char *seen_ver[256];
+    static int seen_slot[256];
+    static int nseen;
+    struct sp_log p;
+    char msg[320];
+    int i;
+
+    dbg("shim: %s slot %d %s (unmapped)", version, slot, name);
+
+    for (i = 0; i < nseen; i++)
+        if (seen_ver[i] == version && seen_slot[i] == slot) return 0;
+    if (nseen < (int)(sizeof seen_ver / sizeof *seen_ver)) {
+        seen_ver[nseen] = version; seen_slot[nseen] = slot; nseen++;
+    }
+
+    snprintf(msg, sizeof msg,
+             "UNMAPPED %s::%s (slot %d) -> returned 0. The title called a method "
+             "this shim has a correct table for but no thunk behind. The 0 is not "
+             "an error it can see, so whatever it does next is built on a wrong "
+             "answer. Wire it in shim_pe.c (#45).",
+             version ? version : "(unknown)", name ? name : "(unknown)", slot);
+    p.msg = (uint64_t)(uintptr_t)msg;
+    seam(C_Log, &p);
+    return 0;
+}
 
 static const struct vt_desc *vt_find(const char *ver)
 {
@@ -302,7 +351,7 @@ static const struct vt_desc *vt_of(const void **vtable)
  * wrong slot on ISteamFriends is a call to SetPlayedWith or GetClanTag. */
 static int32_t native_slot(struct w_iface *s, const char *method)
 {
-    const struct vt_desc *d = s ? vt_of(s->vtable) : NULL;
+    const struct vt_desc *d = s ? (s->desc ? s->desc : vt_of(s->vtable)) : NULL;
     const struct vt_method *m = d ? meth_find(d, method) : NULL;
     if (!m) {
         dbg("shim: native_slot(%s): unresolvable (version %s) — call dropped",
@@ -431,7 +480,7 @@ static struct w_iface *wrap(uint64_t handle, const void **vt)
     for (i = 0; i < g_ncache; i++)
         if (g_cache[i].handle == handle && g_cache[i].vt == vt) return g_cache[i].w;
     struct w_iface *w = (struct w_iface *)HeapAlloc(GetProcessHeap(), 0, sizeof *w);
-    w->vtable = vt; w->handle = handle;
+    w->vtable = vt; w->handle = handle; w->desc = vt_of(vt);
     if (g_ncache < 32) { g_cache[g_ncache].handle = handle; g_cache[g_ncache].vt = vt; g_cache[g_ncache].w = w; g_ncache++; }
     return w;
 }
@@ -1069,9 +1118,32 @@ static void THISCALL irs_SetCloudEnabledForApp(struct w_iface *s, int32_t enable
 { struct sp_rs_setcloud p; p.handle = s->handle; p.enabled = enabled;
   seam(C_RS_SetCloudEnabledForApp, &p); }
 
+/* ---- generated thunks (#78) --------------------------------------------
+ *
+ * ~1,100 of them, one per (interface, method, SIGNATURE), emitted from the
+ * typed wrapper bodies that sit one line below the arity in the same Proton
+ * file the tables above come from. Everything they need is already defined:
+ * seam(), native_str() for the const char* copy-down, native_slot() for the
+ * index the unix half will use, and the vt_<version>[] tables themselves.
+ *
+ * They are deliberately NOT hand-editable. A method that needs different
+ * behaviour goes in overrides.json with its reason, so the reason survives the
+ * next regeneration; a patch to this header would not.
+ *
+ * What the generator declined to emit is in gen/REPORT.md, and every declined
+ * slot still carries its logging stub — so the failure mode is a named line in
+ * shim-unix.log (#45), never the silent 0 that cost #43 a whole session. */
+#include "gen/shim_gen_pe.h"
+
 static void build_vtables(void)
 {
     vt_fill_stubs();
+
+    /* First, so that anything hand-written below still wins the slot. Nothing
+     * hand-written is generated (overrides.json, kept honest in both directions
+     * by check_overrides.py), so in practice they do not overlap — this order
+     * is what makes that a safety property rather than a coincidence. */
+    dbg("shim: generated thunks wired into %d vtable slots", gen_wire_all());
 
     wire_getters_all("ISteamClient");
 

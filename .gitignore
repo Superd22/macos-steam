@@ -24,6 +24,14 @@ src/overlay-inject/dist/
 # Generated deploy contract (#32) — src/layout/layout.json is the source.
 src/layout/gen/
 
+# Generated thunks (#78) — src/shim/vtables.json + overrides.json are the source,
+# and build.sh re-derives all of it on every build, so a checked-in copy could
+# only ever be a stale one. REPORT.md is the exception: it is the record of what
+# the generator REFUSED to emit and why, which has to be readable without a
+# toolchain and reviewable in a diff.
+src/shim/gen/*
+!src/shim/gen/REPORT.md
+
 instruments/native-probe/*
 !instruments/native-probe/*.cpp
 !instruments/native-probe/*.h
