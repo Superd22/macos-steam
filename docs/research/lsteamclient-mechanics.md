@@ -1,3 +1,8 @@
+---
+status: current
+re-verify-on: Proton bump — pinned to `proton_11.0` @ `0745bfbc4cf4`, the same tree the vtable generator reads
+---
+
 # How Proton's `lsteamclient` actually works — and the minimum subset for one achievement
 
 **Scope:** the mechanics of Proton's `lsteamclient/` — the PE↔unix seam, the versioned-interface
@@ -12,7 +17,7 @@ port to macOS/Mach-O. The CrossOver/bottle side of the problem is covered separa
 `networking_message` layout compatible between 32 and 64 bit", 2026-07-24). Wine citations are
 against `wine-10.0` (the version CrossOver 25.1.1 ships) unless noted. Steamworks SDK citations are
 against the copies vendored in `lsteamclient/steamworks_sdk_165/` — Proton vendors **105 SDK
-versions**, `099u` through `165`, which is itself a load-bearing fact (§4).
+versions**, `099u` through `165`, which several conclusions below depend on (§4).
 
 ---
 
@@ -577,7 +582,7 @@ Underneath, `steam_api64.dll` calls the flat C exports of `steamclient64.dll` �
 
 1. `steamclient_Steam_BGetCallback` calls the native `Steam_BGetCallback`, gets a `u_CallbackMsg_t`,
    heap-copies it on the unix side, fills only the PE-visible header fields
-   (`m_hSteamUser`, `m_iCallback`) and — critically — **rewrites `m_cubParam` to the Windows-side
+   (`m_hSteamUser`, `m_iCallback`), and **rewrites `m_cubParam` to the Windows-side
    length** via `callback_len_utow()`. It returns the unix `u_msg` pointer to the PE side as an
    opaque `cookie`.
 2. The PE side then allocates a `HeapAlloc` buffer of that Windows length, stores it in
@@ -628,7 +633,7 @@ scanned linearly among rows with the same id. Three consumers:
   (`:1243-1283`).
 
 **The disambiguator is the buffer length the game passes, not any version string.** That is how one
-binary serves games built against any of 105 SDKs. It is a genuinely good design and we should copy
+binary serves games built against any of 105 SDKs. It is a good design and we should copy
 it verbatim.
 
 ### 6.3 Call results

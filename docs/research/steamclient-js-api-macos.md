@@ -1,4 +1,9 @@
-# `window.SteamClient` on macOS — full API inventory
+---
+status: current
+re-verify-on: Steam client update — the inventory is a snapshot of client `1785187029`'s JS surface
+---
+
+# `window.SteamClient` on macOS: full API inventory
 
 Captured **2026-08-13** from macOS Steam client **`1785187029`** (Apple Silicon,
 macOS 26.5.2), via CDP `Runtime.evaluate` against the **`SharedJSContext`** target on
@@ -7,16 +12,17 @@ macOS 26.5.2), via CDP `Runtime.evaluate` against the **`SharedJSContext`** targ
 mechanically, not hand-transcribed.
 
 To our knowledge no public inventory of the **macOS** client's `SteamClient` surface
-exists — public references (SteamDB's typings, Millennium, decky-loader) document the
+exists. Public references (SteamDB's typings, Millennium, decky-loader) document the
 Windows/Linux/Deck clients.
 
 ## How to reproduce
 
 1. `touch "~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/.cef-enable-remote-debugging"`
-   — the **install** dir inside the app bundle, *not* the data dir (the recipe in
-   `compatibilitytools-d-macos.md` is wrong about this; corrected on
-   [#9](https://github.com/Superd22/macos-steam/issues/9)). The `-cef-enable-debugging`
-   launch flag is an equivalent, per-run alternative.
+   — the **install** dir inside the app bundle, *not* the data dir. The data dir was tried
+   first and the file is simply never read; corrected on
+   [#9](https://github.com/Superd22/macos-steam/issues/9), and it is the same install-vs-data
+   mistake `compatibilitytools-d-macos.md` records. The `-cef-enable-debugging` launch flag is
+   an equivalent, per-run alternative.
 2. Restart Steam; `curl -s http://127.0.0.1:8080/json/list` within ~15s of UI paint.
 3. Pick the target with `"title": "SharedJSContext"` and speak CDP over its
    `webSocketDebuggerUrl` — `Runtime.evaluate` with `awaitPromise: true,
@@ -28,7 +34,7 @@ no flags; confirm 8080 is closed.
 
 ## Reading this inventory
 
-- Every method is a **variadic native binding** — `Function.length` is `0` for all
+- Every method is a **variadic native binding**: `Function.length` is `0` for all
   847 of them, so arity is not recoverable by reflection. Argument shapes must come
   from observed calls (see the verified table) or from the strings in
   `steamclient.dylib`/`steamui.dylib`.
@@ -52,14 +58,14 @@ no flags; confirm 8080 is closed.
 **`display_status` enum** (decoded on [#15](https://github.com/Superd22/macos-steam/issues/15)):
 `6` = installed · `9` = ready to install · `14` = not available on this platform.
 
-**State at capture time:** stock-behaving client — `GetGlobalCompatTools()` → `[]`
+**State at capture time:** stock-behaving client: `GetGlobalCompatTools()` → `[]`
 (the #5 probe tool is no longer registered) and
 `settingsStore.settings.bCompatEnabled` → `false`. The inventory below is therefore
 the *unmodified* surface, not an artifact of our patches.
 
 ---
 
-## `window.SteamClient` — 48 namespaces, 847 methods
+## `window.SteamClient`: 48 namespaces, 847 methods
 
 ### `SteamClient._internal`
 
@@ -329,27 +335,27 @@ the *unmodified* surface, not an artifact of our patches.
 
 ## Useful non-`SteamClient` globals
 
-### `window.settingsStore.settings` — 26 keys
+### `window.settingsStore.settings`: 26 keys
 
 Includes the compat trio that mirrors `CCompatManager` state: **`bCompatEnabled`**,
 **`bCompatEnabledForOtherTitles`**, **`strCompatTool`** (all read-only reflections;
 on macOS they stay `false`/`false`/`""` because `m_bCompatEnabled` latches on the
-host oslist — see [#16](https://github.com/Superd22/macos-steam/issues/16)).
+host oslist; see [#16](https://github.com/Superd22/macos-steam/issues/16)).
 
 `bChangeBetaEnabled`, `bCompatEnabled`, `bCompatEnabledForOtherTitles`, `bDisplayIsExternal`, `bDisplayIsUsingAutoScale`, `bEnableSoftProcessKill`, `bIsInClientBeta`, `bIsInDesktopUIBeta`, `bIsSteamSideload`, `bIsValveEmail`, `bUnderscanEnabled`, `eClientBetaState`, `flAutoDisplayScaleFactor`, `flCurrentDisplayScaleFactor`, `flCurrentUnderscanLevel`, `flMaxDisplayScaleFactor`, `flMinDisplayScaleFactor`, `nAvailableBetas`, `nSelectedBetaID`, `strCompatTool`, `strDisplayName`, `strSelectedBetaName`, `vecAvailableClientBetas`, `vecNightModeScheduledHours`, `vecValidAutoUpdateRestrictHours`, `vecValidDownloadRegions`
 
-### `window.appStore` — prototype methods
+### `window.appStore`: prototype methods
 `BIsAppPrivate`, `CompareSortAs`, `GetAlbumCoverURLForApp`, `GetAppOverviewByAppID`, `GetAppOverviewByGameID`, `GetCachedAlbumCoverURL`, `GetCachedVerticalCapsuleURL`, `GetCustomHeroImageURLs`, `GetCustomImageURLs`, `GetCustomLandcapeImageURLs`, `GetCustomLogoImageURLs`, `GetCustomSortAs`, `GetCustomVerticalCapsuleURLs`, `GetIconURLForApp`, `GetLocalizationForStoreTag`, `GetPregeneratedVerticalCapsuleForApp`, `GetStorePageURLForApp`, `GetTopStoreTags`, `GetVerticalCapsuleURLForApp`, `HandleSteamVRAppIconRequest`, `Init`, `OnCloudStorageChanged`, `OnPrivateAppsChanged`, `RefreshTagsIfNeeded`, `SetCustomSortAs`, `UpdateAppOverview`, `UpdatePrivateApps`
 
-### `window.appDetailsStore` — prototype methods
+### `window.appDetailsStore`: prototype methods
 `AppDetailsChanged`, `BAchievementIsHiddenAndAchieved`, `BHasMarketPresence`, `BHasRecentlyLaunched`, `BIsWorkshopVisible`, `CMInterface`, `ClearCustomLogoPosition`, `GetAchievements`, `GetAjaxLibraryAppDetails`, `GetAppData`, `GetAppDetails`, `GetAppDetailsSpotlight`, `GetAssociations`, `GetCustomLogoPosition`, `GetDescriptions`, `GetHeaderImages`, `GetHeaderImagesForAppId`, `GetHeroBlurImages`, `GetHeroBlurImagesForAppId`, `GetHeroImages`, `GetHeroImagesForAppId`, `GetLogoImages`, `GetLogoImagesForAppId`, `Init`, `MarkAppAsRecentlyLaunched`, `RegisterForAppData`, `RequestAchievements`, `RequestAppDetails`, `RequestAppDetailsSpotlight`, `RequestAssociationData`, `RequestCustomImageInfo`, `RequestDescriptionsData`, `SaveCustomLogoPosition`, `SetAjaxLibraryAppDetails`, `UnregisterForAppData`, `ValidateCustomImageInfo`
 
-### `window.appAchievementProgressCache` — prototype methods
+### `window.appAchievementProgressCache`: prototype methods
 `BGameHasAchievements`, `GetAchievementProgress`, `Init`, `LoadCacheFile`, `OnAchievementNotification`, `QueueCacheUpdate`, `RequestCacheUpdate`, `SaveCacheFile`
 
-`appStore.GetAppOverviewByAppID(appid)` returns the library overview object whose
-fields include `display_status`, `installed`, `size_on_disk`, `per_client_data` —
-the object #15 and #16 read their verdicts from.
+`appStore.GetAppOverviewByAppID(appid)` returns the library overview object. Its
+fields, including `display_status`, `installed`, `size_on_disk`, and `per_client_data`,
+are what #15 and #16 read their verdicts from.
 
 Other objects present: `appDetailsStore`, `securitystore`, `uiStore`, `loginStore`,
 `MainWindowBrowserManager`, `appAchievementProgressCache`.

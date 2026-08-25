@@ -5,8 +5,8 @@ every `CreateInterface` it is asked for. It answered one question: in a bottle w
 Windows Steam installed, does the game's `steam_api64.dll` really load *our* file at the
 path the registry names?
 
-It does. **This module has no `FINDINGS.md` — its conclusions live in
-`docs/research/clean-bottle-provenance.md`.**
+It does. **The conclusions live in `docs/research/clean-bottle-provenance.md`** — `FINDINGS.md`
+here is a stub pointing at it.
 
 Superseded by `src/shim`, which is the real thing at the same load point. Not rerun; kept
 because the negative control it established (delete the dll, the run must flip back to
