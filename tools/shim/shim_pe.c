@@ -262,6 +262,72 @@ static int wire(const char *ver, const char *method, const void *fn)
     return -1;
 }
 
+/* Look a method up in one version's table. */
+static const struct vt_method *meth_find(const struct vt_desc *d, const char *method)
+{
+    int i;
+    for (i = 0; d->methods[i].name; i++)
+        if (!strcmp(d->methods[i].name, method)) return &d->methods[i];
+    return NULL;
+}
+
+/* Wire a thunk into EVERY generated version of an interface that declares the
+ * method with the SAME SHAPE as the version the thunk was written against.
+ *
+ * This is the difference between "the shim supports the titles we tested" and
+ * "the shim supports the interface". Naming versions explicitly is why Space
+ * Marine's SteamClient021 got a correct, slot-exact table in which every slot
+ * was still a logging stub: the table existed, nothing was wired into it, and
+ * the game died on CreateSteamPipe returning 0 (#29).
+ *
+ * `ref` is the version the thunk's C signature matches — the interface and the
+ * expected shape both come from it, so a call site changes from wire(...) to
+ * wire_all(...) and nothing else. Two safety properties, neither optional:
+ *
+ *   - Resolution is BY NAME against each version's own table, so a method that
+ *     moved slots between versions still lands in the right slot.
+ *   - A version whose `bytes` for that method differ from the reference is
+ *     SKIPPED and logged, never wired. Same name does not mean same signature
+ *     across versions, and on i386 (callee-cleanup) a wrongly-shaped thunk
+ *     corrupts the caller's stack rather than returning a wrong answer. Those
+ *     are the cases that still need an explicit per-version thunk, exactly as
+ *     ISteamInput's Init/RunFrame already do.
+ *
+ * Returns how many versions were wired. */
+static int wire_all(const char *ref, const char *method, const void *fn)
+{
+    const struct vt_desc *rd = vt_find(ref);
+    const struct vt_method *rm;
+    int n = 0, i;
+
+    if (!rd) { dbg("shim: WIRE MISS %s (version not generated) .%s", ref, method); return -1; }
+    rm = meth_find(rd, method);
+    if (!rm) { dbg("shim: WIRE MISS %s.%s (not in the reference version)", ref, method); return -1; }
+
+    for (i = 0; g_vtdescs[i].version; i++) {
+        const struct vt_desc *d = &g_vtdescs[i];
+        const struct vt_method *m;
+        if (strcmp(d->iface, rd->iface)) continue;
+        m = meth_find(d, method);
+        if (!m) continue;                      /* absent in this version: fine */
+        if (m->bytes != rm->bytes) {
+            dbg("shim: %s.%s SHAPE MISMATCH (%u bytes vs %s's %u) — left stubbed",
+                d->version, method, (unsigned)m->bytes, ref, (unsigned)rm->bytes);
+            continue;
+        }
+        d->vtable[m->slot] = fn; n++;
+    }
+    return n;
+}
+
+/* The GetISteam* family, for every version of an interface that has them. */
+static void wire_getters_all(const char *iface)
+{
+    int i;
+    for (i = 0; g_vtdescs[i].version; i++)
+        if (!strcmp(g_vtdescs[i].iface, iface)) wire_getters(g_vtdescs[i].version);
+}
+
 /* small w_iface cache so repeated acquisition of the same native handle returns
  * a stable pointer (games and steam_api64.dll compare interface pointers). */
 static struct { uint64_t handle; const void **vt; struct w_iface *w; } g_cache[32];
@@ -279,18 +345,22 @@ static struct w_iface *wrap(uint64_t handle, const void **vt)
     return w;
 }
 
-#ifndef __i386__
-/* x86_64-only fallback for a version with no generated table. MS-x64 is
- * caller-cleanup, so a 0-arg stub is harmless under any real signature and #11
- * shipped exactly this. i386 has NO safe equivalent: a stub that pops the wrong
- * byte count corrupts the caller's stack on the first call, so there we hand
- * back NULL and let steam_api see an unavailable interface instead. */
-#define GENERIC_SLOTS 128
-static const void *vt_generic[GENERIC_SLOTS];
-static uint64_t generic_stub(void) { return 0; }
-static void fill_generic(void)
-{ int i; for (i = 0; i < GENERIC_SLOTS; i++) vt_generic[i] = (const void *)generic_stub; }
-#endif
+/* There used to be an x86_64 "generic stub" vtable here: 128 slots of a 0-arg
+ * function returning 0, handed out for any version with no generated table. It
+ * was safe in the narrow sense (MS-x64 is caller-cleanup, so the arity never
+ * corrupted anything) and it is what #11 shipped.
+ *
+ * It is deleted because it answered the wrong question. A title that asks for
+ * SteamClient021 and gets an object whose every method returns 0 does not stop
+ * — it proceeds to build on the zeroes and null-dereferences somewhere deep in
+ * its own init, with nothing anywhere naming the missing version. That is
+ * exactly how Space Marine failed (#29), and the crash was indistinguishable
+ * from the game not being launched with Steam at all, which cost several
+ * control runs to tell apart.
+ *
+ * Both bitnesses now return NULL, which is Valve's documented "no such
+ * interface" contract and the answer steam_api is written to handle. A missing
+ * version is now one legible log line instead of a crash 20 frames away. */
 
 /* Resolve a requested interface version to its slot-exact vtable. Matching is
  * on the FULL version string: "SteamInput002" and "SteamInput006" are different
@@ -300,14 +370,13 @@ static const void **vt_resolve(const char *ver)
 {
     const struct vt_desc *d = vt_find(ver);
     if (d) return d->vtable;
-#ifdef __i386__
-    dbg("shim: NO TABLE for \"%s\" -> returning NULL (i386 has no safe generic "
-        "vtable; add it to interface-versions.txt and rebuild)", ver ? ver : "(null)");
+    /* Loud, and named: this line is the whole diagnosis for a title that will
+     * otherwise fail somewhere unrelated. */
+    dbg("shim: *** NO VTABLE for interface version \"%s\" -> returning NULL. "
+        "The title asked for a version this shim does not implement. Add it to "
+        "interface-versions.txt and run ./build.sh --regen-vtables ***",
+        ver ? ver : "(null)");
     return NULL;
-#else
-    dbg("shim: no table for \"%s\" -> generic stub vtable", ver ? ver : "(null)");
-    return vt_generic;
-#endif
 }
 
 /* ---- ISteamClient thunks ------------------------------------------------ */
@@ -509,88 +578,92 @@ static int32_t THISCALL iin_GetConnectedControllers(struct w_iface *s, uint64_t 
 { struct sp_input_handles p; p.handle = s->handle; p.out = (uint64_t)(uintptr_t)out; p.ret = 0;
   seam(C_Input_GetConnectedControllers, &p); return p.ret; }
 
+/* ---- ISteamFriends thunks (#29) ----------------------------------------- */
+/* native_str is what makes this safe on i386: the dylib's heap sits above 4 GB,
+ * so the returned pointer has to be copied down into PE memory before the game
+ * can dereference it (the same rule as ia_GetCurrentGameLanguage). */
+static const char * THISCALL ifr_GetPersonaName(struct w_iface *s)
+{ struct sp_friends_str p; const char *r; p.handle = s->handle; p.ret = 0;
+  seam(C_Friends_GetPersonaName, &p);
+  r = native_str(p.ret);
+  dbg("shim: GetPersonaName() -> %s", r ? r : "(null)");
+  return r; }
+
 static void build_vtables(void)
 {
     vt_fill_stubs();
-#ifndef __i386__
-    fill_generic();
-#endif
 
-    wire_getters("SteamClient017");
-    wire_getters("SteamClient020");
+    wire_getters_all("ISteamClient");
 
-    /* ISteamClient -> SteamClient017, SteamClient020 */
-    wire("SteamClient017", "CreateSteamPipe", (const void *)ic_CreateSteamPipe);
-    wire("SteamClient020", "CreateSteamPipe", (const void *)ic_CreateSteamPipe);
-    wire("SteamClient017", "BReleaseSteamPipe", (const void *)ic_BReleaseSteamPipe);
-    wire("SteamClient020", "BReleaseSteamPipe", (const void *)ic_BReleaseSteamPipe);
-    wire("SteamClient017", "ConnectToGlobalUser", (const void *)ic_ConnectToGlobalUser);
-    wire("SteamClient020", "ConnectToGlobalUser", (const void *)ic_ConnectToGlobalUser);
-    wire("SteamClient017", "ReleaseUser", (const void *)ic_ReleaseUser);
-    wire("SteamClient020", "ReleaseUser", (const void *)ic_ReleaseUser);
-    wire("SteamClient017", "GetISteamUser", (const void *)ic_GetISteamUser);
-    wire("SteamClient020", "GetISteamUser", (const void *)ic_GetISteamUser);
-    wire("SteamClient017", "GetISteamFriends", (const void *)ic_GetISteamFriends);
-    wire("SteamClient020", "GetISteamFriends", (const void *)ic_GetISteamFriends);
-    wire("SteamClient017", "GetISteamUtils", (const void *)ic_GetISteamUtils);
-    wire("SteamClient020", "GetISteamUtils", (const void *)ic_GetISteamUtils);
-    wire("SteamClient017", "GetISteamGenericInterface", (const void *)ic_GetISteamGenericInterface);
-    wire("SteamClient020", "GetISteamGenericInterface", (const void *)ic_GetISteamGenericInterface);
-    wire("SteamClient017", "GetISteamUserStats", (const void *)ic_GetISteamUserStats);
-    wire("SteamClient020", "GetISteamUserStats", (const void *)ic_GetISteamUserStats);
-    wire("SteamClient017", "GetISteamApps", (const void *)ic_GetISteamApps);
-    wire("SteamClient020", "GetISteamApps", (const void *)ic_GetISteamApps);
+    /* Each wire_all names the version its thunk was written against; the
+     * thunk then reaches every same-shaped version of that interface. */
+    /* ISteamClient */
+    wire_all("SteamClient017", "CreateSteamPipe", (const void *)ic_CreateSteamPipe);
+    wire_all("SteamClient017", "BReleaseSteamPipe", (const void *)ic_BReleaseSteamPipe);
+    wire_all("SteamClient017", "ConnectToGlobalUser", (const void *)ic_ConnectToGlobalUser);
+    wire_all("SteamClient017", "ReleaseUser", (const void *)ic_ReleaseUser);
+    wire_all("SteamClient017", "GetISteamUser", (const void *)ic_GetISteamUser);
+    wire_all("SteamClient017", "GetISteamFriends", (const void *)ic_GetISteamFriends);
+    wire_all("SteamClient017", "GetISteamUtils", (const void *)ic_GetISteamUtils);
+    wire_all("SteamClient017", "GetISteamGenericInterface", (const void *)ic_GetISteamGenericInterface);
+    wire_all("SteamClient017", "GetISteamUserStats", (const void *)ic_GetISteamUserStats);
+    wire_all("SteamClient017", "GetISteamApps", (const void *)ic_GetISteamApps);
 
-    /* ISteamUser -> SteamUser021 */
-    wire("SteamUser021", "GetHSteamUser", (const void *)iu_GetHSteamUser);
-    wire("SteamUser021", "BLoggedOn", (const void *)iu_BLoggedOn);
-    wire("SteamUser021", "GetSteamID", (const void *)iu_GetSteamID);
-    wire("SteamUser021", "GetUserDataFolder", (const void *)iu_GetUserDataFolder);
-    wire("SteamUser021", "RequestEncryptedAppTicket", (const void *)iu_RequestEncryptedAppTicket);
-    wire("SteamUser021", "GetEncryptedAppTicket", (const void *)iu_GetEncryptedAppTicket);
+    /* ISteamUser */
+    wire_all("SteamUser021", "GetHSteamUser", (const void *)iu_GetHSteamUser);
+    wire_all("SteamUser021", "BLoggedOn", (const void *)iu_BLoggedOn);
+    wire_all("SteamUser021", "GetSteamID", (const void *)iu_GetSteamID);
+    wire_all("SteamUser021", "GetUserDataFolder", (const void *)iu_GetUserDataFolder);
+    wire_all("SteamUser021", "RequestEncryptedAppTicket", (const void *)iu_RequestEncryptedAppTicket);
+    wire_all("SteamUser021", "GetEncryptedAppTicket", (const void *)iu_GetEncryptedAppTicket);
 
-    /* ISteamUtils -> SteamUtils010 */
-    wire("SteamUtils010", "GetSecondsSinceAppActive", (const void *)iut_GetSecondsSinceAppActive);
-    wire("SteamUtils010", "GetSecondsSinceComputerActive", (const void *)iut_GetSecondsSinceComputerActive);
-    wire("SteamUtils010", "GetConnectedUniverse", (const void *)iut_GetConnectedUniverse);
-    wire("SteamUtils010", "GetServerRealTime", (const void *)iut_GetServerRealTime);
-    wire("SteamUtils010", "GetIPCountry", (const void *)iut_GetIPCountry);
-    wire("SteamUtils010", "GetCurrentBatteryPower", (const void *)iut_GetCurrentBatteryPower);
-    wire("SteamUtils010", "GetAppID", (const void *)iut_GetAppID);
-    wire("SteamUtils010", "IsAPICallCompleted", (const void *)iut_IsAPICallCompleted);
-    wire("SteamUtils010", "GetAPICallFailureReason", (const void *)iut_GetAPICallFailureReason);
-    wire("SteamUtils010", "GetAPICallResult", (const void *)iut_GetAPICallResult);
-    wire("SteamUtils010", "RunFrame", (const void *)iut_RunFrame);
-    wire("SteamUtils010", "GetIPCCallCount", (const void *)iut_GetIPCCallCount);
-    wire("SteamUtils010", "GetSteamUILanguage", (const void *)iut_GetSteamUILanguage);
+    /* ISteamUtils */
+    wire_all("SteamUtils010", "GetSecondsSinceAppActive", (const void *)iut_GetSecondsSinceAppActive);
+    wire_all("SteamUtils010", "GetSecondsSinceComputerActive", (const void *)iut_GetSecondsSinceComputerActive);
+    wire_all("SteamUtils010", "GetConnectedUniverse", (const void *)iut_GetConnectedUniverse);
+    wire_all("SteamUtils010", "GetServerRealTime", (const void *)iut_GetServerRealTime);
+    wire_all("SteamUtils010", "GetIPCountry", (const void *)iut_GetIPCountry);
+    wire_all("SteamUtils010", "GetCurrentBatteryPower", (const void *)iut_GetCurrentBatteryPower);
+    wire_all("SteamUtils010", "GetAppID", (const void *)iut_GetAppID);
+    wire_all("SteamUtils010", "IsAPICallCompleted", (const void *)iut_IsAPICallCompleted);
+    wire_all("SteamUtils010", "GetAPICallFailureReason", (const void *)iut_GetAPICallFailureReason);
+    wire_all("SteamUtils010", "GetAPICallResult", (const void *)iut_GetAPICallResult);
+    wire_all("SteamUtils010", "RunFrame", (const void *)iut_RunFrame);
+    wire_all("SteamUtils010", "GetIPCCallCount", (const void *)iut_GetIPCCallCount);
+    wire_all("SteamUtils010", "GetSteamUILanguage", (const void *)iut_GetSteamUILanguage);
 
-    /* ISteamUserStats -> STEAMUSERSTATS_INTERFACE_VERSION012 */
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "RequestCurrentStats", (const void *)is_RequestCurrentStats);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievement", (const void *)is_GetAchievement);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "SetAchievement", (const void *)is_SetAchievement);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "ClearAchievement", (const void *)is_ClearAchievement);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievementAndUnlockTime", (const void *)is_GetAchievementAndUnlockTime);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "StoreStats", (const void *)is_StoreStats);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievementDisplayAttribute", (const void *)is_GetAchievementDisplayAttribute);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "GetNumAchievements", (const void *)is_GetNumAchievements);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievementName", (const void *)is_GetAchievementName);
-    wire("STEAMUSERSTATS_INTERFACE_VERSION012", "ResetAllStats", (const void *)is_ResetAllStats);
+    /* ISteamUserStats */
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "RequestCurrentStats", (const void *)is_RequestCurrentStats);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievement", (const void *)is_GetAchievement);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "SetAchievement", (const void *)is_SetAchievement);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "ClearAchievement", (const void *)is_ClearAchievement);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievementAndUnlockTime", (const void *)is_GetAchievementAndUnlockTime);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "StoreStats", (const void *)is_StoreStats);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievementDisplayAttribute", (const void *)is_GetAchievementDisplayAttribute);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "GetNumAchievements", (const void *)is_GetNumAchievements);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "GetAchievementName", (const void *)is_GetAchievementName);
+    wire_all("STEAMUSERSTATS_INTERFACE_VERSION012", "ResetAllStats", (const void *)is_ResetAllStats);
 
-    /* ISteamApps -> STEAMAPPS_INTERFACE_VERSION008 */
-    wire("STEAMAPPS_INTERFACE_VERSION008", "BIsSubscribed", (const void *)ia_BIsSubscribed);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "BIsLowViolence", (const void *)ia_BIsLowViolence);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "BIsCybercafe", (const void *)ia_BIsCybercafe);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "BIsVACBanned", (const void *)ia_BIsVACBanned);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "GetCurrentGameLanguage", (const void *)ia_GetCurrentGameLanguage);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "GetAvailableGameLanguages", (const void *)ia_GetAvailableGameLanguages);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "BIsSubscribedApp", (const void *)ia_BIsSubscribedApp);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "BIsDlcInstalled", (const void *)ia_BIsDlcInstalled);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "GetEarliestPurchaseUnixTime", (const void *)ia_GetEarliestPurchaseUnixTime);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "BIsSubscribedFromFreeWeekend", (const void *)ia_BIsSubscribedFromFreeWeekend);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "GetAppOwner", (const void *)ia_GetAppOwner);
-    wire("STEAMAPPS_INTERFACE_VERSION008", "GetLaunchQueryParam", (const void *)ia_GetLaunchQueryParam);
+    /* ISteamApps */
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "BIsSubscribed", (const void *)ia_BIsSubscribed);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "BIsLowViolence", (const void *)ia_BIsLowViolence);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "BIsCybercafe", (const void *)ia_BIsCybercafe);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "BIsVACBanned", (const void *)ia_BIsVACBanned);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "GetCurrentGameLanguage", (const void *)ia_GetCurrentGameLanguage);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "GetAvailableGameLanguages", (const void *)ia_GetAvailableGameLanguages);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "BIsSubscribedApp", (const void *)ia_BIsSubscribedApp);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "BIsDlcInstalled", (const void *)ia_BIsDlcInstalled);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "GetEarliestPurchaseUnixTime", (const void *)ia_GetEarliestPurchaseUnixTime);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "BIsSubscribedFromFreeWeekend", (const void *)ia_BIsSubscribedFromFreeWeekend);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "GetAppOwner", (const void *)ia_GetAppOwner);
+    wire_all("STEAMAPPS_INTERFACE_VERSION008", "GetLaunchQueryParam", (const void *)ia_GetLaunchQueryParam);
 
-    /* ISteamInput -> SteamInput002, SteamInput006 */
+    /* ISteamFriends */
+    wire_all("SteamFriends017", "GetPersonaName", (const void *)ifr_GetPersonaName);
+
+    /* ISteamInput stays PER-VERSION: 002 and 006 need genuinely different thunks
+     * (different signatures), which is the case wire_all deliberately refuses to
+     * guess at. */
     wire("SteamInput002", "Init", (const void *)iin_Init_002);
     wire("SteamInput006", "Init", (const void *)iin_Init);
     wire("SteamInput002", "Shutdown", (const void *)iin_Shutdown);

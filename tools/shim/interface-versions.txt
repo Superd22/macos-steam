@@ -59,3 +59,14 @@ SteamUtils010
 STEAMHTMLSURFACE_INTERFACE_VERSION_005
 STEAMINVENTORY_INTERFACE_V003
 STEAMVIDEO_INTERFACE_V002
+
+# Warhammer 40,000: Space Marine - Master Crafted Edition (3169520), 64-bit.
+# Added in #29: SteamClient021 was the one that crashed it, and the shim
+# answered with a zero-returning stub rather than saying so.
+STEAMREMOTEPLAY_INTERFACE_VERSION002
+STEAMTIMELINE_INTERFACE_V001
+STEAMUGC_INTERFACE_VERSION020
+STEAMVIDEO_INTERFACE_V007
+SteamClient021
+SteamGameServer015
+SteamUser023

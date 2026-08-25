@@ -115,6 +115,11 @@ enum shim_call
     C_User_RequestEncryptedAppTicket,
     C_User_GetEncryptedAppTicket,
 
+    /* ISteamFriends (#29). Space Marine reads its own persona name during
+     * startup; stubbed, that is a NULL const char* and the title faults on it —
+     * the same shape as the ISteamApps::GetCurrentGameLanguage crash in #12. */
+    C_Friends_GetPersonaName,
+
     C_COUNT
 };
 
@@ -167,6 +172,9 @@ struct sp_user_datafolder  { uint64_t handle; uint64_t buf; int32_t len; int32_t
  * through them directly — the copy-down path is not involved. */
 struct sp_user_reqticket   { uint64_t handle; uint64_t data; uint64_t ret; int32_t cb; };
 struct sp_user_getticket   { uint64_t handle; uint64_t ticket; uint64_t cbticket; int32_t max; int32_t ret; };
+
+/* ---- ISteamFriends (VERSION017) ---- */
+struct sp_friends_str      { uint64_t handle; uint64_t ret; };                    /* GetPersonaName -> const char* */
 
 /* ---- ISteamUtils (VERSION010) ---- */
 /* sp_utils_u32 (declared above for GetAppID) also carries every no-arg uint32

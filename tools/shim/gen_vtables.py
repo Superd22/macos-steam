@@ -43,8 +43,14 @@ def main():
     w(' * Proton\'s DEFINE_THISCALL_WRAPPER. Kept at runtime so wiring can tell')
     w(' * apart methods whose shape varies across an interface (see wire_getters). */')
     w('struct vt_method { const char *name; unsigned short slot; unsigned short bytes; };')
+    w('/* iface is the INTERFACE this version belongs to ("ISteamClient"), taken')
+    w(' * from Proton\'s own tag. It is what lets wiring say "every version of')
+    w(' * ISteamClient" instead of naming version strings one at a time — naming')
+    w(' * them is how SteamClient021 ended up with a correct table whose slots')
+    w(' * were all still stubs (#29). */')
     w('struct vt_desc {')
     w('    const char *version;')
+    w('    const char *iface;')
     w('    const void **vtable;')
     w('    unsigned short nslots;')
     w('    const struct vt_method *methods;')
@@ -87,7 +93,11 @@ def main():
     w('')
     w('static const struct vt_desc g_vtdescs[] = {')
     for ver, t in tables.items():
-        w('    { "%s", vt_%s, %d, meth_%s },' % (ver, ident(ver), len(t['slots']), ident(ver)))
+        # winISteamClient_SteamClient021 -> ISteamClient
+        iface = t['tag'].split('_', 1)[0]
+        iface = iface[3:] if iface.startswith('win') else iface
+        w('    { "%s", "%s", vt_%s, %d, meth_%s },'
+          % (ver, iface, ident(ver), len(t['slots']), ident(ver)))
     w('    { 0, 0, 0, 0 }')
     w('};')
     open(out, 'w').write('\n'.join(L) + '\n')

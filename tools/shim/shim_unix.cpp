@@ -390,6 +390,12 @@ static NTSTATUS u_user_getencticket(void *args)
     return 0;
 }
 
+/* ---- ISteamFriends (#29) ---- */
+#define FRIENDS(h) ((ISteamFriends017 *)(h))
+static NTSTATUS u_friends_personaname(void *args)
+{ auto *p = (sp_friends_str *)args; p->ret = (uint64_t)FRIENDS(p->handle)->GetPersonaName();
+  ulog("GetPersonaName() -> %s", p->ret ? (const char*)p->ret : "(null)"); return 0; }
+
 extern "C" {
 NTSTATUS __wine_unix_lib_init(void) { return 0; }
 
@@ -419,6 +425,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
     u_copymem, u_copystr,
     u_user_reqencticket, u_user_getencticket,
+    u_friends_personaname,
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_create_interface, u_bgetcallback, u_freelast, u_apicallresult, u_release_tls,
@@ -440,6 +447,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_input_init, u_input_shutdown, u_input_runframe, u_input_newdata, u_input_connected,
     u_copymem, u_copystr,
     u_user_reqencticket, u_user_getencticket,
+    u_friends_personaname,
 };
 
 /* A short array silently maps every opcode past the end onto garbage, and a

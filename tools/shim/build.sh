@@ -26,7 +26,14 @@ MINGW32=i686-w64-mingw32-gcc
 mkdir -p dist
 
 # --regen-vtables: re-fetch Proton's PE-side sources and regenerate the tables.
-# Only needed when adding an interface version to interface-versions.txt.
+#
+# Generates EVERY interface version Proton defines (#29), not a curated subset.
+# The subset was how Space Marine failed: it asks for SteamClient021, which was
+# not in the list, so it got a stub vtable and null-dereferenced 20 frames deep
+# with nothing in any log naming the cause. Coverage has to be a property of the
+# generator, or "works on all titles" is a claim about which games we happened
+# to own. interface-versions.txt is now a REGRESSION GUARD (checked below), not
+# the input.
 if [ "${1:-}" = "--regen-vtables" ]; then
     PROTON_DIR="${PROTON_DIR:-/tmp/proton-lsteamclient}"
     mkdir -p "$PROTON_DIR"
@@ -37,10 +44,28 @@ if [ "${1:-}" = "--regen-vtables" ]; then
                 "repos/ValveSoftware/Proton/contents/lsteamclient/$f?ref=proton_11.0" \
                 --jq '.content' | base64 -d > "$PROTON_DIR/$f"
         done
-    VERSIONS=$(grep -v '^#' interface-versions.txt | grep -v '^$' | tr '\n' ' ')
-    python3 extract_vtables.py "$PROTON_DIR" $VERSIONS > vtables.json
+    python3 extract_vtables.py "$PROTON_DIR" --all > vtables.json
     python3 gen_vtables.py vtables.json shim_vtables.h
 fi
+
+# Every version a real title has been observed to ask for must have a real table.
+# This is the guard that would have caught Space Marine before it crashed: the
+# list is what titles NEED, vtables.json is what we HAVE, and a version in the
+# first but not the second is a title that will fail on a stub.
+python3 - <<'PY'
+import json, sys
+need = [l.strip() for l in open('interface-versions.txt')
+        if l.strip() and not l.startswith('#')]
+have = set(json.load(open('vtables.json'))['tables'])
+missing = [v for v in need if v not in have]
+if missing:
+    print('ERROR: no slot-exact vtable for versions real titles ask for:', file=sys.stderr)
+    for v in missing:
+        print('   ' + v, file=sys.stderr)
+    print('Run ./build.sh --regen-vtables', file=sys.stderr)
+    sys.exit(1)
+print('vtables: %d generated, all %d required versions covered' % (len(have), len(need)))
+PY
 
 # --- seam ABI is bitness-neutral: prove it, do not assume it ------------------
 python3 check_abi_layout.py

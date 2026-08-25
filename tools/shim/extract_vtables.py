@@ -21,6 +21,14 @@ NEVER read the cpp*.cpp files instead: they omit methods Proton handles by hand
 slot (docs/research/steamworks-vtable-tables.md).
 
 Usage: extract_vtables.py <dir-of-winISteam*.c> <Iface_VERSION> [...]
+       extract_vtables.py <dir-of-winISteam*.c> --all
+
+`--all` generates a table for EVERY interface version Proton defines, which is
+what the shim ships (#29). Naming the versions explicitly makes the set of
+titles that work a property of a hand-curated list, and the failure mode when a
+title wants one we skipped is a null-deref deep inside the game, not a message.
+Proton's sources already enumerate every version Valve has shipped, so `--all`
+makes coverage a property of the generator instead.
 """
 import re, sys, json, os
 
@@ -42,6 +50,17 @@ def main():
     for fn in sorted(os.listdir(d)):
         if fn.startswith('winISteam') and fn.endswith('.c'):
             files[fn] = parse(os.path.join(d, fn))
+
+    # --all: every version defined anywhere in the sources. The version string is
+    # the tag with its interface prefix stripped -- winISteamUtils_SteamUtils010
+    # -> SteamUtils010 -- which also handles the digit-less oddballs such as
+    # STEAMCONTROLLER_INTERFACE_VERSION.
+    if wanted == ['--all']:
+        wanted = sorted({tag.split('_', 1)[1]
+                         for vtables, _s, _c in files.values()
+                         for tag in vtables
+                         if '_' in tag})
+
     for want in wanted:
         hit = None
         for fn, (vtables, sizes, counts) in files.items():

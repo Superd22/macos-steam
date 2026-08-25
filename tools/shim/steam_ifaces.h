@@ -199,6 +199,22 @@ class ISteamInput006 {
   // ... truncated
 };
 
+// ISteamFriends VERSION017 leading block. Only GetPersonaName is needed so far,
+// and it is the same class of bug as ISteamApps::GetCurrentGameLanguage above:
+// a const char* return left stubbed hands the game NULL, and the first thing a
+// title does with its own display name is print or measure it. Space Marine
+// asks for it during startup and faults on the NULL (#29).
+//
+// Slot order from Proton's winISteamFriends.c. GetPersonaName is slot 0 and has
+// no same-name overload before it, so the dylib's Itanium order matches the
+// MSVC order steam_api64.dll expects — the caveat that applies to interfaces
+// with overloads does not bite here.
+class ISteamFriends017 {
+ public:
+  virtual const char* GetPersonaName() = 0;                            // 0
+  // ... truncated
+};
+
 typedef void* (*CreateInterfaceFn)(const char* name, int* returnCode);
 typedef bool  (*Fn_BConnected)(HSteamUser, HSteamPipe);
 typedef bool  (*Fn_BLoggedOn)(HSteamUser, HSteamPipe);
