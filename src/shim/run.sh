@@ -51,8 +51,14 @@ export CX_ROOT="$CXROOT"
 export WINEDLLPATH="$CXROOT/lib/wine/x86_64-windows:$SHIMDIR"
 export WINEDEBUG="${WINEDEBUG:-+debugstr}"
 export SHIM_UNIX_LOG="/tmp/shim_unix.log"
-export SteamAppId=480          # gives the dylib's ISteamUserStats its app context
-export SteamGameId=480
+# Which app the harness initialises AS. 480 (Spacewar) is the default because
+# the achievement modes need an app whose achievements are safe to burn — but a
+# per-title bug is not reproducible against a different title, so this is a knob:
+#   APPID=1466860 ./run.sh ticket
+# runs the harness as AoE IV, which is how #90's ticket path was measured.
+APPID="${APPID:-480}"
+export SteamAppId="$APPID"     # gives the dylib's ISteamUserStats its app context
+export SteamGameId="$APPID"
 # Overlay (#21). ON by default, matching what ships; `SHIM_OVERLAY=0 ./run.sh` is
 # the negative control. The unixlib's constructor dlopens Valve's renderer and
 # STEAM_OVERLAY_LOGGING makes it say whether that landed before NSApplication
@@ -82,13 +88,13 @@ cp "$DIST/$SHIM_PATH_UNIX64" "$SHIMDIR/$SHIM_PATH_UNIX64"
 # The game exe + Valve's steam_api64.dll + steam_appid.txt.
 cp "$HARNESS/harness.exe"      "$BOTTLE/drive_c/harness.exe"
 cp "$HARNESS/steam_api64.dll"  "$BOTTLE/drive_c/steam_api64.dll"
-cp "$HARNESS/steam_appid.txt"  "$BOTTLE/drive_c/steam_appid.txt"
+printf '%s' "$APPID" > "$BOTTLE/drive_c/steam_appid.txt"
 
 # The single load-bearing registry value (#13): point steam_api64.dll at our PE.
 "$WL" reg add "HKCU\\Software\\Valve\\Steam\\ActiveProcess" \
     /v SteamClientDll64 /t REG_SZ /d "$SHIM_PATH_PE64_WIN" /f >/dev/null 2>&1
 
-echo "=== running harness ($MODE${ARG:+ $ARG}) through the shim, no Windows Steam ==="
+echo "=== running harness ($MODE${ARG:+ $ARG}) as appid $APPID through the shim, no Windows Steam ==="
 cd "$BOTTLE/drive_c"
 "$WL" c:\\harness.exe "$MODE" ${ARG:+"$ARG"} 2>/tmp/shim_wine_stderr.log || true
 echo "=== unix-side shim log (/tmp/shim_unix.log) ==="

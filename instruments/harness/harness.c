@@ -23,6 +23,7 @@
  *   harness.exe status     init + list achievements, mutate nothing
  *   harness.exe set [ACH]  set + store one achievement (default ACH_WIN_ONE_GAME)
  *   harness.exe reset      ResetAllStats(true) only
+ *   harness.exe ticket     RequestEncryptedAppTicket -> completion -> fetch
  */
 
 #include <windows.h>
@@ -48,6 +49,7 @@ typedef struct {
     int32_t    m_cubParam;
 } CallbackMsg_t;
 
+#define CBID_EncryptedAppTicketResponse 154
 #define CBID_SteamAPICallCompleted   703
 #define CBID_UserStatsReceived      1101
 #define CBID_UserStatsStored        1102
@@ -67,6 +69,15 @@ static void *(*p_FindOrCreateUserInterface)(HSteamUser, const char *);
 
 static int      (*p_User_BLoggedOn)(void *);
 static uint64_t (*p_User_GetSteamID)(void *);
+
+/* The encrypted-app-ticket path. A title that authenticates to a third-party
+ * backend (EOS for Among Us, Relic Online for AoE IV) asks Steam for this
+ * ticket and blocks its sign-in on the answer, so "the request went out and
+ * nothing came back" is a whole class of loading-screen hang. */
+static uint64_t (*p_User_RequestEncryptedAppTicket)(void *, void *, int);
+static int      (*p_User_GetEncryptedAppTicket)(void *, void *, int, uint32_t *);
+static int      (*p_Ut_IsAPICallCompleted)(void *, uint64_t, int *);
+static int      (*p_Ut_GetAPICallFailureReason)(void *, uint64_t);
 
 static int      (*p_Stats_RequestCurrentStats)(void *);
 static int      (*p_Stats_GetAchievement)(void *, const char *, int *);
@@ -144,6 +155,10 @@ static int resolve_all(HMODULE dll)
 
     RESOLVE(p_User_BLoggedOn,  "SteamAPI_ISteamUser_BLoggedOn", 1);
     RESOLVE(p_User_GetSteamID, "SteamAPI_ISteamUser_GetSteamID", 1);
+    RESOLVE(p_User_RequestEncryptedAppTicket, "SteamAPI_ISteamUser_RequestEncryptedAppTicket", 0);
+    RESOLVE(p_User_GetEncryptedAppTicket,     "SteamAPI_ISteamUser_GetEncryptedAppTicket", 0);
+    RESOLVE(p_Ut_IsAPICallCompleted,          "SteamAPI_ISteamUtils_IsAPICallCompleted", 0);
+    RESOLVE(p_Ut_GetAPICallFailureReason,     "SteamAPI_ISteamUtils_GetAPICallFailureReason", 0);
 
     RESOLVE(p_Stats_RequestCurrentStats,        "SteamAPI_ISteamUserStats_RequestCurrentStats", 1);
     RESOLVE(p_Stats_GetAchievement,             "SteamAPI_ISteamUserStats_GetAchievement", 1);
@@ -212,6 +227,7 @@ static const char *cb_name(int id)
     switch (id) {
     case 101:                         return "SteamServersConnected_t";
     case 304:                         return "PersonaStateChange_t";
+    case CBID_EncryptedAppTicketResponse: return "EncryptedAppTicketResponse_t";
     case CBID_SteamAPICallCompleted:  return "SteamAPICallCompleted_t";
     case CBID_UserStatsReceived:      return "UserStatsReceived_t";
     case CBID_UserStatsStored:        return "UserStatsStored_t";
@@ -224,6 +240,10 @@ static const char *cb_name(int id)
 static void decode_cb(int id, const uint8_t *d, int cub)
 {
     switch (id) {
+    case CBID_EncryptedAppTicketResponse:   /* EResult m_eResult @0 */
+        if (cub >= 4)
+            tr("      -> EncryptedAppTicketResponse_t  eresult=%d", *(const int32_t *)d);
+        break;
     case CBID_UserStatsReceived:  /* uint64 gameid @0, EResult @8, CSteamID @12 (pack(1)) */
         if (cub >= 20)
             tr("      -> UserStatsReceived_t  gameid=%llu eresult=%d steamid=%llu",
@@ -598,6 +618,73 @@ static int mode_overlay(uint64_t sid, const char *which)
     return rc;
 }
 
+/* ---- mode: the encrypted app ticket -------------------------------------
+ *
+ * The exact call AoE IV blocks its Relic Online sign-in on, and the one #20
+ * added for Among Us's EOS sign-in. A PASS/FAIL loop rather than a trace,
+ * because the symptom it exists to catch is an ABSENCE — a request issued and
+ * never answered — and an absence needs a deadline to be a result.
+ *
+ * Three distinguishable outcomes, which is the point:
+ *   no call handle          the request never left
+ *   handle, never completes issued and unanswered
+ *   completes, no ticket    answered and refused
+ */
+static int mode_ticket(void)
+{
+    uint8_t data[5] = { 1, 2, 3, 4, 5 };   /* AoE IV sends 5 bytes; match it */
+    uint8_t ticket[4096];
+    uint32_t got = 0;
+    uint64_t call;
+
+    if (!p_User_RequestEncryptedAppTicket || !p_User_GetEncryptedAppTicket) {
+        fprintf(stderr, "FATAL: steam_api64.dll exports no encrypted-app-ticket pair\n");
+        return 2;
+    }
+
+    call = p_User_RequestEncryptedAppTicket(g_user, data, (int)sizeof data);
+    tr("RequestEncryptedAppTicket(cb=%d) -> call=%llu", (int)sizeof data,
+       (unsigned long long)call);
+    if (!call) {
+        tr("=== TICKET FAIL === no SteamAPICall_t issued");
+        return 8;
+    }
+
+    /* IsAPICallCompleted, not the callback, is the authoritative signal.
+     *
+     * EncryptedAppTicketResponse_t is a CALL RESULT keyed on the SteamAPICall_t,
+     * not a broadcast callback: steam_api only dispatches it to a CCallResult
+     * registered against that exact handle, which this harness deliberately does
+     * not do. So its absence from the classic pump proves nothing, and polling
+     * the client directly is what separates "the client never answered" from
+     * "the client answered and the answer did not get delivered". */
+    void *utils = p_SteamUtils_v010 ? p_SteamUtils_v010() : NULL;
+    int done = 0, failed = 0;
+    DWORD deadline = GetTickCount() + 30000;
+    while (GetTickCount() < deadline) {
+        p_RunCallbacks();
+        if (utils && p_Ut_IsAPICallCompleted &&
+            p_Ut_IsAPICallCompleted(utils, call, &failed)) { done = 1; break; }
+        Sleep(50);
+    }
+    tr("IsAPICallCompleted(call=%llu) -> done=%d failed=%d",
+       (unsigned long long)call, done, failed);
+    if (!done) {
+        tr("=== TICKET FAIL === issued, client never completed it in 30 s");
+        return 8;
+    }
+    if (failed && p_Ut_GetAPICallFailureReason && utils)
+        tr("GetAPICallFailureReason -> %d", p_Ut_GetAPICallFailureReason(utils, call));
+
+    if (!p_User_GetEncryptedAppTicket(g_user, ticket, (int)sizeof ticket, &got)) {
+        tr("=== TICKET FAIL === call completed, GetEncryptedAppTicket refused to hand it over");
+        return 8;
+    }
+    tr("GetEncryptedAppTicket -> %u bytes", got);
+    tr("=== TICKET PASS ===");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *pos[2] = { "loop", "ACH_WIN_ONE_GAME" };
@@ -658,9 +745,16 @@ int main(int argc, char **argv)
     HSteamUser huser = p_GetHSteamUser();
     tr("HSteamPipe=%d HSteamUser=%d", g_pipe, huser);
 
-    g_user  = p_FindOrCreateUserInterface(huser, "SteamUser021");
+    /* Titles do not all ask for the same ISteamUser: Among Us asks for 021,
+     * AoE IV for 023. Which one is asked for is therefore a VARIABLE when
+     * chasing a per-title bug, not a constant — though note the flat API used
+     * below dispatches at the slot THIS redistributable was built against, so
+     * asking for a version it does not know calls the wrong native method. */
+    const char *user_iface = getenv("HARNESS_USER_IFACE");
+    if (!user_iface || !*user_iface) user_iface = "SteamUser021";
+    g_user  = p_FindOrCreateUserInterface(huser, user_iface);
     g_stats = p_FindOrCreateUserInterface(huser, "STEAMUSERSTATS_INTERFACE_VERSION012");
-    tr("ISteamUser(SteamUser021)=%p ISteamUserStats(v012)=%p", g_user, g_stats);
+    tr("ISteamUser(%s)=%p ISteamUserStats(v012)=%p", user_iface, g_user, g_stats);
     if (!g_user || !g_stats) { fprintf(stderr, "FATAL: interface lookup failed\n"); return 3; }
 
     int logged = p_User_BLoggedOn(g_user);
@@ -675,7 +769,7 @@ int main(int argc, char **argv)
 
     /* The overlay slots have nothing to do with stats; do not make an overlay
      * run depend on a stats callback arriving. */
-    if (strcmp(mode, "overlay") != 0) {
+    if (strcmp(mode, "overlay") != 0 && strcmp(mode, "ticket") != 0) {
         tr("RequestCurrentStats() = %d", p_Stats_RequestCurrentStats(g_stats));
         if (!pump_until(CBID_UserStatsReceived, 10000)) return 5;
     }
@@ -686,6 +780,9 @@ int main(int argc, char **argv)
 
     } else if (strcmp(mode, "overlay") == 0) {
         rc = mode_overlay(sid, ach_or_which);
+
+    } else if (strcmp(mode, "ticket") == 0) {
+        rc = mode_ticket();
 
     } else if (strcmp(mode, "status") == 0) {
         print_all_achievements();

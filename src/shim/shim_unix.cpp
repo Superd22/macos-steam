@@ -557,25 +557,30 @@ static NTSTATUS u_copystr(void *args)
 /* ---- ISteamUser encrypted app ticket (#20) --------------------------------
  * EOS's "Auth with Steam" path. RequestEncryptedAppTicket is ASYNC: it returns
  * a SteamAPICall_t and the answer arrives later as EncryptedAppTicketResponse_t
- * (1466) through the existing callback pump, after which the game calls
+ * (154, measured — not the 1466 this comment used to claim) through the
+ * existing callback pump, after which the game calls
  * GetEncryptedAppTicket to collect the bytes. Both buffers are PE addresses the
  * game supplies, so the native side writes through them with no copy-down. */
 static NTSTATUS u_user_reqencticket(void *args)
 {
     auto *p = (sp_user_reqticket *)args;
-    p->ret = ((ISteamUser *)p->handle)->RequestEncryptedAppTicket(
-                 (void *)(uintptr_t)p->data, p->cb);
-    ulog("RequestEncryptedAppTicket(cb=%d) -> call=%llu", p->cb,
+    auto fn = (uint64_t (*)(void *, void *, int))vslot(p->handle, p->slot);
+    p->ret = 0;
+    if (!fn) { ulog("RequestEncryptedAppTicket: slot %d unresolvable — call dropped", p->slot); return 0; }
+    p->ret = fn((void *)(uintptr_t)p->handle, (void *)(uintptr_t)p->data, p->cb);
+    ulog("RequestEncryptedAppTicket(cb=%d) slot=%d -> call=%llu", p->cb, p->slot,
          (unsigned long long)p->ret);
     return 0;
 }
 static NTSTATUS u_user_getencticket(void *args)
 {
     auto *p = (sp_user_getticket *)args;
-    p->ret = ((ISteamUser *)p->handle)->GetEncryptedAppTicket(
-                 (void *)(uintptr_t)p->ticket, p->max,
-                 (uint32_t *)(uintptr_t)p->cbticket) ? 1 : 0;
-    ulog("GetEncryptedAppTicket(max=%d) -> %d (%u bytes)", p->max, p->ret,
+    auto fn = (bool (*)(void *, void *, int, uint32_t *))vslot(p->handle, p->slot);
+    p->ret = 0;
+    if (!fn) { ulog("GetEncryptedAppTicket: slot %d unresolvable — call dropped", p->slot); return 0; }
+    p->ret = fn((void *)(uintptr_t)p->handle, (void *)(uintptr_t)p->ticket, p->max,
+                (uint32_t *)(uintptr_t)p->cbticket) ? 1 : 0;
+    ulog("GetEncryptedAppTicket(max=%d) slot=%d -> %d (%u bytes)", p->max, p->slot, p->ret,
          p->cbticket ? *(uint32_t *)(uintptr_t)p->cbticket : 0u);
     return 0;
 }
