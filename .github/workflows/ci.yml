@@ -82,6 +82,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Ubuntu runner image does not carry Homebrew (and the macOS one's is
+      # not on this job's PATH), so it is installed here rather than assumed.
+      - uses: Homebrew/actions/setup-homebrew@master
+
       # Rendered against placeholder values: brew style checks the Ruby and the
       # formula's shape, neither of which depends on which tarball it points at.
       # This is what stops a broken formula reaching the tap on a tag, when it
