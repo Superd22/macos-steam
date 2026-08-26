@@ -59,34 +59,47 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
    ```
 
    This builds anything missing and lays down two things:
-   - the **payload** in `~/Library/Application Support/macos-steam-shim/` — the injector, the
-     compat tool, and both bitnesses of the shim.
-   - the **launcher** `~/Applications/Steam (macOS Play).app` — an unhardened `.app` whose
-     shell-script executable exports the injector and the tool path, then execs Valve's own
-     `steam_osx` unmodified.
+   - the **payload** in `~/Library/Application Support/macos-steam-shim/versions/<version>/` —
+     the injector, the compat tool, and both bitnesses of the shim — with `current` pointed
+     at it, and a `receipt.json` recording every file and its hash (ADR 0010).
+   - the **launcher** `~/Applications/Steam (macOS Play).app` — an unhardened `.app` that
+     merges the injector into `DYLD_INSERT_LIBRARIES`, points Steam at the tool path, and
+     execs Valve's own `steam_osx` unmodified.
 
 3. **Quit Steam, then launch `Steam (macOS Play)`** instead of Steam.app. The gate is flipped
-   in memory each launch, so this app is how you start Steam from now on.
-   Check `~/Library/Logs/macos-steam-shim/compat-enabler.log`: it should say `patched 1 site(s)`.
+   in memory each launch, so this app is how you start Steam from now on. The first launch
+   shows a checklist and confirms the gate was flipped itself — after that it shows nothing
+   at all and behaves exactly like clicking Steam.app.
 
 4. **Install and play a Windows title** from the normal Steam library UI. Steam downloads the
    Windows depot into your macOS `steamapps`, then hands the `.exe` to the compat tool, which
    launches it in the bottle against the shim.
 
-The Steam overlay is **on by default**. To turn it off, reinstall (and quit & relaunch) with it disabled:
+**Hold ⌥ while opening the launcher** for settings, diagnostics and uninstall — or open
+“Steam Play Settings” from Spotlight, which is the same pane. The Steam overlay is **on by
+default** and lives there as a toggle: changing it takes effect at the next Steam launch, and
+never needs a reinstall.
+
+From the command line it is still a switch like any other:
 
 ```sh
-SHIM_OVERLAY=0 ./src/installer/install.sh
+./src/installer/install.sh --overlay 0        # or: SHIM_OVERLAY=0 ./src/installer/install.sh
 ```
 
-### Uninstall
+### Checking, rolling back, uninstalling
+
+Every deploy writes a receipt, and the installed payload carries the script that reads it —
+so these work from anywhere, with no checkout:
 
 ```sh
-./src/installer/install.sh --uninstall
+./src/installer/install.sh --verify     # re-hash every deployed file against the receipt
+./src/installer/install.sh --receipt    # what is installed: version, files, what it was tested against
+"$HOME/Library/Application Support/macos-steam-shim/current/deploy.sh" --rollback
+./src/installer/install.sh --uninstall  # launcher + payload + logs
 ```
 
-Removes the launcher and the payload. Steam itself was never modified, so there is nothing
-else to undo.
+Uninstall removes the launcher, the payload and the logs. Steam itself was never modified,
+so there is nothing else to undo; the CrossOver bottle is left alone.
 
 ## Troubleshooting
 
@@ -152,7 +165,8 @@ docs/research/              the measured evidence behind each decision
 
 src/                        reaches a user's machine
   layout/                   the deploy contract — one manifest of every shipped path
-  installer/                install.sh — the one command that deploys everything
+  installer/                build.sh (repo -> payload), deploy.sh (payload -> receipt)
+  launcher/                 the app you click: preflight, exec, settings/diagnose/uninstall
   compat-enabler/           the m_bCompatEnabled injector (Level A)
   compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)
   shim/                     the bridge: PE steamclient(64).dll + native .so (Level B)
@@ -178,3 +192,16 @@ two roots. Moving a module out of `src/` is a release-surface change.
 Every `FINDINGS.md` under these roots is a record of what was measured live, on real
 hardware, with the exact versions, including the negative controls. When something
 disagrees with this README, the FINDINGS file is the one that was measured.
+
+## Licence
+
+[GNU AGPL-3.0-or-later](LICENSE). You can use, study, modify and redistribute this
+freely — including commercially — but anything you distribute or run as a network
+service must ship its complete source under the same terms. You cannot take it closed.
+
+The AGPL covers this project's own code only. The shim's cross-ABI facts are derived
+from Valve's Proton (`lsteamclient`, pinned at `proton_11.0`), which carries **Valve's
+Steamworks SDK License Agreement** rather than a copyleft licence — and no Valve or
+CodeWeavers binary is redistributed here; both are loaded from your own installs at
+runtime. [NOTICE](NOTICE) sets out what derives from where. Read it before
+redistributing builds.

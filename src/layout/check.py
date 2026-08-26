@@ -27,7 +27,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.dirname(HERE)
 SKIP_DIRS = {"dist", "gen", "__pycache__"}
-SCAN_EXT = {".c", ".cpp", ".h", ".hpp", ".sh", ".py", ".vdf", ".in"}
+SCAN_EXT = {".c", ".cpp", ".h", ".hpp", ".swift", ".sh", ".py", ".vdf", ".in"}
 
 
 def guarded():
@@ -95,7 +95,10 @@ def scan(path):
         ext = os.path.splitext(os.path.splitext(path)[0])[1]
     with open(path, encoding="utf-8", errors="replace") as f:
         text = f.read()
-    if ext in (".c", ".cpp", ".h", ".hpp"):
+    # Swift's comment syntax is C's, so the same stripper serves it — and it
+    # must, because the launcher app (#42) is in the ship-set and a path typed
+    # into it is drift exactly as it is anywhere else.
+    if ext in (".c", ".cpp", ".h", ".hpp", ".swift"):
         return strip_c(text)
     if ext == ".vdf":
         return strip_vdf(text)
@@ -131,7 +134,8 @@ def main():
                   file=sys.stderr)
             print("      %s" % line[:120], file=sys.stderr)
         print("\n  C/C++: #include \"shim_paths.h\" / \"shim_policy.h\"      "
-              "sh: . .../shim_paths.sh, . .../shim_policy.sh", file=sys.stderr)
+              "sh: . .../shim_paths.sh, . .../shim_policy.sh\n"
+              "  Swift: ShimPath.<name> / ShimPolicy.<predicate>()", file=sys.stderr)
         return 1
     print("layout: %d guarded values, no drift" % len(names))
     return 0

@@ -1,0 +1,62 @@
+macos-steam
+Copyright (C) 2026 David Fain (Superd22)
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See LICENSE for the full text.
+
+The AGPL covers this project's own code. It grants nothing over the third-party
+material described below, which carries its own terms. If you redistribute this
+repository or anything built from it, read this file first.
+
+## 1. Material derived from Valve's Proton (lsteamclient)
+
+The shim's cross-ABI facts are extracted from the PE-side sources of
+ValveSoftware/Proton, pinned at tag `proton_11.0`, by
+`src/shim/extract_vtables.py` and `src/shim/extract_structs.py`
+(`src/shim/build.sh --regen-vtables` fetches them).
+
+Derived artifacts committed here:
+
+src/shim/vtables.json MSVC vtable slot order, i386 thiscall stack sizes,
+and the declared parameter types of each method
+src/shim/structs.json cross-ABI struct field layouts
+src/shim/gen/\*.h C emitted from the above by gen_thunks.py and
+gen_vtables.py: PE thunks, params structs, opcodes,
+unix handlers, dispatch tables
+
+Proton's root LICENSE delegates per directory. `LICENSE.proton` (BSD-3-Clause)
+covers only top-level contents; `lsteamclient/LICENSE` is **Valve's Steamworks
+SDK License Agreement**, and that is what governs the sources these artifacts
+are read from. Note in particular its clause 1.1(a) (use in source form solely
+to develop the Licensee Software), 1.3 (all rights not granted are reserved),
+and 2.4 (no reverse engineering, and no developing software to replace the
+SDK's functionality).
+
+This project's posture, for the record: it reimplements no Steam logic. The
+game links Valve's own unmodified `steam_api64.dll` redistributable, and what
+ultimately answers is Valve's own macOS `steamclient.dylib`, hosted in process.
+Calls travel _through_ Valve's API, not around it — the same posture as Proton,
+which Valve itself ships. Whether that reading holds is Valve's call, not ours.
+No legal opinion has been obtained. Anyone distributing builds of this software
+should get one.
+
+## 2. Valve binaries — used, never redistributed
+
+`steamclient.dylib`, `gameoverlayrenderer.dylib` and the Steam client itself are
+loaded from the user's own Steam installation at runtime. No Valve binary is
+copied into, modified by, or shipped with this project, and Valve's files are
+never modified in place.
+
+## 3. CrossOver / CodeWeavers
+
+CrossOver is a commercial product by CodeWeavers, required at runtime and not
+distributed here. The shipping paths copy, re-sign and modify nothing inside
+`CrossOver.app`; see docs/adr/0003-overlay-injection-at-process-creation.md.
+
+## 4. Interface names and version strings
+
+`src/shim/interface-versions.txt` and the interface/method names throughout are
+facts about Valve's published Steamworks API surface, recorded to interoperate
+with it.

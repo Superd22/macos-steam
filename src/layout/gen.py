@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Emit the deploy contract (#32) in the two dialects that consume it.
+"""Emit the deploy contract (#32) in the three dialects that consume it.
 
-    gen/shim_paths.h   C / C++ — narrow and wide string literals
-    gen/shim_paths.sh  sh      — single-quoted assignments, dot-sourced
-    gen/shim_policy.h  C / C++ — one predicate per runtime switch (#33)
-    gen/shim_policy.sh sh      — the same predicates, as shell functions
+    gen/shim_paths.h    C / C++ — narrow and wide string literals
+    gen/shim_paths.sh   sh      — single-quoted assignments, dot-sourced
+    gen/ShimPaths.swift Swift   — the same names, for the launcher app (#42)
+    gen/shim_policy.h   C / C++ — one predicate per runtime switch (#33)
+    gen/shim_policy.sh  sh      — the same predicates, as shell functions
+    gen/ShimPolicy.swift Swift  — the same predicate, third dialect
 
 One generator, one input: layout.json. Nothing here interprets a path; it only
 escapes and joins, and the switch half only spells one rule out in two dialects,
@@ -201,6 +203,93 @@ def emit_policy_sh(switches):
     return "\n".join(out)
 
 
+# --- Swift: the launcher app's dialect (#42) ---------------------------------
+# The launcher is a Mach-O in the ship-set like any other module, so it reads
+# the contract rather than restating it — check.py holds .swift to the same
+# guard as .c and .sh. An enum with static lets and no cases is the Swift idiom
+# for a namespace that cannot be instantiated.
+
+
+def swift_escape(v):
+    return v.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def swift_ident(name):
+    """SHIM_PATH_STEAM_OSX_REL -> steamOsxRel. The generated names are the same
+    names in a different dialect, not different names: a reader grepping the
+    manifest for STEAM_OSX_REL must land here too, which the doc comment on
+    each member preserves."""
+    head, *rest = name.lower().split("_")
+    return head + "".join(w.capitalize() for w in rest)
+
+
+def emit_paths_swift(order):
+    out = ["// Generated from src/layout/layout.json by gen.py — do not edit.",
+           "// The deploy contract (#32), for the launcher app (#42). Same names as",
+           "// shim_paths.h and shim_paths.sh, lowerCamelCased; the manifest name each",
+           "// one came from is on the line above it, so a grep for either spelling lands.",
+           "",
+           "import Foundation",
+           "",
+           "enum ShimPath {"]
+    for name, value, what in order:
+        out.append("    /// %s" % what)
+        out.append("    /// Manifest: `%s%s`" % (PREFIX, name))
+        out.append('    static let %s = "%s"' % (swift_ident(name), swift_escape(value)))
+        out.append("")
+    out += ["    /// Every *_REL name is relative to a root the caller supplies — $HOME for",
+            "    /// the macOS ones. The manifest deliberately holds no absolute unix path,",
+            "    /// so joining one is the caller's job and this is the only way to do it.",
+            "    static func inHome(_ rel: String) -> String {",
+            "        (NSHomeDirectory() as NSString).appendingPathComponent(rel)",
+            "    }",
+            "}"]
+    return "\n".join(out) + "\n"
+
+
+def emit_policy_swift(switches):
+    out = ["// Generated from src/layout/layout.json by gen.py — do not edit.",
+           "// The runtime switches (#33, ADR 0006), third dialect. check_policy.py runs",
+           "// this one against the C and sh emitters on the same table of values: three",
+           "// hand-written emitters of one rule is two more than a rule can have before",
+           "// it drifts, so they are made to answer identically instead.",
+           "",
+           "import Foundation",
+           "",
+           "enum ShimPolicy {"]
+    for sw in switches:
+        check_switch(sw)
+        out += ["    /// " + l for l in wrap_what(sw["what"])]
+        out += ["    ///",
+                "    /// Default when unset: %s. Off values: %s." %
+                (sw["default"],
+                 ", ".join(repr(v) if v else "empty" for v in sw["off_values"])),
+                '    static let env%s = "%s"' % (sw["name"].capitalize(), sw["env"]),
+                "",
+                "    /// Reads the rule, never re-derives it. `env` defaults to the process",
+                "    /// environment; passing one in is what lets the launcher decide what a",
+                "    /// CHILD will see before it spawns it.",
+                "    static func %s(in env: [String: String] = ProcessInfo.processInfo.environment) -> Bool {" % swift_ident(sw["predicate"]),
+                "        guard let v = env[env%s] else { return true }   // unset" % sw["name"].capitalize()]
+        for val in sw["off_values"]:
+            if val == "":
+                out.append('        if v.isEmpty { return false }')
+            else:
+                out.append('        if v == "%s" { return false }' % swift_escape(val))
+        out += ["        return true",
+                "    }",
+                "",
+                "    /// State the answer to every child process, never imply it: below this",
+                "    /// point unset means the manifest default, so omitting the variable",
+                "    /// cannot express the non-default answer.",
+                "    static func %sExport(_ on: Bool, into env: inout [String: String]) {" % swift_ident(sw["name"].lower()),
+                '        env[env%s] = on ? "1" : "0"' % sw["name"].capitalize(),
+                "    }",
+                ""]
+    out.append("}")
+    return "\n".join(out) + "\n"
+
+
 def main():
     m, _, order = load()
     switches = m.get("switches", [])
@@ -208,8 +297,10 @@ def main():
     os.makedirs(gen, exist_ok=True)
     for base, text in (("shim_paths.h", emit_h(order)),
                        ("shim_paths.sh", emit_sh(order)),
+                       ("ShimPaths.swift", emit_paths_swift(order)),
                        ("shim_policy.h", emit_policy_h(switches)),
-                       ("shim_policy.sh", emit_policy_sh(switches))):
+                       ("shim_policy.sh", emit_policy_sh(switches)),
+                       ("ShimPolicy.swift", emit_policy_swift(switches))):
         path = os.path.join(gen, base)
         # Only rewrite on change: these are build inputs, and a fresh mtime on
         # every run would make install.sh's staleness check rebuild the world.
@@ -220,7 +311,7 @@ def main():
         if old != text:
             with open(path, "w") as f:
                 f.write(text)
-            n = len(switches) if base.startswith("shim_policy") else len(order)
+            n = len(switches) if "olicy" in base else len(order)
             print("layout: wrote gen/%s (%d names)" % (base, n))
 
 

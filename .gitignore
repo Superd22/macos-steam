@@ -73,3 +73,9 @@ attic/shimprobe/shimprobe.log
 
 # Python bytecode
 __pycache__/
+
+# Staged install payloads (#34) — src/installer/build.sh output.
+src/installer/dist/
+
+# Compiled launcher (#42).
+src/launcher/dist/
