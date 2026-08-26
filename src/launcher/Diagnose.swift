@@ -24,13 +24,16 @@ enum Diagnose {
     static func integrity() -> Finding {
         let result = Shell.run(Receipt.deployScript, ["--verify"])
         guard FileManager.default.isExecutableFile(atPath: Receipt.deployScript) else {
-            return Finding(id: "integrity", title: "Payload integrity", verdict: .blocked,
-                           detail: "Nothing deployed: no payload at \(ShimPath.inHome(ShimPath.liveRel)).")
+            return Finding(id: "integrity", title: "Steam Play is not installed", verdict: .blocked,
+                           detail: "Reinstall to put the files in place.")
         }
         return Finding(id: "integrity",
-                       title: result.ok ? "Payload matches its receipt" : "Payload does not match its receipt",
+                       title: result.ok ? "Files are intact" : "Some files have changed or gone missing",
                        verdict: result.ok ? .ok : .blocked,
-                       detail: result.output.trimmingCharacters(in: .whitespacesAndNewlines))
+                       // The raw output is a list of the files that failed, which
+                       // is the one place a path is more use to the reader than a
+                       // sentence about it. On success it says nothing.
+                       detail: result.ok ? "" : result.output.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// `ps aux | grep -i steam.exe` must be empty. If a Windows Steam is running
@@ -39,10 +42,10 @@ enum Diagnose {
     static func strayWindowsSteam() -> Finding {
         let running = Shell.isRunning("steam.exe")
         return Finding(id: "stray",
-                       title: running ? "A Windows steam.exe is running" : "No Windows Steam running",
+                       title: running ? "A Windows copy of Steam is running" : "No Windows Steam running",
                        verdict: running ? .blocked : .ok,
                        detail: running
-                         ? "A Windows Steam in some bottle may be what titles are talking to, which makes any result meaningless. Quit it, and remove it from the bottle."
+                         ? "Your games may be talking to that instead of the Steam on your Mac. Quit it, and delete it from the bottle."
                          : "")
     }
 
@@ -55,12 +58,12 @@ enum Diagnose {
             return Finding(id: "plain", title: "Steam is not running", verdict: .ok, detail: "")
         }
         if LogWatch.gatePatchedSinceSteamStarted() {
-            return Finding(id: "plain", title: "Steam is running with the gate open",
+            return Finding(id: "plain", title: "Steam is running with Steam Play on",
                            verdict: .ok, detail: "")
         }
-        return Finding(id: "plain", title: "Steam is running, but not through this launcher",
+        return Finding(id: "plain", title: "Steam is running, but not from this app",
                        verdict: .blocked,
-                       detail: "The compat gate is flipped in memory at each launch, so a Steam started from Valve's own icon has it shut and no Windows title will install. Quit Steam and start it from here.")
+                       detail: "Steam Play only switches on when Steam starts from here. Quit Steam and open it from this app.")
     }
 
     /// Loaded vs armed (#30, CONTEXT.md). Conflating them is the failure this
@@ -71,50 +74,55 @@ enum Diagnose {
         let on = Prefs.overlay
         guard on else {
             return Finding(id: "overlay", title: "Overlay off", verdict: .ok,
-                           detail: "Turn it on in Settings; it takes effect at the next Steam launch.")
+                           detail: "Turn it on in Settings. It takes effect the next time Steam starts.")
         }
         let unix = LogWatch.tail(ShimPath.inHome(ShimPath.logUnixRel), bytes: 65536)
         let loaded = unix.contains(ShimPath.overlayDylib)
         if unix.isEmpty {
-            return Finding(id: "overlay", title: "Overlay on, never exercised", verdict: .pending,
-                           detail: "No title has launched through the shim yet, so there is nothing to report.")
+            return Finding(id: "overlay", title: "Overlay on, not used yet", verdict: .pending,
+                           detail: "No Windows game has run yet, so there is nothing to report.")
         }
         return Finding(id: "overlay",
-                       title: loaded ? "Overlay renderer loaded" : "Overlay on, renderer not seen",
+                       title: loaded ? "Overlay reached your last game" : "Overlay on, but it did not reach your last game",
                        verdict: loaded ? .ok : .warning,
+                       // Loaded is not armed (CONTEXT.md): the renderer being in
+                       // the process does not mean Steam has finished the
+                       // handshake that lets a panel appear. Saying "it loaded"
+                       // and no more is the honest version for a reader who
+                       // cannot check the second half.
                        detail: loaded
-                         ? "Loaded means the renderer is in the game process. Armed — the client handshake completed, so a panel can actually appear — is a further step, and only the title can observe it."
-                         : "The last run of a title shows no renderer load. The overlay is delivered per-launch; try launching a title again.")
+                         ? "It loaded. Whether Shift+Tab opens also depends on Steam itself."
+                         : "Try starting the game again.")
     }
 
     /// What this build was measured against, beside what this Mac is. Both come
     /// from the receipt, so the statement cannot drift from the release.
     static func compatibility() -> Finding {
         guard let r = Receipt.load() else {
-            return Finding(id: "compat", title: "No receipt", verdict: .blocked, detail: "")
+            return Finding(id: "compat", title: "Steam Play is not installed", verdict: .blocked, detail: "")
         }
         let drift = [r.tested.macOS != r.observed.macOS ? "macOS \(r.observed.macOS) vs \(r.tested.macOS) tested" : nil,
                      r.tested.crossover != r.observed.crossover ? "CrossOver \(r.observed.crossover) vs \(r.tested.crossover) tested" : nil]
             .compactMap { $0 }
         return Finding(id: "compat",
-                       title: drift.isEmpty ? "Exercised against exactly this setup" : "Untested combination",
+                       title: drift.isEmpty ? "Tested with your setup" : "Your setup has not been tested",
                        verdict: drift.isEmpty ? .ok : .warning,
                        detail: drift.isEmpty
-                         ? "\(r.version), tested on macOS \(r.tested.macOS), CrossOver \(r.tested.crossover), \(r.tested.steam)."
-                         : "This release was exercised on a different setup: \(drift.joined(separator: "; ")). It may well work; nobody has measured it.")
+                         ? "Version \(r.version), tested with macOS \(r.tested.macOS) and CrossOver \(r.tested.crossover)."
+                         : "Yours differs: \(drift.joined(separator: "; ")). It may work fine, but nobody has checked.")
     }
 
     /// Everything above, as text a user can paste into an issue. The logs
     /// themselves are deliberately NOT included: they name the whole Steam
     /// library, which is why they live owner-only outside /tmp to begin with.
     static func report() -> String {
-        var out = ["macos-steam-shim diagnose"]
+        var out = ["macos-steam-shim report"]
         if let r = Receipt.load() {
-            out.append("version \(r.version), deployed \(r.deployedAt), overlay \(r.overlay ? "on" : "off")")
-            out.append("observed: macOS \(r.observed.macOS), CrossOver \(r.observed.crossover), steam_osx \(r.observed.steam)")
-            out.append("tested:   macOS \(r.tested.macOS), CrossOver \(r.tested.crossover), \(r.tested.steam)")
+            out.append("version \(r.version), installed \(r.deployedAt), overlay \(r.overlay ? "on" : "off")")
+            out.append("this Mac:    macOS \(r.observed.macOS), CrossOver \(r.observed.crossover), Steam \(r.observed.steam)")
+            out.append("tested with: macOS \(r.tested.macOS), CrossOver \(r.tested.crossover), \(r.tested.steam)")
         } else {
-            out.append("no receipt — nothing deployed")
+            out.append("nothing installed")
         }
         for f in run() {
             out.append("[\(f.verdict)] \(f.title)")

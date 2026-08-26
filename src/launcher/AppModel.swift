@@ -44,7 +44,7 @@ final class AppModel: ObservableObject {
 
     func launchAndProve() {
         if mustQuitSteamFirst {
-            busy = "Quitting the Steam that is already running…"
+            busy = "Quitting Steam…"
             Task.detached {
                 Shell.run("/usr/bin/osascript", ["-e", "quit app \"Steam\""])
                 for _ in 0..<40 where Shell.isRunning(ShimPath.steamOsx) {
@@ -60,7 +60,7 @@ final class AppModel: ObservableObject {
     private func spawnAndWatch() {
         let offset = LogWatch.size(of: LogWatch.enablerLog)
         guard Launch.spawn(overlay: overlay) != nil else {
-            launchState = .launchedButUnproven("Steam could not be started at all.")
+            launchState = .launchedButUnproven("Steam would not start.")
             return
         }
         launchState = .launching
@@ -76,16 +76,16 @@ final class AppModel: ObservableObject {
                 // known cause is an x86_64-translated launch, where the arm64
                 // pattern matches nothing (ADR 0002's second correction).
                 self.launchState = .launchedButUnproven(
-                    "Steam started, but the compat gate was not found. This is what a translated x86_64 launch looks like — the pattern is arm64 code.")
+                    "Steam started, but Steam Play did not switch on. Quit Steam and try again from here.")
             case .timedOut, .none:
                 self.launchState = .launchedButUnproven(
-                    "Steam started, but nothing reported flipping the compat gate. Open Diagnose for the details.")
+                    "Steam started, but Steam Play did not switch on. Diagnose has more.")
             }
         }
     }
 
     func createBottle() {
-        perform("Creating the bottle…") { Preflight.createBottle().output }
+        perform("Making the bottle…") { Preflight.createBottle().output }
     }
 
     func runDiagnose() {

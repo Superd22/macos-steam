@@ -92,7 +92,7 @@ struct ChecklistView: View {
                     ProgressView().controlSize(.small)
                     Text(busy).foregroundStyle(.secondary)
                 } else {
-                    Text("Hold ⌥ while opening this app for settings and diagnostics.")
+                    Text("Hold ⌥ when you open this app for settings.")
                         .font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -108,16 +108,16 @@ struct ChecklistView: View {
 
     private var headline: String {
         switch model.launchState {
-        case .ready(let sites):
-            return "Ready — the compat gate was flipped (\(sites) site\(sites == 1 ? "" : "s")). You can close this window; it will not appear again."
+        case .ready:
+            return "All set. You can close this window. It will not come back."
         case .launching:
-            return "Steam is starting. Watching for the compat gate…"
+            return "Starting Steam…"
         case .launchedButUnproven:
-            return "Steam started, but this app could not confirm the gate."
+            return "Steam started, but Steam Play did not switch on."
         case .idle:
             return Preflight.isClear(model.checks)
-                ? "Everything checks out. Start Steam once from here and this window will confirm it worked."
-                : "Something needs doing before Windows titles will work."
+                ? "Looks good. Start Steam once from here and this window will confirm it."
+                : "A couple of things need sorting before Windows games will work."
         }
     }
 
@@ -137,12 +137,11 @@ struct ChecklistView: View {
         guard check.id == "verified" else { return check }
         switch model.launchState {
         case .launching:
-            return Check(id: check.id, title: "Watching for the compat gate…", verdict: .pending, detail: "")
-        case .ready(let sites):
-            return Check(id: check.id, title: "Compat gate flipped — patched \(sites) site\(sites == 1 ? "" : "s")",
-                         verdict: .ok, detail: "")
+            return Check(id: check.id, title: "Checking…", verdict: .pending, detail: "")
+        case .ready:
+            return Check(id: check.id, title: "Steam Play is switched on", verdict: .ok, detail: "")
         case .launchedButUnproven(let why):
-            return Check(id: check.id, title: "Compat gate not confirmed", verdict: .blocked, detail: why)
+            return Check(id: check.id, title: "Steam Play did not switch on", verdict: .blocked, detail: why)
         case .idle:
             return check
         }
@@ -189,12 +188,12 @@ struct OverlayTab: View {
                 set: { model.setOverlay($0) }))
             .toggleStyle(.switch)
 
-            Text("Valve's own overlay renderer, loaded into the game process. Applies to the whole Steam session, not to one title — the setting is read when Steam starts.")
+            Text("The Shift+Tab overlay, in Windows games. It applies to every game you play, and changes take effect the next time Steam starts.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
 
             if model.overlayPendingRestart {
                 HStack {
-                    Text("Takes effect the next time Steam starts.")
+                    Text("This takes effect the next time Steam starts.")
                     Spacer()
                     Button("Restart Steam") { model.restartSteam() }.disabled(model.busy != nil)
                 }
@@ -207,15 +206,15 @@ struct OverlayTab: View {
             if let r = model.receipt {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                     GridRow { Text("Version").foregroundStyle(.secondary); Text(r.version) }
-                    GridRow { Text("Deployed").foregroundStyle(.secondary); Text(r.deployedAt) }
-                    GridRow { Text("Tested on").foregroundStyle(.secondary)
+                    GridRow { Text("Installed").foregroundStyle(.secondary); Text(r.deployedAt) }
+                    GridRow { Text("Tested with").foregroundStyle(.secondary)
                               Text("macOS \(r.tested.macOS), CrossOver \(r.tested.crossover)") }
-                    GridRow { Text("This Mac").foregroundStyle(.secondary)
+                    GridRow { Text("You have").foregroundStyle(.secondary)
                               Text("macOS \(r.observed.macOS), CrossOver \(r.observed.crossover)") }
                 }
                 .font(.callout)
             } else {
-                Text("Nothing is deployed — no receipt found.").foregroundStyle(.secondary)
+                Text("Nothing is installed yet.").foregroundStyle(.secondary)
             }
             Spacer()
         }
@@ -261,11 +260,11 @@ struct UninstallTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Removes this launcher, the payload and the logs.")
-            Text("Valve's Steam was never modified — nothing there has to be undone, and your games and library are untouched.")
+            Text("Removes this app and the files it installed.")
+            Text("Your Steam was never changed, so there is nothing to undo there. Your games and library stay where they are.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Toggle("Also delete the CrossOver bottle “\(Preflight.bottleName)”", isOn: $deleteBottle)
-            Text("The bottle may hold save games written by Windows titles, and it may not have been created by this app.")
+            Text("It may hold save games from Windows games, and it may not have been made by this app.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
@@ -278,8 +277,8 @@ struct UninstallTab: View {
             Button("Remove", role: .destructive) { model.uninstall(deleteBottle: deleteBottle) }
         } message: {
             Text(deleteBottle
-                 ? "The launcher, the payload, the logs and the bottle will be deleted."
-                 : "The launcher, the payload and the logs will be deleted.")
+                 ? "The app, its files and the bottle will be deleted."
+                 : "The app and its files will be deleted.")
         }
     }
 }
@@ -290,13 +289,13 @@ enum Help {
     /// there.
     static func showReinstall() {
         let alert = NSAlert()
-        alert.messageText = "Reinstall the payload"
+        alert.messageText = "Reinstalling"
         alert.informativeText = """
-            From a clone of the repository:
+            In a Terminal, from your copy of the project:
 
                 ./src/installer/install.sh
 
-            That rebuilds anything stale, lays the payload down again and rewrites this app.
+            That puts the files back and updates this app.
             """
         alert.runModal()
     }

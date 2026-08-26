@@ -56,9 +56,9 @@ enum Preflight {
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let version = "\(os.majorVersion).\(os.minorVersion)"
         guard isAppleSilicon else {
-            return Check(id: "system", title: "Apple Silicon Mac",
+            return Check(id: "system", title: "Needs an Apple Silicon Mac",
                          verdict: .blocked,
-                         detail: "This Mac is Intel. The compat-gate patch is arm64 code; there is no Intel path.")
+                         detail: "Steam Play needs an Apple Silicon Mac. This one has an Intel chip.")
         }
         guard os.majorVersion >= 14 else {
             return Check(id: "system", title: "macOS 14 or later",
@@ -83,7 +83,7 @@ enum Preflight {
         guard FileManager.default.fileExists(atPath: app) else {
             return Check(id: "crossover", title: "CrossOver installed",
                          verdict: .blocked,
-                         detail: "Windows games run inside a CrossOver bottle. Install CrossOver, then reopen this window.",
+                         detail: "Windows games need CrossOver to run. Install it, then open this window again.",
                          remedy: .openURL(URL(string: "https://www.codeweavers.com/crossover")!),
                          remedyTitle: "Get CrossOver")
         }
@@ -97,14 +97,14 @@ enum Preflight {
         guard FileManager.default.isExecutableFile(atPath: Launch.steamOsx) else {
             return Check(id: "steam", title: "Steam installed",
                          verdict: .blocked,
-                         detail: "The native macOS Steam client is what this launcher starts. Install Steam first.",
+                         detail: "This app starts your normal Steam. Install Steam first.",
                          remedy: .openURL(URL(string: "https://store.steampowered.com/about/")!),
                          remedyTitle: "Get Steam")
         }
         guard signedIn else {
-            return Check(id: "steam", title: "Signed in to Steam",
+            return Check(id: "steam", title: "Sign in to Steam",
                          verdict: .warning,
-                         detail: "No stored login found. Steam Play needs an online, signed-in client to install a Windows depot.")
+                         detail: "No saved login here. Windows games only download while you are signed in and online.")
         }
         return Check(id: "steam", title: "Steam installed and signed in", verdict: .ok, detail: "")
     }
@@ -132,19 +132,19 @@ enum Preflight {
     static func bottle() -> Check {
         let fm = FileManager.default
         guard fm.fileExists(atPath: bottlePath) else {
-            return Check(id: "bottle", title: "Bottle “\(bottleName)”",
+            return Check(id: "bottle", title: "No bottle yet",
                          verdict: .blocked,
-                         detail: "The Windows-side container does not exist yet. This app can create it — a clean win10_64 bottle with no Windows Steam in it.",
+                         detail: "Windows games run inside a CrossOver bottle. This app can make one for you.",
                          remedy: .createBottle,
                          remedyTitle: "Create it")
         }
-        let windowsSteam = ["drive_c/Program Files (x86)/Steam/steam.exe",
-                            "drive_c/Program Files/Steam/steam.exe"]
-            .first { fm.fileExists(atPath: bottlePath + "/" + $0) }
-        if let stray = windowsSteam {
-            return Check(id: "bottle", title: "Bottle “\(bottleName)” is not clean",
+        let hasWindowsSteam = ["drive_c/Program Files (x86)/Steam/steam.exe",
+                               "drive_c/Program Files/Steam/steam.exe"]
+            .contains { fm.fileExists(atPath: bottlePath + "/" + $0) }
+        if hasWindowsSteam {
+            return Check(id: "bottle", title: "Bottle “\(bottleName)” has a Windows Steam in it",
                          verdict: .blocked,
-                         detail: "A Windows Steam is installed in this bottle (\(stray)). Its \(ShimPath.pe64) wins the lookup against ours, so titles talk to it instead of your Mac's Steam. Remove it, or point SHIM_BOTTLE at a clean bottle.")
+                         detail: "There is a Windows copy of Steam in this bottle. Games will talk to that instead of the Steam on your Mac. Delete it, or use a different bottle.")
         }
         return Check(id: "bottle", title: "Bottle “\(bottleName)” ready", verdict: .ok, detail: "")
     }
@@ -161,20 +161,22 @@ enum Preflight {
     static func payload() -> Check {
         let fm = FileManager.default
         guard let receipt = Receipt.load() else {
-            return Check(id: "payload", title: "Steam Play payload",
+            return Check(id: "payload", title: "Steam Play files are missing",
                          verdict: .blocked,
-                         detail: "Nothing is deployed — there is no receipt. Reinstall to lay the payload down.",
+                         detail: "Reinstall to put them in place.",
                          remedy: .reinstall, remedyTitle: "How to reinstall")
         }
         let missing = [Launch.enabler, Launch.compatTools].filter { !fm.fileExists(atPath: $0) }
         guard missing.isEmpty else {
-            return Check(id: "payload", title: "Steam Play payload",
+            return Check(id: "payload", title: "Some Steam Play files are missing",
                          verdict: .blocked,
-                         detail: "The receipt says \(receipt.version) is deployed, but \(missing.count) part(s) of it are not on disk. Reinstall to repair.",
+                         detail: "Reinstall to put them back.",
                          remedy: .reinstall, remedyTitle: "How to reinstall")
         }
-        return Check(id: "payload", title: "Payload \(receipt.version) deployed",
-                     verdict: .ok, detail: "")
+        // The version belongs in Settings, where someone is asking. On the
+        // checklist it is noise in a row whose job is to say "fine".
+        _ = receipt
+        return Check(id: "payload", title: "Steam Play files ready", verdict: .ok, detail: "")
     }
 
     // 6 — the one check that cannot be made before a launch. The user never
@@ -184,16 +186,16 @@ enum Preflight {
         // is what makes this a live check rather than a stored opinion, and it
         // is why an update does not have to re-ask interactively.
         if Prefs.firstRunCompleted && LogWatch.lastLaunchPatched() {
-            return Check(id: "verified", title: "Compat gate proven on this Mac",
+            return Check(id: "verified", title: "Steam Play is switched on",
                          verdict: .ok, detail: "")
         }
         if Prefs.firstRunCompleted {
-            return Check(id: "verified", title: "The last launch did not open the compat gate",
+            return Check(id: "verified", title: "Steam Play did not switch on last time",
                          verdict: .blocked,
-                         detail: "It has worked here before, so something changed — an updated Steam client, or a launch that came up translated as x86_64. Start Steam from here and this window will report what happens.")
+                         detail: "It has worked here before, so something changed. Start Steam from here and this window will show what happens.")
         }
-        return Check(id: "verified", title: "Compat gate not proven yet",
+        return Check(id: "verified", title: "Not tried yet",
                      verdict: .pending,
-                     detail: "The gate is flipped in memory at each launch. Start Steam from here and this window will confirm it worked.")
+                     detail: "Start Steam from here once and this window will confirm it worked.")
     }
 }
