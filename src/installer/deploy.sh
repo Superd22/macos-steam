@@ -208,7 +208,20 @@ else
     OVERLAY_ENV=0
 fi
 [ "$OVERLAY_ENV" = 1 ] && log "overlay ON — --overlay 0 to disable" \
-                       || log "overlay OFF (an explicit 0 is baked into the launcher)"
+                       || log "overlay OFF"
+
+# The compiled launcher (#42) reads the overlay from a stored preference at exec
+# rather than from a value baked in here, which is what makes the settings pane
+# able to change it without a reinstall (ADR 0011). So an explicit --overlay on
+# a deploy has to write that preference, or the documented flag would quietly do
+# nothing on the shipped path. Only when explicit: a plain deploy must not
+# overwrite a choice the user made in the pane.
+if [ -n "$OVERLAY_ARG" ] && [ -x /usr/bin/defaults ]; then
+    if [ "$OVERLAY_ENV" = 1 ]; then _pref=true; else _pref=false; fi
+    /usr/bin/defaults write "$SHIM_PATH_PREFS_DOMAIN" "$SHIM_PATH_PREF_OVERLAY" -bool "$_pref"
+    log "wrote the launcher's overlay preference ($_pref)"
+    unset _pref
+fi
 
 DEST="$VERSIONS/$VERSION"
 if [ "$DRYRUN" = 1 ]; then

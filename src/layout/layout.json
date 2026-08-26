@@ -52,6 +52,7 @@
     { "name": "BUNDLE_ID",     "value": "com.macos-steam-shim.launcher", "what": "the launcher bundle's identifier", "guard": true },
     { "name": "SETTINGS_ID",   "value": "com.macos-steam-shim.settings", "what": "the nested settings helper's identifier — distinct, or LaunchServices sees two bundles claiming one id", "guard": true },
     { "name": "PREFS_DOMAIN",  "value": "com.macos-steam-shim", "what": "UserDefaults suite both binaries read, named explicitly so the two bundle ids do not each get their own store. Deliberately NOT guarded: it is a prefix of both bundle ids, so guarding it would flag every legitimate use of those" },
+    { "name": "PREF_OVERLAY",  "value": "overlay",             "what": "the launcher's stored overlay preference, in that suite. deploy.sh writes it when --overlay is passed and the launcher reads it at exec, so the two must agree on the key" },
     { "name": "SETTINGS_FLAG", "value": "--settings",           "what": "the argument that turns the launcher into the settings pane; what the nested helper passes" },
     { "name": "DIAGNOSE_FLAG", "value": "--diagnose",           "what": "print the diagnose report to stdout and exit — support surface, and what makes the pane's findings testable" },
     { "name": "PRINT_ENV_FLAG","value": "--print-env",          "what": "print the environment the launcher WOULD exec Steam with, and exit; how check_launch_env.sh asks the merge question without launching Steam" },

@@ -15,7 +15,7 @@ import Foundation
 enum Prefs {
     static let store = UserDefaults(suiteName: ShimPath.prefsDomain) ?? .standard
 
-    private static let overlayKey = "overlay"
+    private static let overlayKey = ShimPath.prefOverlay
     private static let firstRunKey = "firstRunCompleted"
 
     /// Unset means "whatever the manifest says", asked of the predicate — never
