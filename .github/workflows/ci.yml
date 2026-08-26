@@ -1,0 +1,84 @@
+# The build gates, run on every push (#42).
+#
+# There is deliberately almost nothing here. Every gate this project has is
+# already wired into the build itself — the layout drift check, the policy
+# agreement check, the four shim checkers, and the launcher's DYLD merge test
+# all run as steps of build.sh, because a gate you have to remember to run is a
+# gate that stops running. CI's job is therefore to run the ONE command a
+# contributor runs, on a machine that has never seen this repo, and to prove
+# that the from-scratch path still works.
+#
+# The runner is Apple Silicon: the shim's unix half is built for x86_64 but the
+# launcher is arm64-only, and a build on an Intel runner would pass while
+# proving nothing about the machine anyone actually installs this on.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build gates
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # The one prerequisite brew supplies for our users too, per the formula.
+      - name: install mingw-w64
+        run: brew install mingw-w64
+
+      - name: toolchain versions
+        run: |
+          sw_vers && uname -m
+          clang --version | head -1
+          swiftc --version | head -1
+          python3 --version
+          x86_64-w64-mingw32-gcc --version | head -1
+          i686-w64-mingw32-gcc --version | head -1
+
+      # Everything: regenerate the deploy contract and enforce it, build both
+      # bitnesses of the shim through its four checkers, build the injector and
+      # the launcher, and stage the payload.
+      - name: build (runs every gate)
+        run: ./src/installer/build.sh
+
+      # The deploy half, proven without writing anything. The runner has no
+      # Steam and no CrossOver, which is the point: deploy.sh must not need
+      # them, and a dry run is the assertion that it does not.
+      - name: deploy contract (dry run)
+        run: ./src/installer/dist/payload/deploy.sh --dry-run
+
+      # The payload states its own version; nothing downstream may disagree.
+      - name: payload is version-stamped
+        run: |
+          test -s ./src/installer/dist/payload/VERSION
+          echo "payload version: $(cat ./src/installer/dist/payload/VERSION)"
+
+  formula:
+    name: formula lint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rendered against placeholder values: brew style checks the Ruby and the
+      # formula's shape, neither of which depends on which tarball it points at.
+      # This is what stops a broken formula reaching the tap on a tag, when it
+      # is too late to notice.
+      - name: render and lint
+        run: |
+          mkdir -p /tmp/lint
+          ./src/installer/packaging/render-formula.sh 0.0.0 \
+            https://example.invalid/macos-steam-shim-0.0.0.tar.gz \
+            0000000000000000000000000000000000000000000000000000000000000000 \
+            /tmp/lint/macos-steam-shim.rb
+          brew style /tmp/lint/macos-steam-shim.rb

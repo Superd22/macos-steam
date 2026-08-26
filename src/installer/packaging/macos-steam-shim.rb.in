@@ -1,0 +1,125 @@
+# The brew formula — the SECOND adapter over the build/deploy seam (#34, #42).
+#
+# This file is a TEMPLATE. @VERSION@, @URL@ and @SHA256@ are filled in by
+# src/installer/packaging/render-formula.sh at release time and the result is pushed to the
+# tap, so the version a user installs is never typed by hand (#42's version
+# stamping rule: a version written in a second place is a version that lies).
+#
+# Why build from source instead of shipping a bottle or a DMG: there is no
+# Apple Developer ID yet, and an unsigned, un-notarized app is blocked behind
+# System Settings on macOS 14+ — disqualifying for something that injects into
+# Steam. A LOCALLY BUILT binary carries no quarantine bit, so Gatekeeper never
+# interrogates it. `brew install` building on the user's machine is not a
+# limitation we tolerate; it is the whole shipping story (ADR 0002).
+#
+# So this formula does exactly what install.sh does from a clone, in two steps
+# it does not get to reorder:
+#
+#   build.sh   repo -> payload    needs mingw-w64, clang, swiftc, python3
+#   deploy.sh  payload -> receipt needs none of them
+#
+# It never restates a path, a version or a filename that the manifest owns: it
+# runs the same two scripts, and the payload it installs carries its own
+# deploy.sh so an installed machine can verify, roll back and uninstall itself
+# with no repo and no formula present.
+class MacosSteamShim < Formula
+  desc "Play Windows-only Steam titles through the native macOS Steam client"
+  homepage "https://github.com/Superd22/macos-steam"
+  url "@URL@"
+  sha256 "@SHA256@"
+  license "AGPL-3.0-or-later"
+  version "@VERSION@"
+
+  # Apple Silicon only, macOS 14+ — the same two lines the launcher's preflight
+  # checks first. Stated here so the failure is a clear brew message at install
+  # rather than a checklist the user only meets after a build.
+  depends_on arch: :arm64
+  depends_on macos: :sonoma
+
+  # The one prerequisite that leaves the README (#42): brew supplies the
+  # cross-compiler, so nobody is told to `brew install mingw-w64` by hand.
+  # clang, swiftc and python3 all come from the Xcode command line tools, which
+  # Homebrew itself already requires — so they are not declared here.
+  depends_on "mingw-w64" => :build
+
+  def install
+    # The seam's first half. build.sh takes the payload dir as its argument and
+    # prints it; we pass our own staging path rather than reading the print,
+    # because the formula already knows where it wants the tree.
+    system "./src/installer/build.sh", buildpath/"payload"
+
+    # The payload lands whole, deploy.sh and all. libexec rather than bin: none
+    # of this is meant to be on a user's PATH — it is a tree that deploy.sh
+    # copies into place, and the one thing worth invoking gets a wrapper below.
+    libexec.install Dir[buildpath/"payload/*"]
+
+    # A wrapper, not a symlink into libexec: deploy.sh finds the payload it
+    # belongs to by resolving its own $0's directory, and a symlink from bin/
+    # would resolve to bin/ and leave it unable to see the tree it ships inside.
+    (bin/"macos-steam-shim").write <<~SH
+      #!/bin/sh
+      # Installed by the macos-steam-shim brew formula (#42). Every mode of the
+      # deploy contract, against the payload brew built:
+      #   macos-steam-shim                 deploy (or re-deploy) this version
+      #   macos-steam-shim --overlay 0     deploy with the Steam overlay off
+      #   macos-steam-shim --verify        re-hash what is installed
+      #   macos-steam-shim --receipt       what is installed, and against what
+      #   macos-steam-shim --rollback      swap back to the previous version
+      #   macos-steam-shim --uninstall     remove launcher + payload + logs
+      exec "#{libexec}/deploy.sh" "$@"
+    SH
+  end
+
+  # The deploy half, run for the user so the terminal appears exactly once.
+  #
+  # Homebrew's sandbox governs what this may write, and the payload's home is
+  # under $HOME, not the prefix — so this is allowed to fail without failing
+  # the install. The formula's job was to BUILD; if the sandbox refuses the
+  # write, the caveats below name the one command that finishes the job, and
+  # the user is one paste from done rather than staring at a failed install.
+  def post_install
+    system libexec/"deploy.sh"
+  rescue StandardError
+    opoo "Could not deploy automatically — run `macos-steam-shim` to finish."
+  end
+
+  def caveats
+    <<~EOS
+      Deployed:
+        the payload  ~/Library/Application Support/macos-steam-shim/
+        the launcher ~/Applications/Steam (macOS Play).app
+
+      If the install could not write those, run this once to finish:
+        macos-steam-shim
+
+      You also need, and this formula cannot install them for you:
+        - CrossOver at ~/Applications/CrossOver.app
+        - the native macOS Steam client, installed and signed in ONLINE
+
+      Quit Steam, then open "Steam (macOS Play)" instead of Steam.app from now
+      on. Windows-only titles gain a Play button; the first launch of the app
+      checks everything above and tells you, in words, what is missing.
+
+      Hold the Option key while opening it for settings, diagnostics and
+      uninstall — including the Steam overlay toggle, which never needs a
+      reinstall to change.
+
+      Valve's Steam.app is never modified. To remove everything:
+        macos-steam-shim --uninstall && brew uninstall macos-steam-shim
+    EOS
+  end
+
+  test do
+    # The payload is self-describing: it states its own version, and that
+    # version must be the one brew thinks it installed. This is the drift guard
+    # that catches a formula whose @VERSION@ was rendered against one tarball
+    # and whose url pointed at another.
+    assert_equal version.to_s, (libexec/"VERSION").read.strip
+
+    # deploy.sh reads the payload it ships inside and says what it would do,
+    # touching nothing. That exercises the contract-sourcing, the receipt paths
+    # and the overlay predicate without requiring Steam or CrossOver on the
+    # machine running the test.
+    assert_match "would deploy #{version}", shell_output("#{bin}/macos-steam-shim --dry-run")
+  end
+end

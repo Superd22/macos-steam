@@ -1,0 +1,165 @@
+# Cut a release and update the tap (#42).
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# What ships is a SOURCE tarball, not a binary: there is no Developer ID, and a
+# locally built binary is the only one macOS will run without sending the user
+# to System Settings (ADR 0002). So the release is the input to a build, and
+# the formula is what performs it.
+#
+# The gates run here too, against the tag, before anything is published. A
+# release that was never built is a release that cannot be installed, and the
+# tap would carry it for however long it took someone to notice.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to (re-)release"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build gates, tarball, tap
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      # The tag and the VERSION file are two spellings of one number, and this
+      # is the only place they can be compared. A tag that disagrees with the
+      # file would install as one version and report itself as another — the
+      # exact failure version.sh exists to prevent, one level up.
+      - name: tag agrees with VERSION
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          file="$(tr -d ' \n' < VERSION)"
+          echo "tag=$tag VERSION=$file"
+          [ "$tag" = "v$file" ] || {
+            echo "::error::tag $tag does not match VERSION $file (expected v$file)"
+            exit 1
+          }
+          echo "VERSION=$file" >> "$GITHUB_ENV"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: install mingw-w64
+        run: brew install mingw-w64
+
+      # Prove the tarball's contents build before publishing them. This is the
+      # same command the formula runs on a user's machine.
+      - name: build gates
+        run: ./src/installer/build.sh
+
+      - name: deploy contract (dry run)
+        run: ./src/installer/dist/payload/deploy.sh --dry-run
+
+      # The tarball: tracked sources only, from the tag. dist/ and gen/ are
+      # git-ignored, so nothing built above can leak into it — the user's
+      # machine builds every shipped artifact from the sources beside it, which
+      # is what makes the binaries quarantine-free and the AGPL satisfiable.
+      #
+      # attic/ and instruments/ are left out on purpose: ADR 0004's three roots
+      # say src/ ships and the other two measure. A release carries what an
+      # install needs, plus the licence and the docs that explain it.
+      - name: tarball
+        run: |
+          name="macos-steam-shim-${VERSION}"
+          git archive --format=tar.gz --prefix="${name}/" \
+            -o "${name}.tar.gz" "${TAG}" \
+            -- src VERSION LICENSE NOTICE README.md CONTEXT.md docs
+          shasum -a 256 "${name}.tar.gz" | tee "${name}.tar.gz.sha256"
+          echo "TARBALL=${name}.tar.gz" >> "$GITHUB_ENV"
+          echo "SHA256=$(shasum -a 256 "${name}.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      # Unpack the tarball somewhere else and build THAT, not the checkout.
+      # Without this step the release proves the repo builds, which is not the
+      # claim being made — the claim is that what a user downloads builds, with
+      # no .git, no attic/ and no instruments/ present. It is also where the
+      # version stamp is checked in its release spelling: no +gSHA suffix,
+      # because there is no repo to read one from.
+      - name: the tarball itself builds
+        run: |
+          work="$(mktemp -d)"
+          tar -xzf "${TARBALL}" -C "$work"
+          src="$work/macos-steam-shim-${VERSION}"
+          "$src/src/installer/build.sh" "$work/payload"
+          stamped="$(cat "$work/payload/VERSION")"
+          echo "tarball payload stamps: $stamped"
+          [ "$stamped" = "${VERSION}" ] || {
+            echo "::error::tarball payload stamped $stamped, expected ${VERSION}"
+            exit 1
+          }
+          "$work/payload/deploy.sh" --dry-run
+
+      # Rendered against the checksum of the tarball that was actually built
+      # and uploaded, never against one typed by hand.
+      - name: render formula
+        run: |
+          url="https://github.com/${{ github.repository }}/releases/download/${TAG}/${TARBALL}"
+          ./src/installer/packaging/render-formula.sh "${VERSION}" "$url" "${SHA256}" macos-steam-shim.rb
+          brew style macos-steam-shim.rb
+          cat macos-steam-shim.rb
+
+      # The formula is a release asset as well as a tap file, so a tag is always
+      # installable from the URL even if the tap push below is not configured.
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$(mktemp)"
+          {
+            echo "## Install"
+            echo
+            echo '```sh'
+            echo "brew tap Superd22/macos-steam"
+            echo "brew install macos-steam-shim"
+            echo '```'
+            echo
+            echo "Builds from source on your machine — that is what keeps the"
+            echo "launcher free of the quarantine bit, with no Developer ID."
+            echo
+            echo "## Exercised against"
+            echo
+            sed -n 's/^/    /p' src/installer/compatibility.env
+            echo
+            echo "\`${TARBALL}\`  sha256 \`${SHA256}\`"
+          } > "$notes"
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file "$notes" \
+            "${TARBALL}" "${TARBALL}.sha256" macos-steam-shim.rb
+
+      # The tap is a separate repo, so this needs a token that can write to it:
+      # a fine-grained PAT with Contents:write on Superd22/homebrew-macos-steam,
+      # stored here as the TAP_TOKEN secret. Without it the release still stands
+      # and carries the formula as an asset — the step says so rather than
+      # failing the run and leaving a published release looking broken.
+      - name: push formula to tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [ -z "${TAP_TOKEN:-}" ]; then
+            echo "::warning::TAP_TOKEN not set — tap not updated. Copy macos-steam-shim.rb from the release assets into Superd22/homebrew-macos-steam/Formula/."
+            exit 0
+          fi
+          tap="$(mktemp -d)/tap"
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/Superd22/homebrew-macos-steam.git" "$tap"
+          mkdir -p "$tap/Formula"
+          cp macos-steam-shim.rb "$tap/Formula/macos-steam-shim.rb"
+          git -C "$tap" config user.name "github-actions[bot]"
+          git -C "$tap" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$tap" add Formula/macos-steam-shim.rb
+          if git -C "$tap" diff --cached --quiet; then
+            echo "tap already at ${TAG}"
+          else
+            git -C "$tap" commit -m "macos-steam-shim ${VERSION}"
+            git -C "$tap" push
+          fi
