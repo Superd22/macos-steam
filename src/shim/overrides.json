@@ -311,6 +311,12 @@
    "why": "a hand-written thunk in shim_pe.c already serves this method; generating a second one would race it into the same slot"
   },
   {
+   "interface": "ISteamClient",
+   "method": "Set_SteamAPI_CCheckCallbackRegisteredInProcess",
+   "reason": "semantic override",
+   "why": "the signature is not the problem, the answer is. The generator refuses the function-pointer parameter for a correct reason \u2014 the seam carries no upcall from native code back into PE code \u2014 but its refusal stub leaves the client with no checker registered, which reads as \"no callback is registered in this process\" for every callback, forever. Hand-written in shim_pe.c and answered by a unix stub that unconditionally returns 1, which is what Proton does with the same wall (unixlib.cpp:231-239) (#90)."
+  },
+  {
    "interface": "ISteamFriends",
    "method": "ActivateGameOverlay",
    "reason": "hand-written",

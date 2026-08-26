@@ -193,12 +193,93 @@ static NTSTATUS u_create_interface(void *args)
     return 0;
 }
 
+/* ---- callback pump instrumentation (#90) --------------------------------
+ *
+ * Steam_BGetCallback and Steam_GetAPICallResult are pure passthroughs, and
+ * until now silent ones: a pump delivering nothing and a pump nobody polls
+ * looked identical in shim-unix.log, so "the title waits forever on an async
+ * result" had no evidence either way behind it. AoE IV sat on its loading
+ * screen with one outstanding RequestEncryptedAppTicket and the log could not
+ * say whether a single callback had ever arrived.
+ *
+ * Both are called every frame, so neither logs per call. What goes in the log
+ * is the shape of the answer: that the pump is being polled at all (once), and
+ * each DISTINCT k_iCallback that has ever been delivered (capped). Anything
+ * finer buries the file it is meant to be found in.
+ *
+ * Only m_iCallback is read out of CallbackMsg_t — it sits at offset 4 of both
+ * the 32- and 64-bit layouts, so this needs no bitness case. The trailing
+ * m_cubParam does not, and is not worth a layout assumption for a log line. */
+static void pump_note_poll(void)
+{
+    static bool first = true;
+    if (!first) return;
+    first = false;
+    ulog("callback pump: first Steam_BGetCallback poll (#90)");
+}
+
+static void pump_note_delivery(int callback)
+{
+    enum { CAP = 64 };
+    static int seen[CAP];
+    static int nseen;
+    static bool capped;
+
+    if (capped) return;
+    for (int i = 0; i < nseen; i++)
+        if (seen[i] == callback) return;
+    seen[nseen++] = callback;
+    ulog("callback pump: delivered k_iCallback=%d (first of its id)", callback);
+    if (nseen == CAP) {
+        capped = true;
+        ulog("callback pump: %d distinct callback ids seen — further ids unlogged", CAP);
+    }
+}
+
+/* SteamAPICallCompleted_t (703) is the one callback worth logging EVERY time.
+ *
+ * It is not a broadcast — it names one SteamAPICall_t, and it is how a title
+ * learns that the async request it is blocked on has an answer waiting. The
+ * once-per-id rule above is exactly wrong for it: the second 703 is about a
+ * different call than the first, and "did a 703 ever name MY handle" is the
+ * question a hang like AoE IV's turns on. Bounded by how many async calls the
+ * title makes, and capped anyway.
+ *
+ * Layout (identical on both sides, #3 §7.3):
+ *   SteamAPICall_t m_hAsyncCall @0 (8) | int m_iCallback @8 (4) | uint32 m_cubParam @12 (4) */
+static void pump_note_call_completed(int callback, uint64_t msg)
+{
+    static int logged;
+    const char *param;
+    uint64_t inner_ptr;
+    uint64_t call;
+    int inner_cb;
+
+    if (callback != 703 || logged >= 64) return;
+    /* m_pubParam @8 of CallbackMsg_t on x86_64; the payload is native memory. */
+    memcpy(&inner_ptr, (const char *)(uintptr_t)msg + 8, sizeof inner_ptr);
+    if (!inner_ptr) return;
+    param = (const char *)(uintptr_t)inner_ptr;
+    memcpy(&call, param, sizeof call);
+    memcpy(&inner_cb, param + 8, sizeof inner_cb);
+    ulog("callback pump: SteamAPICallCompleted_t call=%llu for callback=%d",
+         (unsigned long long)call, inner_cb);
+    if (++logged == 64) ulog("callback pump: 64 call-completions logged — further ones unlogged");
+}
+
 static NTSTATUS u_bgetcallback(void *args)
 {
     auto *p = (sp_bgetcallback *)args;
     p->ret = 0;
     if (!n_BGetCallback) return 0;
+    pump_note_poll();
     p->ret = n_BGetCallback(p->pipe, (void *)p->msg) ? 1 : 0;
+    if (p->ret && p->msg) {
+        int callback;
+        memcpy(&callback, (const char *)(uintptr_t)p->msg + 4, sizeof callback);
+        pump_note_delivery(callback);
+        pump_note_call_completed(callback, p->msg);
+    }
     return 0;
 }
 static NTSTATUS u_freelast(void *args)
@@ -207,12 +288,23 @@ static NTSTATUS u_freelast(void *args)
     if (n_FreeLastCallback) n_FreeLastCallback(p->pipe);
     return 0;
 }
+/* The other half of the pump (#90). A SteamAPICall_t is answered at most once,
+ * so logging every completion is bounded by how many the title issues — but a
+ * title that polls a call that never completes would still flood, so only the
+ * completions are logged, never the misses, and the count is capped. */
 static NTSTATUS u_apicallresult(void *args)
 {
     auto *p = (sp_apicallresult *)args;
+    static int logged;
     p->ret = 0;
     if (!n_GetAPICallResult) return 0;
     p->ret = n_GetAPICallResult(p->pipe, p->call, (void *)p->cb, p->cub, p->expected, (bool *)p->failed) ? 1 : 0;
+    if (p->ret && logged < 64) {
+        const bool *failed = (const bool *)p->failed;
+        ulog("callback pump: GetAPICallResult(call=%llu, expected=%d) -> complete, failed=%d",
+             (unsigned long long)p->call, p->expected, failed ? (*failed ? 1 : 0) : -1);
+        if (++logged == 64) ulog("callback pump: 64 completions logged — further ones unlogged");
+    }
     return 0;
 }
 static NTSTATUS u_release_tls(void *args)
@@ -258,6 +350,39 @@ static NTSTATUS u_client_getgeneric(void *args)
     void *iface = ((ISteamClient *)p->handle)->GetISteamGenericInterface(p->user, p->pipe, ver);
     p->ret = (uint64_t)iface;
     ulog("GetISteamGenericInterface(u=%d,pipe=%d,\"%s\") -> %p", p->user, p->pipe, ver ? ver : "(null)", iface);
+    return 0;
+}
+
+/* Defined with the ISteamFriends overlay block below, which is where the
+ * slot-transfer reasoning it depends on is written down. */
+static void *vslot(uint64_t handle, int32_t slot);
+
+/* ISteamClient::Set_SteamAPI_CCheckCallbackRegisteredInProcess (#90).
+ *
+ * The client asks this "is callback N registered in this process?" before it
+ * bothers queueing one. The real answer lives in steam_api64.dll's PE-side
+ * registry, which is on the far side of a seam that carries no upcall — so we
+ * do what Proton does (unixlib.cpp:231-239, 286-295) and register a unix stub
+ * that says yes to everything. Over-reporting is the safe direction: a callback
+ * the title did not register is dropped by its own dispatcher, whereas one it
+ * did register and we suppressed never arrives at all.
+ *
+ * The pointer we hand over is OURS and lives for the process, so nothing about
+ * its lifetime crosses the seam. */
+static uint32_t shim_check_callback_registered(int32_t callback)
+{
+    (void)callback;
+    return 1;
+}
+
+static NTSTATUS u_client_setcheckcb(void *args)
+{
+    auto *p = (sp_client_checkcb *)args;
+    auto fn = (void (*)(void *, uint32_t (*)(int32_t)))vslot(p->handle, p->slot);
+    ulog("Set_SteamAPI_CCheckCallbackRegisteredInProcess slot=%d fn=%p -> unix stub "
+         "returning 1 (#90)", p->slot, (void *)fn);
+    if (!fn) return 0;                 /* PE side could not name the slot */
+    fn((void *)(uintptr_t)p->handle, shim_check_callback_registered);
     return 0;
 }
 
@@ -782,6 +907,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] = {
     u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
     u_rs_cloudforapp, u_rs_setcloudforapp,
     u_log,
+    u_client_setcheckcb,
 #include "gen/shim_gen_dispatch.h"
 };
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
@@ -817,6 +943,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] = {
     u_rs_getfilenameandsize, u_rs_getquota, u_rs_cloudforaccount,
     u_rs_cloudforapp, u_rs_setcloudforapp,
     u_log,
+    u_client_setcheckcb,
 #include "gen/shim_gen_dispatch.h"
 };
 

@@ -214,6 +214,23 @@ enum shim_call
      * half of the stack already reports. */
     C_Log,
 
+    /* ISteamClient::Set_SteamAPI_CCheckCallbackRegisteredInProcess (#90).
+     *
+     * The one method whose PARAMETER this seam cannot carry and whose EFFECT
+     * still matters. The title hands the client a PE function pointer answering
+     * "is callback N registered in this process?", and a native-to-PE upcall is
+     * exactly what the seam does not do — so the generator refused the slot
+     * (gen/REPORT.md) and the refusal stub answered 0. That 0 is not the
+     * setter's return value (it has none); it is the client never getting a
+     * checker at all, which is the same as being told nothing is listening.
+     *
+     * Proton hit the identical wall and settled it (unixlib.cpp:231-239,
+     * 286-295): drop the PE pointer, register a UNIX stub that unconditionally
+     * returns 1. So this opcode carries no function pointer — only the handle
+     * and the native slot, like the ISteamFriends overlay block above — and the
+     * unix half supplies the callable itself. */
+    C_Client_SetCheckCallbackRegistered,
+
     /* Every method the generator emitted (#78): one opcode per (interface,
      * method, SIGNATURE), appended after every hand-written opcode above so no
      * existing index moves. ~1,100 of them, against the ~90 hand-typed ones —
@@ -239,6 +256,7 @@ struct sp_client_noarg     { uint64_t handle; int32_t ret; };             /* Cre
 struct sp_client_pipe      { uint64_t handle; int32_t pipe; int32_t ret; }; /* BRelease/ConnectGU */
 struct sp_client_releaseu  { uint64_t handle; int32_t pipe; int32_t user; };
 struct sp_client_getgen    { uint64_t handle; uint64_t ver; uint64_t ret; int32_t user; int32_t pipe; };
+struct sp_client_checkcb   { uint64_t handle; int32_t slot; };                     /* Set_SteamAPI_CCheckCallbackRegisteredInProcess: no pointer crosses (#90) */
 
 /* ---- ISteamUser ---- */
 struct sp_user_i32         { uint64_t handle; int32_t ret; };             /* GetHSteamUser/BLoggedOn */
