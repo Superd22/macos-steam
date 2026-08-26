@@ -13,10 +13,17 @@
 # proving nothing about the machine anyone actually installs this on.
 name: ci
 
+# Not on every push. The runner is macOS, which GitHub bills at 10x the Linux
+# rate, and a full build here is both bitnesses of the shim plus a Swift
+# compile — so a run per commit on a working branch buys nothing a run per
+# change does not. The gate fires where a change actually enters main: on the
+# pull request, and on main itself for the direct pushes this repo also does.
+# Tags are release.yml's job and run the same gates again before publishing.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -66,7 +73,12 @@ jobs:
 
   formula:
     name: formula lint
-    runs-on: macos-15
+    # Linux on purpose. brew style is static RuboCop analysis — it parses the
+    # formula, it does not evaluate it, so the arm64/sonoma requirements inside
+    # are just Ruby to it. Homebrew ships on the Ubuntu runner image, which
+    # bills at a tenth of the macOS rate. Only the build job below genuinely
+    # needs a Mac (swiftc, clang, codesign).
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -74,11 +86,17 @@ jobs:
       # formula's shape, neither of which depends on which tarball it points at.
       # This is what stops a broken formula reaching the tap on a tag, when it
       # is too late to notice.
+      #
+      # It is linted INSIDE a real tap, not as a loose .rb. Against a loose file
+      # brew falls back to plain-Ruby cops and demands Sorbet sigils and a
+      # frozen-string-literal comment that no formula in any tap carries; in a
+      # tap it applies the FormulaAudit cops that actually mean something here.
       - name: render and lint
         run: |
-          mkdir -p /tmp/lint
+          brew tap-new --no-git superd22/macos-steam
+          tap="$(brew --repository superd22/macos-steam)"
           ./src/installer/packaging/render-formula.sh 0.0.0 \
             https://example.invalid/macos-steam-shim-0.0.0.tar.gz \
             0000000000000000000000000000000000000000000000000000000000000000 \
-            /tmp/lint/macos-steam-shim.rb
-          brew style /tmp/lint/macos-steam-shim.rb
+            "$tap/Formula/macos-steam-shim.rb"
+          brew style superd22/macos-steam

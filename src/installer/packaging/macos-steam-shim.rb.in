@@ -26,21 +26,21 @@ class MacosSteamShim < Formula
   desc "Play Windows-only Steam titles through the native macOS Steam client"
   homepage "https://github.com/Superd22/macos-steam"
   url "@URL@"
+  version "@VERSION@"
   sha256 "@SHA256@"
   license "AGPL-3.0-or-later"
-  version "@VERSION@"
-
-  # Apple Silicon only, macOS 14+ — the same two lines the launcher's preflight
-  # checks first. Stated here so the failure is a clear brew message at install
-  # rather than a checklist the user only meets after a build.
-  depends_on arch: :arm64
-  depends_on macos: :sonoma
 
   # The one prerequisite that leaves the README (#42): brew supplies the
   # cross-compiler, so nobody is told to `brew install mingw-w64` by hand.
   # clang, swiftc and python3 all come from the Xcode command line tools, which
   # Homebrew itself already requires — so they are not declared here.
   depends_on "mingw-w64" => :build
+
+  # Apple Silicon only, macOS 14+ — the same two lines the launcher's preflight
+  # checks first. Stated here so the failure is a clear brew message at install
+  # rather than a checklist the user only meets after a build.
+  depends_on arch: :arm64
+  depends_on macos: :sonoma
 
   def install
     # The seam's first half. build.sh takes the payload dir as its argument and
@@ -79,15 +79,15 @@ class MacosSteamShim < Formula
   # the user is one paste from done rather than staring at a failed install.
   def post_install
     system libexec/"deploy.sh"
-  rescue StandardError
+  rescue
     opoo "Could not deploy automatically — run `macos-steam-shim` to finish."
   end
 
   def caveats
     <<~EOS
       Deployed:
-        the payload  ~/Library/Application Support/macos-steam-shim/
-        the launcher ~/Applications/Steam (macOS Play).app
+        the payload  ~/@PAYLOAD_REL@/
+        the launcher ~/@LAUNCHER_REL@
 
       If the install could not write those, run this once to finish:
         macos-steam-shim

@@ -105,7 +105,10 @@ jobs:
         run: |
           url="https://github.com/${{ github.repository }}/releases/download/${TAG}/${TARBALL}"
           ./src/installer/packaging/render-formula.sh "${VERSION}" "$url" "${SHA256}" macos-steam-shim.rb
-          brew style macos-steam-shim.rb
+          # Linted in a tap, for the reason ci.yml's formula job spells out.
+          brew tap-new --no-git superd22/macos-steam
+          cp macos-steam-shim.rb "$(brew --repository superd22/macos-steam)/Formula/"
+          brew style superd22/macos-steam
           cat macos-steam-shim.rb
 
       # The formula is a release asset as well as a tap file, so a tag is always
