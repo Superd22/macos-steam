@@ -48,7 +48,7 @@ final class AppModel: ObservableObject {
             Task.detached {
                 Shell.run("/usr/bin/osascript", ["-e", "quit app \"Steam\""])
                 for _ in 0..<40 where Shell.isRunning(ShimPath.steamOsx) {
-                    Thread.sleep(forTimeInterval: 0.5)
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                 }
                 await MainActor.run { self.busy = nil; self.spawnAndWatch() }
             }
@@ -69,7 +69,6 @@ final class AppModel: ObservableObject {
             switch outcome {
             case .patched(let sites) where sites >= 1:
                 self.launchState = .ready(sites: sites)
-                Prefs.verifiedVersion = self.receipt?.version
                 Prefs.firstRunCompleted = true
                 self.refresh()
             case .patched:

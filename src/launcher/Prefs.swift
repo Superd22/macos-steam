@@ -17,7 +17,6 @@ enum Prefs {
 
     private static let overlayKey = "overlay"
     private static let firstRunKey = "firstRunCompleted"
-    private static let verifiedKey = "verifiedVersion"
 
     /// Unset means "whatever the manifest says", asked of the predicate — never
     /// hardcoded here as `true`. An inherited environment can still state the
@@ -34,20 +33,15 @@ enum Prefs {
     /// True once the app has watched a launch reach `patched 1 site(s)` itself.
     /// Until then every launch goes through the checklist, because an install
     /// that has never been proven to work is exactly the case where a user is
-    /// owed something on screen.
+    /// owed something on screen. After it, whether the mechanism still works is
+    /// a live question the log answers (LogWatch.lastLaunchPatched) rather than
+    /// a stored verdict that a payload update would invalidate.
     static var firstRunCompleted: Bool {
         get { store.bool(forKey: firstRunKey) }
         set { store.set(newValue, forKey: firstRunKey) }
     }
 
-    /// The version that self-verification last passed for. A payload update is
-    /// a new claim: it re-verifies rather than trusting the previous one.
-    static var verifiedVersion: String? {
-        get { store.string(forKey: verifiedKey) }
-        set { store.set(newValue, forKey: verifiedKey) }
-    }
-
     static func forget() {
-        for key in [overlayKey, firstRunKey, verifiedKey] { store.removeObject(forKey: key) }
+        for key in [overlayKey, firstRunKey] { store.removeObject(forKey: key) }
     }
 }

@@ -39,9 +39,15 @@ reasons that are not about polish:
   (⌥ at launch, or the nested "Steam Play Settings" helper app so Spotlight can
   find it without knowing the gesture), and the checklist when preflight is
   broken or nothing has been proven yet. Uninvited UI is a failure report.
-- **The app verifies itself.** After the first launch it watches
-  `compat-enabler.log` for `patched 1 site(s)` and says "ready". That line was
-  always the right signal, addressed to the wrong reader.
+- **The app verifies itself.** On the first run it watches `compat-enabler.log`
+  for `patched 1 site(s)` and says "ready". That line was always the right
+  signal, addressed to the wrong reader. Afterwards the question is asked
+  *retrospectively* — "did the last launch open the gate?" — and never again
+  interactively. Scoping proof to a payload version was tried first and is
+  wrong: it makes every update an unproven claim, so every update greets the
+  user with a checklist, which is the uninvited UI the prime rule forbids. A
+  payload that breaks the injector is instead caught on the launch after it,
+  when there is something real to report.
 - **The overlay becomes a stored preference read at launch time.** ADR 0006's
   single owner is untouched: the *rule* is still the generated predicate, and
   the Swift dialect of it is checked against the C and sh ones on the same table

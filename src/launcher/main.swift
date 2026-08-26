@@ -54,9 +54,13 @@ if arguments.contains(ShimPath.printEnvFlag) {
 }
 
 let checks = Preflight.run()
-let proven = Prefs.firstRunCompleted && Prefs.verifiedVersion == Receipt.load()?.version
+// A first run has nothing to be retrospective about: no launch has happened, so
+// the checklist is how the very first one gets watched. Every launch after that
+// is governed by preflight alone — "did the last launch open the gate" is one
+// of its checks, and a blocked verdict is the whole answer.
+let neverLaunched = !Prefs.firstRunCompleted
 
-if !wantsSettings && !optionHeld && Preflight.isClear(checks) && proven {
+if !wantsSettings && !optionHeld && !neverLaunched && Preflight.isClear(checks) {
     Launch.exec(passthrough: passthrough, overlay: Prefs.overlay)   // never returns
 }
 

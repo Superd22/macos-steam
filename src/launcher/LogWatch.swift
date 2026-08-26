@@ -51,6 +51,20 @@ enum LogWatch {
         return Int(digits)
     }
 
+    /// Did the most recent launch — whenever it was — open the gate?
+    ///
+    /// This is what keeps an UPDATE from showing UI. Scoping "proven" to a
+    /// version would mean every new payload is an unproven claim and every
+    /// update greets the user with a checklist, which is precisely the
+    /// uninvited UI the prime rule forbids. The honest question is not "has
+    /// this version been proven" but "did the last launch work": a payload that
+    /// breaks the injector is caught on the launch after it, with the checklist
+    /// appearing exactly when something is actually wrong.
+    static func lastLaunchPatched() -> Bool {
+        guard let sites = patchedSites(in: tail(enablerLog, bytes: 16384)) else { return false }
+        return sites >= 1
+    }
+
     /// Was the gate patched during the run of Steam that is up right now? The
     /// injector writes its line within milliseconds of `steam_osx` starting, so
     /// "the log was written after the process started" is the same question and

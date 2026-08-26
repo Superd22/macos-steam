@@ -180,10 +180,17 @@ enum Preflight {
     // 6 — the one check that cannot be made before a launch. The user never
     // reads a log for `patched 1 site(s)`; the app reads it and says "ready".
     static func selfVerification() -> Check {
-        let version = Receipt.load()?.version
-        if let version, Prefs.verifiedVersion == version {
+        // Proven once, and still working as of the last launch. The second half
+        // is what makes this a live check rather than a stored opinion, and it
+        // is why an update does not have to re-ask interactively.
+        if Prefs.firstRunCompleted && LogWatch.lastLaunchPatched() {
             return Check(id: "verified", title: "Compat gate proven on this Mac",
                          verdict: .ok, detail: "")
+        }
+        if Prefs.firstRunCompleted {
+            return Check(id: "verified", title: "The last launch did not open the compat gate",
+                         verdict: .blocked,
+                         detail: "It has worked here before, so something changed — an updated Steam client, or a launch that came up translated as x86_64. Start Steam from here and this window will report what happens.")
         }
         return Check(id: "verified", title: "Compat gate not proven yet",
                      verdict: .pending,
