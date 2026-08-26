@@ -41,8 +41,43 @@ is computed from them, so a subject that cannot be parsed is a change that never
 feat(launcher): merge into DYLD_INSERT_LIBRARIES instead of clobbering it   -> minor
 fix(shim): 32-bit titles could not sign in without both bitnesses           -> patch
 feat(shim)!: drop the curated interface list                                -> major
+compat(compat-tool): AoE IV runs with Steam's overlay box unticked          -> minor
 docs: ...  test: ...  ci: ...  chore: ...                                   -> no release
 ```
+
+### A `Changelog:` footer, when the subject is not enough
+
+A subject line is one line, and some changes need a sentence a user can act on. Add a
+`Changelog:` footer and its text is rendered as an indented description under that
+commit's changelog bullet:
+
+```
+compat(compat-tool): anti-cheat titles can run, at the cost of no overlay
+
+<the usual body: what was measured, what was rejected, why. NOT rendered.>
+
+Changelog: Untick "Enable the Steam Overlay while in-game" in a title's Steam
+properties and the shim skips overlay injection for that title, while the rest
+of your library keeps the overlay.
+
+Refs #92.
+```
+
+It is **opt-in on purpose**. Bodies here are long and internal — generators, drift
+guards, parity tables — and none of that belongs in a release note, so a commit without
+the footer contributes only its subject, as before. The note ends at the next blank
+line, which is what keeps trailing footers like `Refs #92.` out of it. Write it for
+someone reading the release page to find out whether their game works now.
+
+This is why `.releaserc.mjs` is JavaScript and not JSON: the footer needs a writer
+`transform`, and a function cannot live in a `.json` file.
+
+`compat` is ours, not part of the Conventional Commits spec. It exists because this
+project's headline claim is which titles run, and a compatibility change is not a `feat`
+(nothing new was built) or a `fix` (nothing was broken) — a title simply started
+working. Those land in their own **Title compatibility** changelog section, where a
+user scanning a release for "does my game work now" will actually find them. Say what
+changed for which title, and name the cost if there is one.
 
 A `!` before the colon, or a `BREAKING CHANGE:` footer, is what makes a major. Scopes
 follow the module names under `src/` (`launcher`, `shim`, `compat-tool`, `installer`,
