@@ -41,18 +41,7 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
 
 ## Install
 
-1. **Create the bottle the games will run in.** It must be a clean `win10_64` bottle with
-   _no_ Windows Steam installed. The shim is the entire client, and a real
-   `steamclient64.dll` in the bottle would win the lookup instead.
-
-   ```sh
-   "$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxbottle" \
-       --create --bottle steam-shim --template win10_64
-   ```
-
-   (`steam-shim` is the default name; override it with `SHIM_BOTTLE` if you use another.)
-
-2. **Build and deploy.**
+1. **Build and deploy.**
 
    ```sh
    ./src/installer/install.sh
@@ -66,24 +55,41 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
      merges the injector into `DYLD_INSERT_LIBRARIES`, points Steam at the tool path, and
      execs Valve's own `steam_osx` unmodified.
 
-3. **Quit Steam, then launch `Steam (macOS Play)`** instead of Steam.app. The gate is flipped
-   in memory each launch, so this app is how you start Steam from now on. The first launch
-   shows a checklist and confirms the gate was flipped itself — after that it shows nothing
-   at all and behaves exactly like clicking Steam.app.
+2. **Quit Steam, then launch `Steam (macOS Play)`** instead of Steam.app. The compat gate is
+   flipped in memory at each launch, so this app is how you start Steam from now on.
 
-4. **Install and play a Windows title** from the normal Steam library UI. Steam downloads the
+   The first launch shows a checklist. It creates the CrossOver bottle for you if you have
+   not made one, and once Steam is up it reads the injector's log itself and confirms that
+   Steam Play switched on — you never have to open a log. After that it shows nothing at all
+   and behaves exactly like clicking Steam.app.
+
+   ![The launcher's first-run checklist](docs/images/launcher-preflight.png)
+
+   The bottle it creates is a clean `win10_64` with _no_ Windows Steam in it, which matters:
+   the shim is the entire client, and a real `steamclient64.dll` in the bottle would win the
+   lookup instead. To make it yourself, or to use a different one:
+
+   ```sh
+   "$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxbottle" \
+       --create --bottle steam-shim --template win10_64
+   ```
+
+   (`steam-shim` is the default name; override it with `SHIM_BOTTLE` if you use another.)
+
+3. **Install and play a Windows title** from the normal Steam library UI. Steam downloads the
    Windows depot into your macOS `steamapps`, then hands the `.exe` to the compat tool, which
    launches it in the bottle against the shim.
 
 **Hold ⌥ while opening the launcher** for settings, diagnostics and uninstall — or open
-“Steam Play Settings” from Spotlight, which is the same pane. The Steam overlay is **on by
-default** and lives there as a toggle: changing it takes effect at the next Steam launch, and
-never needs a reinstall.
+“Steam Play Settings” from Spotlight, which is the same pane. Diagnose runs the whole
+troubleshooting table for you and hands you a report to paste into an issue.
 
-From the command line it is still a switch like any other:
+The Steam overlay is **on by default** and lives in that pane as a toggle: changing it takes
+effect at the next Steam launch and never needs a reinstall. The installer can set it too,
+which writes the same preference the toggle does:
 
 ```sh
-./src/installer/install.sh --overlay 0        # or: SHIM_OVERLAY=0 ./src/installer/install.sh
+./src/installer/install.sh --overlay 0
 ```
 
 ### Checking, rolling back, uninstalling
@@ -104,14 +110,12 @@ so there is nothing else to undo; the CrossOver bottle is left alone.
 ## Troubleshooting
 
 Three logs cover almost everything. They live in `~/Library/Logs/macos-steam-shim/`, owner-only
-— they name your whole Steam library, so they are not in `/tmp` where the rest of the machine
-can read them:
 
-| Log                   | What it tells you                                               |
-| --------------------- | --------------------------------------------------------------- |
-| `compat-enabler.log`  | whether the compat gate was flipped                             |
-| `shim-launch.log`     | what the compat tool was invoked with, and how it launched      |
-| `shim-unix.log`       | every Steamworks call crossing the seam, per interface and slot |
+| Log                  | What it tells you                                               |
+| -------------------- | --------------------------------------------------------------- |
+| `compat-enabler.log` | whether the compat gate was flipped                             |
+| `shim-launch.log`    | what the compat tool was invoked with, and how it launched      |
+| `shim-unix.log`      | every Steamworks call crossing the seam, per interface and slot |
 
 Two failure modes account for most confusion:
 
@@ -123,7 +127,8 @@ Two failure modes account for most confusion:
 ## Known limits
 
 - **Sources only:** no release artifact, no signed app, no Gatekeeper story yet.
-- Anti-cheat is out of scope.
+- Anti-cheats probably won't work
+- Not all Steam APIs are covered, see [#45](https://github.com/Superd22/macos-steam/issues/45). In practise: stuff might not behave as expected when a game talks to steam (friend list, server browser, workshop...)
 
 ## Related projects
 
