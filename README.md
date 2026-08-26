@@ -59,8 +59,9 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
    ```
 
    This builds anything missing and lays down two things:
-   - the **payload** in `~/Library/Application Support/macos-steam-shim/` — the injector, the
-     compat tool, and both bitnesses of the shim.
+   - the **payload** in `~/Library/Application Support/macos-steam-shim/versions/<version>/` —
+     the injector, the compat tool, and both bitnesses of the shim — with `current` pointed
+     at it, and a `receipt.json` recording every file and its hash (ADR 0010).
    - the **launcher** `~/Applications/Steam (macOS Play).app` — an unhardened `.app` whose
      shell-script executable exports the injector and the tool path, then execs Valve's own
      `steam_osx` unmodified.
@@ -76,17 +77,23 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
 The Steam overlay is **on by default**. To turn it off, reinstall (and quit & relaunch) with it disabled:
 
 ```sh
-SHIM_OVERLAY=0 ./src/installer/install.sh
+./src/installer/install.sh --overlay 0        # or: SHIM_OVERLAY=0 ./src/installer/install.sh
 ```
 
-### Uninstall
+### Checking, rolling back, uninstalling
+
+Every deploy writes a receipt, and the installed payload carries the script that reads it —
+so these work from anywhere, with no checkout:
 
 ```sh
-./src/installer/install.sh --uninstall
+./src/installer/install.sh --verify     # re-hash every deployed file against the receipt
+./src/installer/install.sh --receipt    # what is installed: version, files, what it was tested against
+"$HOME/Library/Application Support/macos-steam-shim/current/deploy.sh" --rollback
+./src/installer/install.sh --uninstall  # launcher + payload + logs
 ```
 
-Removes the launcher and the payload. Steam itself was never modified, so there is nothing
-else to undo.
+Uninstall removes the launcher, the payload and the logs. Steam itself was never modified,
+so there is nothing else to undo; the CrossOver bottle is left alone.
 
 ## Troubleshooting
 
@@ -152,7 +159,7 @@ docs/research/              the measured evidence behind each decision
 
 src/                        reaches a user's machine
   layout/                   the deploy contract — one manifest of every shipped path
-  installer/                install.sh — the one command that deploys everything
+  installer/                build.sh (repo -> payload), deploy.sh (payload -> receipt)
   compat-enabler/           the m_bCompatEnabled injector (Level A)
   compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)
   shim/                     the bridge: PE steamclient(64).dll + native .so (Level B)
