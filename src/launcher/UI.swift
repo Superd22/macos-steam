@@ -1,8 +1,26 @@
 import SwiftUI
 
-/// The two panes. Neither of them appears on the happy path: the checklist only
-/// when preflight is broken or nothing has been proven yet, and the settings
-/// pane only when asked for (option-click, or the nested helper app).
+/// The two panes, and the small design system they share.
+///
+/// Neither pane appears on the happy path: the checklist only when preflight is
+/// broken or nothing has been proven yet, the settings pane only when asked for
+/// (⌥ at launch, or the nested helper app).
+///
+/// The window is tall rather than square because both panes are a header and
+/// then a column of rows, which is a shape a phone-sized window fits and a
+/// square one pads out. Everything below uses semantic colours only — `.primary`,
+/// `.secondary`, the materials, the user's accent — so light and dark are the
+/// same code and follow the system rather than a preference of ours.
+enum Metrics {
+    static let width: CGFloat = 420
+    static let height: CGFloat = 580
+    /// The traffic lights float over the content, since the titlebar is
+    /// transparent. This is the room they need.
+    static let titlebar: CGFloat = 28
+    static let gutter: CGFloat = 22
+    static let radius: CGFloat = 12
+}
+
 struct RootView: View {
     enum Pane { case checklist, settings }
     let pane: Pane
@@ -15,44 +33,139 @@ struct RootView: View {
             case .settings: SettingsPane(model: model)
             }
         }
-        .frame(minWidth: 560, minHeight: 460)
+        .frame(width: Metrics.width, height: Metrics.height)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
-// MARK: - shared
+// MARK: - shared pieces
 
-struct VerdictIcon: View {
-    let verdict: Verdict
-    var body: some View {
-        switch verdict {
-        case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-        case .blocked: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-        case .warning: Image(systemName: "info.circle.fill").foregroundStyle(.yellow)
-        case .pending: Image(systemName: "circle.dashed").foregroundStyle(.secondary)
+extension Verdict {
+    var symbol: String {
+        switch self {
+        case .ok: "checkmark"
+        case .blocked: "exclamationmark"
+        case .warning: "exclamationmark"
+        case .pending: "circle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .ok: .green
+        case .blocked: .orange
+        case .warning: .yellow
+        case .pending: .secondary
         }
     }
 }
 
-struct Row<Trailing: View>: View {
+/// A verdict as a small filled disc. Colour carries the state and the glyph
+/// repeats it, so it still reads without colour vision.
+struct Pip: View {
+    let verdict: Verdict
+    var size: CGFloat = 18
+
+    var body: some View {
+        ZStack {
+            Circle().fill(verdict.tint.opacity(verdict == .pending ? 0.12 : 0.16))
+            if verdict == .pending {
+                Circle().strokeBorder(.secondary.opacity(0.35), lineWidth: 1.2).padding(size * 0.28)
+            } else {
+                Image(systemName: verdict.symbol)
+                    .font(.system(size: size * 0.5, weight: .bold))
+                    .foregroundStyle(verdict.tint)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// The one big element on the checklist: what state the whole thing is in.
+/// An empty ring for "unknown" reads as unfinished, so the resting state is the
+/// app's own glyph in the user's accent colour, and only a real verdict
+/// recolours it.
+struct HeaderBadge: View {
+    let verdict: Verdict
+    let working: Bool
+
+    private var tint: Color { verdict == .pending ? .accentColor : verdict.tint }
+    private var glyph: String {
+        switch verdict {
+        case .ok: "checkmark"
+        case .blocked, .warning: "exclamationmark"
+        case .pending: "gamecontroller.fill"
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Circle().fill(tint.opacity(0.14))
+            if working {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: glyph)
+                    .font(.system(size: verdict == .pending ? 23 : 26, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+        }
+        .frame(width: 58, height: 58)
+    }
+}
+
+/// One line in either pane's list. The title carries the state, so the detail
+/// line is absent whenever there is nothing to add.
+struct StatusRow<Trailing: View>: View {
     let verdict: Verdict
     let title: String
     let detail: String
     @ViewBuilder var trailing: () -> Trailing
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            VerdictIcon(verdict: verdict)
+        HStack(alignment: .top, spacing: 11) {
+            Pip(verdict: verdict).padding(.top, 1)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).fontWeight(verdict == .ok ? .regular : .medium)
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(verdict == .ok ? .regular : .medium)
+                    .foregroundStyle(.primary)
                 if !detail.isEmpty {
-                    Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
             trailing()
+                .controlSize(.small)
+                .buttonStyle(.bordered)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 11)
+        .padding(.horizontal, 14)
     }
+}
+
+/// Rows grouped into one rounded surface, hairlines between them. The card is
+/// the only chrome either pane has.
+struct Card<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0) { content() }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous))
+            // The separator colour and not a fixed opacity: in dark mode the
+            // card fill sits close to the window fill, and a hand-picked alpha
+            // that reads in light disappears there.
+            .overlay(
+                RoundedRectangle(cornerRadius: Metrics.radius, style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1))
+    }
+}
+
+struct Hairline: View {
+    var body: some View { Divider().opacity(0.5).padding(.leading, 44) }
 }
 
 // MARK: - checklist (first run, or preflight broken)
@@ -61,49 +174,83 @@ struct ChecklistView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Steam (macOS Play)").font(.title2).bold()
-                Text(headline).foregroundStyle(.secondary)
-            }
-            .padding(20)
-
-            Divider()
-
+        VStack(spacing: 0) {
+            header
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(model.checks) { check in
-                        Row(verdict: displayed(check).verdict,
-                            title: displayed(check).title,
-                            detail: displayed(check).detail) {
-                            remedyButton(for: check)
+                Card {
+                    ForEach(Array(model.checks.enumerated()), id: \.element.id) { index, check in
+                        let shown = displayed(check)
+                        StatusRow(verdict: shown.verdict, title: shown.title, detail: shown.detail) {
+                            remedy(for: check)
                         }
-                        Divider().opacity(0.4)
+                        if index < model.checks.count - 1 { Hairline() }
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
+                .padding(.horizontal, Metrics.gutter)
+                .padding(.bottom, 18)
             }
+            footer
+        }
+        .onAppear { model.refresh() }
+    }
 
-            Divider()
+    /// The state of the whole thing, once, in the largest type on screen. A
+    /// user who reads nothing else should still know where they stand.
+    private var header: some View {
+        VStack(spacing: 12) {
+            HeaderBadge(verdict: overall, working: model.launchState == .launching)
+            VStack(spacing: 5) {
+                Text("Steam (macOS Play)")
+                    .font(.title3.weight(.semibold))
+                Text(headline)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Metrics.titlebar + 14)
+        .padding(.horizontal, Metrics.gutter + 8)
+        .padding(.bottom, 22)
+    }
 
-            HStack {
+    private var footer: some View {
+        VStack(spacing: 10) {
+            Button(action: { model.launchAndProve() }) {
+                Text(launchTitle).frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+            .disabled(model.launchState == .launching || model.busy != nil)
+
+            HStack(spacing: 6) {
                 if let busy = model.busy {
                     ProgressView().controlSize(.small)
-                    Text(busy).foregroundStyle(.secondary)
+                    Text(busy)
                 } else {
                     Text("Hold ⌥ when you open this app for settings.")
-                        .font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button("Re-check") { model.refresh() }
-                Button(launchTitle) { model.launchAndProve() }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(model.launchState == .launching)
+                    .buttonStyle(.link)
             }
-            .padding(16)
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-        .onAppear { model.refresh() }
+        .padding(.horizontal, Metrics.gutter)
+        .padding(.vertical, 16)
+        .background(.bar)
+    }
+
+    private var overall: Verdict {
+        switch model.launchState {
+        case .ready: return .ok
+        case .launching: return .pending
+        case .launchedButUnproven: return .blocked
+        case .idle: return Preflight.isClear(model.checks) ? .pending : .blocked
+        }
     }
 
     private var headline: String {
@@ -124,9 +271,6 @@ struct ChecklistView: View {
     private var launchTitle: String {
         switch model.launchState {
         case .launching: return "Starting…"
-        // The gate is flipped per process, so a client that is already up
-        // cannot be given one — it has to be replaced, and the button says so
-        // rather than quietly quitting the user's Steam.
         default: return model.mustQuitSteamFirst ? "Quit Steam and start it here" : "Start Steam"
         }
     }
@@ -148,16 +292,12 @@ struct ChecklistView: View {
     }
 
     @ViewBuilder
-    private func remedyButton(for check: Check) -> some View {
+    private func remedy(for check: Check) -> some View {
         switch check.remedy {
-        case .openURL(let url):
-            Link(check.remedyTitle, destination: url).buttonStyle(.bordered)
-        case .createBottle:
-            Button(check.remedyTitle) { model.createBottle() }.disabled(model.busy != nil)
-        case .reinstall:
-            Button(check.remedyTitle) { Help.showReinstall() }
-        case .none:
-            EmptyView()
+        case .openURL(let url): Link(check.remedyTitle, destination: url)
+        case .createBottle: Button(check.remedyTitle) { model.createBottle() }.disabled(model.busy != nil)
+        case .reinstall: Button(check.remedyTitle) { Help.showReinstall() }
+        case .none: EmptyView()
         }
     }
 }
@@ -166,15 +306,53 @@ struct ChecklistView: View {
 
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
-    @State private var tab = 0
+    @State private var tab = Tab.settings
+
+    enum Tab: String, CaseIterable, Identifiable {
+        case settings = "Settings", diagnose = "Diagnose", uninstall = "Uninstall"
+        var id: String { rawValue }
+    }
 
     var body: some View {
-        TabView(selection: $tab) {
-            OverlayTab(model: model).tabItem { Text("Settings") }.tag(0)
-            DiagnoseTab(model: model).tabItem { Text("Diagnose") }.tag(1)
-            UninstallTab(model: model).tabItem { Text("Uninstall") }.tag(2)
+        VStack(spacing: 0) {
+            // The three panes are the whole header: a full-width segmented
+            // control under the traffic lights, with no window title competing
+            // with it. There is nothing else at this level to name.
+            Picker("", selection: $tab) {
+                ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.large)
+            .padding(.top, Metrics.titlebar + 8)
+            .padding(.horizontal, Metrics.gutter)
+            .padding(.bottom, 16)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    switch tab {
+                    case .settings: OverlayTab(model: model)
+                    case .diagnose: DiagnoseTab(model: model)
+                    case .uninstall: UninstallTab(model: model)
+                    }
+                }
+                .padding(.horizontal, Metrics.gutter)
+                .padding(.bottom, 22)
+            }
         }
-        .padding(16)
+    }
+}
+
+/// A heading for a group of rows. Small, quiet, and never repeated by the first
+/// line of the group under it.
+struct SectionLabel: View {
+    let text: String
+    var body: some View {
+        Text(text.uppercased())
+            .font(.caption2.weight(.semibold))
+            .tracking(0.6)
+            .foregroundStyle(.secondary)
+            .padding(.leading, 2)
     }
 }
 
@@ -182,42 +360,70 @@ struct OverlayTab: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Toggle("Steam overlay in Windows games", isOn: Binding(
-                get: { model.overlay },
-                set: { model.setOverlay($0) }))
-            .toggleStyle(.switch)
+        VStack(alignment: .leading, spacing: 18) {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Steam overlay in Windows games", isOn: Binding(
+                        get: { model.overlay },
+                        set: { model.setOverlay($0) }))
+                    .toggleStyle(.switch)
+                    .font(.subheadline)
 
-            Text("The Shift+Tab overlay, in Windows games. It applies to every game you play, and changes take effect the next time Steam starts.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-
-            if model.overlayPendingRestart {
-                HStack {
-                    Text("This takes effect the next time Steam starts.")
-                    Spacer()
-                    Button("Restart Steam") { model.restartSteam() }.disabled(model.busy != nil)
+                    Text("The Shift+Tab overlay, in Windows games. It applies to every game you play, and changes take effect the next time Steam starts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(10)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            }
+                .padding(14)
 
-            Divider()
+                if model.overlayPendingRestart {
+                    Hairline().padding(.leading, 0)
+                    HStack {
+                        Text("Takes effect the next time Steam starts.")
+                            .font(.caption)
+                        Spacer()
+                        Button("Restart Steam") { model.restartSteam() }
+                            .controlSize(.small)
+                            .disabled(model.busy != nil)
+                    }
+                    .padding(14)
+                }
+            }
 
             if let r = model.receipt {
-                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                    GridRow { Text("Version").foregroundStyle(.secondary); Text(r.version) }
-                    GridRow { Text("Installed").foregroundStyle(.secondary); Text(r.deployedAt) }
-                    GridRow { Text("Tested with").foregroundStyle(.secondary)
-                              Text("macOS \(r.tested.macOS), CrossOver \(r.tested.crossover)") }
-                    GridRow { Text("You have").foregroundStyle(.secondary)
-                              Text("macOS \(r.observed.macOS), CrossOver \(r.observed.crossover)") }
+                SectionLabel(text: "About")
+                Card {
+                    InfoRow(label: "Version", value: r.version)
+                    Hairline().padding(.leading, 14)
+                    InfoRow(label: "Installed", value: String(r.deployedAt.prefix(10)))
+                    Hairline().padding(.leading, 14)
+                    InfoRow(label: "Tested with", value: "macOS \(r.tested.macOS), CrossOver \(r.tested.crossover)")
+                    Hairline().padding(.leading, 14)
+                    InfoRow(label: "You have", value: "macOS \(r.observed.macOS), CrossOver \(r.observed.crossover)")
                 }
-                .font(.callout)
             } else {
-                Text("Nothing is installed yet.").foregroundStyle(.secondary)
+                Text("Nothing is installed yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            Spacer()
         }
+    }
+}
+
+struct InfoRow: View {
+    let label: String
+    let value: String
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.caption)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 }
 
@@ -225,27 +431,32 @@ struct DiagnoseTab: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Button("Run checks") { model.runDiagnose() }.disabled(model.busy != nil)
-                if let busy = model.busy {
-                    ProgressView().controlSize(.small); Text(busy).foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Button("Run checks") { model.runDiagnose() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    .disabled(model.busy != nil)
+                if model.busy != nil { ProgressView().controlSize(.small) }
                 Spacer()
                 Button("Copy report") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(Diagnose.report(), forType: .string)
                 }
+                .buttonStyle(.link)
+                .font(.caption)
                 .disabled(model.findings.isEmpty)
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(model.findings) { f in
-                        Row(verdict: f.verdict, title: f.title, detail: f.detail) { EmptyView() }
-                        Divider().opacity(0.4)
-                    }
-                    if model.findings.isEmpty && model.busy == nil {
-                        Text("Nothing checked yet.").foregroundStyle(.secondary).padding(.top, 8)
+
+            if model.findings.isEmpty {
+                Text(model.busy == nil ? "Nothing checked yet." : "Checking…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Card {
+                    ForEach(Array(model.findings.enumerated()), id: \.element.id) { index, f in
+                        StatusRow(verdict: f.verdict, title: f.title, detail: f.detail) { EmptyView() }
+                        if index < model.findings.count - 1 { Hairline() }
                     }
                 }
             }
@@ -259,18 +470,37 @@ struct UninstallTab: View {
     @State private var confirming = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Removes this app and the files it installed.")
-            Text("Your Steam was never changed, so there is nothing to undo there. Your games and library stay where they are.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Toggle("Also delete the CrossOver bottle “\(Preflight.bottleName)”", isOn: $deleteBottle)
-            Text("It may hold save games from Windows games, and it may not have been made by this app.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
-                Button("Uninstall…") { confirming = true }.disabled(model.busy != nil)
+        VStack(alignment: .leading, spacing: 18) {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Removes this app and the files it installed.")
+                        .font(.subheadline)
+                    Text("Your Steam was never changed, so there is nothing to undo there. Your games and library stay where they are.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
+
+                Hairline().padding(.leading, 0)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Also delete the bottle “\(Preflight.bottleName)”", isOn: $deleteBottle)
+                        .font(.subheadline)
+                    Text("It may hold save games from Windows games, and it may not have been made by this app.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
             }
-            Spacer()
+
+            Button(role: .destructive, action: { confirming = true }) {
+                Text("Uninstall…").frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .buttonStyle(.bordered)
+            .disabled(model.busy != nil)
         }
         .alert("Remove Steam (macOS Play)?", isPresented: $confirming) {
             Button("Cancel", role: .cancel) {}
@@ -284,7 +514,7 @@ struct UninstallTab: View {
 }
 
 enum Help {
-    /// A user who has to reinstall has, by definition, a broken install — so
+    /// Someone who has to reinstall has, by definition, a broken install — so
     /// this says the one command rather than opening something that may not be
     /// there.
     static func showReinstall() {

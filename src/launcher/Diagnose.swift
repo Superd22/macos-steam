@@ -85,14 +85,12 @@ enum Diagnose {
         return Finding(id: "overlay",
                        title: loaded ? "Overlay reached your last game" : "Overlay on, but it did not reach your last game",
                        verdict: loaded ? .ok : .warning,
-                       // Loaded is not armed (CONTEXT.md): the renderer being in
-                       // the process does not mean Steam has finished the
-                       // handshake that lets a panel appear. Saying "it loaded"
-                       // and no more is the honest version for a reader who
-                       // cannot check the second half.
-                       detail: loaded
-                         ? "It loaded. Whether Shift+Tab opens also depends on Steam itself."
-                         : "Try starting the game again.")
+                       // Loaded is not armed (CONTEXT.md), and the difference is
+                       // real — but it is ours, not the reader's. The row claims
+                       // only what was seen: the overlay got there. Whether a
+                       // panel opens is Steam's business and a user finds out by
+                       // pressing Shift+Tab, not by reading about a handshake.
+                       detail: loaded ? "" : "Try starting the game again.")
     }
 
     /// What this build was measured against, beside what this Mac is. Both come

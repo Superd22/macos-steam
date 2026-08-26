@@ -76,11 +76,26 @@ final class Delegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 520),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: Metrics.width, height: Metrics.height),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered, defer: false)
+        // No titlebar of its own: the content starts at the top of the window
+        // and leaves room for the traffic lights. Both panes already say what
+        // they are in their first line, so a title bar would only repeat it.
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
+        // Come to whichever desktop the user is on. Clicking the icon is a
+        // request to see this window now, not a request to be sent to the
+        // desktop it happened to open on three hours ago.
+        window.collectionBehavior = [.moveToActiveSpace]
+        // The title is still set, because it is what the Window menu and
+        // Mission Control show.
         window.title = pane == .settings ? "Steam Play Settings" : "Steam (macOS Play)"
         window.contentView = NSHostingView(rootView: RootView(pane: pane))
+        // Fixed size: the layout is a column at one width, and a resizable
+        // window would only offer the user worse versions of it.
+        window.setContentSize(NSSize(width: Metrics.width, height: Metrics.height))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
