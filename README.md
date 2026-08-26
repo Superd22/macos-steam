@@ -4,31 +4,24 @@ MacOS Gaming has come a long way in the last few years: I have personally been u
 
 This app is an attempt to brings the steamdeck's [Steam Play](https://store.steampowered.com/steamplay/) experience to MacOS: Download, Launch, Play from MacOS' Steam through crossover.
 
-> **Status: working beta. Sources only.**
-> There is no signed download or release build yet. You clone this repo and run the
-> installer, which builds and deploys from source. It has been driven end-to-end on real
+> **Status: working beta**
+> Download is currently only via brew or from sources
+> Project has been driven end-to-end on real
 > retail titles on Apple Silicon, but it is young and it sits in
 > Steam's launch path, so expect breakage. See [Known limits](#known-limits).
 
-## What it does
+## Install
 
-macOS Steam already knows how to download a Windows depot and hand the `.exe` to a
-compatibility tool, the same Steam Play machinery as Proton on Linux. Two things stop it:
-the feature is gated off on macOS, and nothing on macOS answers the Steamworks API for a Windows game.
+### Via Brew (recommended)
 
-This repo supplies both halves:
+```sh
+brew tap Superd22/macos-steam
+brew install macos-steam-shim
+```
 
-- **Level A, opening the gate:** a small injected dylib flips the client's latched
-  `m_bCompatEnabled` at runtime, and a compat tool registers itself so every Windows-only title routes through it. Valve's own files are never modified.
-- **Level B, the bridge:** a replacement `steamclient64.dll` (and 32-bit `steamclient.dll`)
-  inside the CrossOver bottle. It contains no Steam logic: it marshals every call across the Wine unix seam to a native `.so` that hosts Valve's real macOS `steamclient.dylib`,
-  in-process. So the game talks to your _native_ Steam client. Achievements unlock on the real server; the overlay is Valve's own `gameoverlayrenderer.dylib`, injected into the game
-  at process creation.
+### From a clone
 
-The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behind it are in
-[docs/adr/](docs/adr/).
-
-## Requirements
+#### Requirements
 
 - Apple Silicon Mac, macOS 14+ (developed on macOS 26, M3 Pro).
 - **CrossOver** installed at `~/Applications/CrossOver.app` (25.1.1 and 26.2 both exercised).
@@ -36,30 +29,7 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
 - The **native macOS Steam client**, installed, and signed in **online**.
 - Xcode command line tools (`xcode-select --install`) — Homebrew requires them anyway.
   The cross-compiler comes from the formula, so there is nothing else to install by hand.
-
-## Install
-
-```sh
-brew tap Superd22/macos-steam
-brew install macos-steam-shim
-```
-
-That is the whole install. It builds on your machine and deploys in one step — the
-terminal is needed exactly once, and never again to change a setting.
-
-**Why it builds instead of downloading an app.** There is no Apple Developer ID here yet,
-and an unsigned, un-notarized app arriving as a download is blocked behind System Settings
-→ "Open Anyway" on macOS 14+ — disqualifying for something that injects into Steam. A
-binary built *on* your Mac never gets the quarantine bit, so Gatekeeper never asks. When a
-Developer ID arrives, a signed DMG becomes a third adapter over the same seam and this path
-keeps working unchanged (ADR 0002).
-
-Then **quit Steam and open `Steam (macOS Play)`** instead of Steam.app. Its first run checks
-everything above and tells you in plain words what is missing, if anything.
-
-### From a clone
-
-The contributor path, and the one to use if you want the sources in front of you:
+  The contributor path, and the one to use if you want the sources in front of you:
 
 ```sh
 brew install mingw-w64     # the formula's only dependency, by hand here
@@ -79,7 +49,7 @@ The compat gate is flipped in memory at each launch, so the launcher is how you 
 from now on — clicking it when Steam is already running just focuses Steam, as it would
 normally.
 
-### First run
+## First run
 
 The first launch shows a checklist. It creates the CrossOver bottle for you if you have not
 made one, and once Steam is up it reads the injector's log itself and confirms that Steam
@@ -148,10 +118,30 @@ Two failure modes account for most confusion:
 - **A stray Windows Steam:** `ps aux | grep -i steam.exe` must be empty. If a Windows Steam
   is running in some bottle, it may be what answered, and the result proves nothing.
 
+## What this project does
+
+MacOS Steam already knows how to download a Windows depot and hand the `.exe` to a
+compatibility tool, that has been built as Steam Play machinery for Proton on Linux. But two things prevent it from working on MacOS:
+
+1. The feature is literally turned off on Steam's MacOS build.
+2. Nothing on MacOS answers the Steamworks API for a Windows game.
+
+This repo supplies both halves:
+
+- **Turning the gate on:** a small injected dylib flips the client's latched
+  `m_bCompatEnabled` at runtime, and a compat tool registers itself so every Windows-only title routes through it. Valve's own files are never modified.
+- **Steamworks API via a bridge:** a replacement `steamclient64.dll` (and 32-bit `steamclient.dll`)
+  inside the CrossOver bottle. It contains no Steam logic: it marshals every call across the Wine unix seam to a native `.so` that hosts Valve's real macOS `steamclient.dylib`,
+  in-process. So the game talks to the _native_ Steam client. Achievements unlock on the real server; the overlay is Valve's own `gameoverlayrenderer.dylib`, injected into the game
+  at process creation.
+
+The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behind it are in
+[docs/adr/](docs/adr/).
+
 ## Known limits
 
 - **Sources only:** no release artifact, no signed app, no Gatekeeper story yet.
-- Anti-cheats probably won't work
+- Anti-cheats probably won't work with overlay ON
 - Not all Steam APIs are covered, see [#45](https://github.com/Superd22/macos-steam/issues/45). In practise: stuff might not behave as expected when a game talks to steam (friend list, server browser, workshop...)
 
 ## Related projects
@@ -181,108 +171,7 @@ Others that came up in the research:
 - [CrossOver](https://www.codeweavers.com/crossover) — the Wine layer this builds on, and
   where Apple's Game Porting Toolkit reaches the game.
 
-## Repo layout
+## Contributing
 
-Three roots, one admission rule each. Whether a module ships is a **path**, not a judgement
-call: `src/` is the beta cut.
-
-```
-CONTEXT.md                  the glossary — read this first
-docs/adr/                   the decisions, and why the alternatives were rejected
-docs/research/              the measured evidence behind each decision
-  INDEX.md                  which of it is still true — read before any doc in here
-
-src/                        reaches a user's machine
-  layout/                   the deploy contract — one manifest of every shipped path
-  installer/                build.sh (repo -> payload), deploy.sh (payload -> receipt)
-    packaging/              the brew formula, and the release scripts CI drives
-  launcher/                 the app you click: preflight, exec, settings/diagnose/uninstall
-  compat-enabler/           the m_bCompatEnabled injector (Level A)
-  compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)
-  shim/                     the bridge: PE steamclient(64).dll + native .so (Level B)
-  overlay-inject/           gets Valve's overlay renderer into the game process
-
-instruments/                rerun to re-verify a claim after a CrossOver or Steam bump
-  harness/                  Spacewar (480) achievements — the acceptance test src/shim/run.sh drives
-  overlay-probe/            d3dprobe (#26), inputprobe + input-parity-run.sh (#28)
-  native-probe/             connprobe — the native-side connection oracle
-
-attic/                      question closed; kept as evidence, never rerun
-  seam-spike/               superseded wholesale by src/shim (ADR 0001)
-  shimprobe/                the clean-bottle decoy dll
-  overlay-probe/            metalprobe{,3,5}, u32probe, vendored fishhook
-  native-probe/             probe, machprobe, interpose
-```
-
-**The admission rules.** A module belongs in `src/` if removing it breaks a user's install;
-in `instruments/` if you would run it again to re-establish a claim the docs make; in
-`attic/` if its question is closed and the answer is written down elsewhere. Nothing is in
-two roots. Moving a module out of `src/` is a release-surface change.
-
-Every `FINDINGS.md` under these roots is a record of what was measured live, on real
-hardware, with the exact versions, including the negative controls. When something
-disagrees with this README, the FINDINGS file is the one that was measured.
-
-## Releasing
-
-Versions are [semver](https://semver.org) and come from
-[semantic-release](https://github.com/semantic-release/semantic-release).
-
-**Actions → release → Run workflow.** You choose *when*; the commits since the last tag
-choose *what*. There is no bump input on purpose — a number a human types is a number a
-human can get wrong, and the commits already record which kind of change each one was.
-Tick **dry run** to see the version and notes without publishing anything.
-
-That means commits must be [Conventional Commits](https://www.conventionalcommits.org):
-
-```
-feat(launcher): merge into DYLD_INSERT_LIBRARIES instead of clobbering it   -> minor
-fix(shim): 32-bit titles could not sign in without both bitnesses           -> patch
-feat(shim)!: drop the curated interface list                                -> major
-docs: ...  test: ...  ci: ...  chore: ...                                   -> no release
-```
-
-A `!` before the colon, or a `BREAKING CHANGE:` footer, is what makes a major. A subject
-semantic-release cannot parse is one it silently ignores — a batch of those is a release
-that publishes nothing, so `--dry-run` before a real release is worth the thirty seconds.
-
-The whole thing is one job on a Mac, and the order is the safety property:
-
-| step | what runs |
-| --- | --- |
-| `prepare` | [release-prepare.sh](src/installer/packaging/release-prepare.sh) — stamp `VERSION`, run every gate, build the tarball, **rebuild that tarball**, render the formula |
-| `publish` | the GitHub release, with the tarball, its checksum and the formula as assets |
-| `success` | [push-to-tap.sh](src/installer/packaging/push-to-tap.sh) — the formula into the tap |
-
-`prepare` runs before `publish`, so if any gate fails no tag and no release ever come into
-existence. Building the checkout would only prove the repo builds; rebuilding the *unpacked
-tarball* proves what a user downloads builds, and that it stamps a bare `0.2.0` rather than
-the `0.2.0+gSHA` spelling `version.sh` emits inside a clone.
-
-Both scripts run by hand too — that is deliberate, since a release path that only exists
-inside CI is one nobody can test before it fires:
-
-```sh
-npm ci
-npm run release:dry                                  # version + notes, no writes
-./src/installer/packaging/release-prepare.sh 9.9.9   # the real build, into dist-release/
-```
-
-The tap push needs a `TAP_TOKEN` secret — a fine-grained PAT with Contents:write on
-[homebrew-macos-steam](https://github.com/Superd22/homebrew-macos-steam) and nothing else. A
-workflow's built-in `GITHUB_TOKEN` is scoped to the repo it runs in and cannot reach a
-second one. Without it the release still publishes and carries the formula as an asset; the
-step warns rather than failing.
-
-## Licence
-
-[GNU AGPL-3.0-or-later](LICENSE). You can use, study, modify and redistribute this
-freely — including commercially — but anything you distribute or run as a network
-service must ship its complete source under the same terms. You cannot take it closed.
-
-The AGPL covers this project's own code only. The shim's cross-ABI facts are derived
-from Valve's Proton (`lsteamclient`, pinned at `proton_11.0`), which carries **Valve's
-Steamworks SDK License Agreement** rather than a copyleft licence — and no Valve or
-CodeWeavers binary is redistributed here; both are loaded from your own installs at
-runtime. [NOTICE](NOTICE) sets out what derives from where. Read it before
-redistributing builds.
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the repo layout and its
+admission rules, the commit conventions, and how a release is cut.
