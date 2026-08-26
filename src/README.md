@@ -10,7 +10,7 @@ removing one is a release-surface change and wants a note in the ADRs.
 | | |
 |---|---|
 | `layout/` | the deploy contract (#32) — one manifest of every shipped path, emitted as a C header and an sh fragment |
-| `installer/` | the build/deploy seam (ADR 0010) — `build.sh` repo→payload, `deploy.sh` payload→receipt, `install.sh` the from-source adapter over both |
+| `installer/` | the build/deploy seam (ADR 0010) — `build.sh` repo→payload, `deploy.sh` payload→receipt, `install.sh` the from-source adapter over both, `packaging/` the brew formula that is the second |
 | `launcher/` | the app you click (ADR 0002 vehicle A) — preflight, exec, and the settings/diagnose/uninstall pane |
 | `compat-enabler/` | the `m_bCompatEnabled` one-byte patch injected into the macOS client (Level A) |
 | `compat-tool/` | the two vdf templates + the launch script (the Level A ↔ Level B seam) |

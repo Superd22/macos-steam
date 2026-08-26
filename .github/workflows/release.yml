@@ -1,0 +1,90 @@
+# Cut a release (#42).
+#
+#   Actions -> release -> Run workflow
+#
+# Manual trigger, computed version. You choose WHEN; the commits since the last
+# tag choose WHAT — semantic-release reads them as Conventional Commits and
+# works out whether this is a patch, a minor or a major. There is no bump input
+# on purpose: a number a human types is a number a human can get wrong, and the
+# commits already say which kind of change each one was.
+#
+# Run it with dry-run first if you want to see the version and the notes
+# without publishing anything.
+#
+# It is ONE job on a Mac, not a cheap job that computes a version and an
+# expensive one that builds. semantic-release's whole safety property is that
+# `prepare` runs before `publish`: our prepare is the full build, both
+# bitnesses of the shim, the tarball, and a rebuild OF that tarball. If any of
+# it fails, no tag and no release ever come into existence. Splitting the jobs
+# would mean publishing first and discovering second.
+#
+# What ships is a SOURCE tarball, not a binary: there is no Developer ID, and a
+# locally built binary is the only one macOS will run without sending the user
+# to System Settings (ADR 0002). The release is the input to a build, and the
+# brew formula is what performs it.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Work out the version and notes, publish nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: semantic-release
+    runs-on: macos-15
+    steps:
+      # Full history, and no persisted credentials: semantic-release pushes the
+      # release commit and tag itself, using GITHUB_TOKEN from the environment.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: install release tooling
+        run: npm ci --no-audit --no-fund
+
+      # The one prerequisite brew supplies for our users too, per the formula.
+      - name: install mingw-w64
+        run: brew install mingw-w64
+
+      - name: toolchain versions
+        run: |
+          sw_vers && uname -m
+          clang --version | head -1
+          swiftc --version | head -1
+          python3 --version
+          x86_64-w64-mingw32-gcc --version | head -1
+
+      # prepare  -> release-prepare.sh: stamp VERSION, run every gate, build the
+      #             tarball, rebuild THAT tarball, render the formula
+      # publish  -> the GitHub release, with the tarball, its checksum and the
+      #             formula as assets
+      # success  -> push-to-tap.sh: the formula into the tap repo
+      #
+      # TAP_TOKEN is a fine-grained PAT with Contents:write on the tap. A
+      # workflow's built-in GITHUB_TOKEN is scoped to the repo it runs in and
+      # cannot reach a second one. Absent, push-to-tap.sh warns and the release
+      # still stands, carrying the formula as an asset.
+      - name: semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}

@@ -34,51 +34,74 @@ The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behin
 - **CrossOver** installed at `~/Applications/CrossOver.app` (25.1.1 and 26.2 both exercised).
   CrossOver is required. The launch goes through its front door, so its D3DMetal/GPTK wiring comes along.
 - The **native macOS Steam client**, installed, and signed in **online**.
-- Build toolchain: Xcode command line tools (clang) and mingw-w64:
-  ```sh
-  brew install mingw-w64
-  ```
+- Xcode command line tools (`xcode-select --install`) — Homebrew requires them anyway.
+  The cross-compiler comes from the formula, so there is nothing else to install by hand.
 
 ## Install
 
-1. **Build and deploy.**
+```sh
+brew tap Superd22/macos-steam
+brew install macos-steam-shim
+```
 
-   ```sh
-   ./src/installer/install.sh
-   ```
+That is the whole install. It builds on your machine and deploys in one step — the
+terminal is needed exactly once, and never again to change a setting.
 
-   This builds anything missing and lays down two things:
-   - the **payload** in `~/Library/Application Support/macos-steam-shim/versions/<version>/` —
-     the injector, the compat tool, and both bitnesses of the shim — with `current` pointed
-     at it, and a `receipt.json` recording every file and its hash (ADR 0010).
-   - the **launcher** `~/Applications/Steam (macOS Play).app` — an unhardened `.app` that
-     merges the injector into `DYLD_INSERT_LIBRARIES`, points Steam at the tool path, and
-     execs Valve's own `steam_osx` unmodified.
+**Why it builds instead of downloading an app.** There is no Apple Developer ID here yet,
+and an unsigned, un-notarized app arriving as a download is blocked behind System Settings
+→ "Open Anyway" on macOS 14+ — disqualifying for something that injects into Steam. A
+binary built *on* your Mac never gets the quarantine bit, so Gatekeeper never asks. When a
+Developer ID arrives, a signed DMG becomes a third adapter over the same seam and this path
+keeps working unchanged (ADR 0002).
 
-2. **Quit Steam, then launch `Steam (macOS Play)`** instead of Steam.app. The compat gate is
-   flipped in memory at each launch, so this app is how you start Steam from now on.
+Then **quit Steam and open `Steam (macOS Play)`** instead of Steam.app. Its first run checks
+everything above and tells you in plain words what is missing, if anything.
 
-   The first launch shows a checklist. It creates the CrossOver bottle for you if you have
-   not made one, and once Steam is up it reads the injector's log itself and confirms that
-   Steam Play switched on — you never have to open a log. After that it shows nothing at all
-   and behaves exactly like clicking Steam.app.
+### From a clone
 
-   ![The launcher's first-run checklist](docs/images/launcher-preflight.png)
+The contributor path, and the one to use if you want the sources in front of you:
 
-   The bottle it creates is a clean `win10_64` with _no_ Windows Steam in it, which matters:
-   the shim is the entire client, and a real `steamclient64.dll` in the bottle would win the
-   lookup instead. To make it yourself, or to use a different one:
+```sh
+brew install mingw-w64     # the formula's only dependency, by hand here
+./src/installer/install.sh
+```
 
-   ```sh
-   "$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxbottle" \
-       --create --bottle steam-shim --template win10_64
-   ```
+Both paths cross the same build/deploy seam and produce the same two things:
 
-   (`steam-shim` is the default name; override it with `SHIM_BOTTLE` if you use another.)
+- the **payload** in `~/Library/Application Support/macos-steam-shim/versions/<version>/` —
+  the injector, the compat tool, and both bitnesses of the shim — with `current` pointed
+  at it, and a `receipt.json` recording every file and its hash (ADR 0010).
+- the **launcher** `~/Applications/Steam (macOS Play).app` — an unhardened `.app` that
+  merges the injector into `DYLD_INSERT_LIBRARIES`, points Steam at the tool path, and
+  execs Valve's own `steam_osx` unmodified.
 
-3. **Install and play a Windows title** from the normal Steam library UI. Steam downloads the
-   Windows depot into your macOS `steamapps`, then hands the `.exe` to the compat tool, which
-   launches it in the bottle against the shim.
+The compat gate is flipped in memory at each launch, so the launcher is how you start Steam
+from now on — clicking it when Steam is already running just focuses Steam, as it would
+normally.
+
+### First run
+
+The first launch shows a checklist. It creates the CrossOver bottle for you if you have not
+made one, and once Steam is up it reads the injector's log itself and confirms that Steam
+Play switched on — you never have to open a log. After that it shows nothing at all and
+behaves exactly like clicking Steam.app.
+
+![The launcher's first-run checklist](docs/images/launcher-preflight.png)
+
+The bottle it creates is a clean `win10_64` with _no_ Windows Steam in it, which matters:
+the shim is the entire client, and a real `steamclient64.dll` in the bottle would win the
+lookup instead. To make it yourself, or to use a different one:
+
+```sh
+"$HOME/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxbottle" \
+    --create --bottle steam-shim --template win10_64
+```
+
+(`steam-shim` is the default name; override it with `SHIM_BOTTLE` if you use another.)
+
+Then **install and play a Windows title** from the normal Steam library UI. Steam downloads
+the Windows depot into your macOS `steamapps`, then hands the `.exe` to the compat tool,
+which launches it in the bottle against the shim.
 
 **Hold ⌥ while opening the launcher** for settings, diagnostics and uninstall — or open
 “Steam Play Settings” from Spotlight, which is the same pane. Diagnose runs the whole
@@ -89,7 +112,8 @@ effect at the next Steam launch and never needs a reinstall. The installer can s
 which writes the same preference the toggle does:
 
 ```sh
-./src/installer/install.sh --overlay 0
+macos-steam-shim --overlay 0        # installed via brew
+./src/installer/install.sh --overlay 0   # from a clone
 ```
 
 ### Checking, rolling back, uninstalling
@@ -98,10 +122,10 @@ Every deploy writes a receipt, and the installed payload carries the script that
 so these work from anywhere, with no checkout:
 
 ```sh
-./src/installer/install.sh --verify     # re-hash every deployed file against the receipt
-./src/installer/install.sh --receipt    # what is installed: version, files, what it was tested against
-"$HOME/Library/Application Support/macos-steam-shim/current/deploy.sh" --rollback
-./src/installer/install.sh --uninstall  # launcher + payload + logs
+macos-steam-shim --verify     # re-hash every deployed file against the receipt
+macos-steam-shim --receipt    # what is installed: version, files, what it was tested against
+macos-steam-shim --rollback   # swap back to the previous version
+macos-steam-shim --uninstall  # launcher + payload + logs
 ```
 
 Uninstall removes the launcher, the payload and the logs. Steam itself was never modified,
@@ -171,6 +195,7 @@ docs/research/              the measured evidence behind each decision
 src/                        reaches a user's machine
   layout/                   the deploy contract — one manifest of every shipped path
   installer/                build.sh (repo -> payload), deploy.sh (payload -> receipt)
+    packaging/              the brew formula, and the release scripts CI drives
   launcher/                 the app you click: preflight, exec, settings/diagnose/uninstall
   compat-enabler/           the m_bCompatEnabled injector (Level A)
   compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)
@@ -197,6 +222,57 @@ two roots. Moving a module out of `src/` is a release-surface change.
 Every `FINDINGS.md` under these roots is a record of what was measured live, on real
 hardware, with the exact versions, including the negative controls. When something
 disagrees with this README, the FINDINGS file is the one that was measured.
+
+## Releasing
+
+Versions are [semver](https://semver.org) and come from
+[semantic-release](https://github.com/semantic-release/semantic-release).
+
+**Actions → release → Run workflow.** You choose *when*; the commits since the last tag
+choose *what*. There is no bump input on purpose — a number a human types is a number a
+human can get wrong, and the commits already record which kind of change each one was.
+Tick **dry run** to see the version and notes without publishing anything.
+
+That means commits must be [Conventional Commits](https://www.conventionalcommits.org):
+
+```
+feat(launcher): merge into DYLD_INSERT_LIBRARIES instead of clobbering it   -> minor
+fix(shim): 32-bit titles could not sign in without both bitnesses           -> patch
+feat(shim)!: drop the curated interface list                                -> major
+docs: ...  test: ...  ci: ...  chore: ...                                   -> no release
+```
+
+A `!` before the colon, or a `BREAKING CHANGE:` footer, is what makes a major. A subject
+semantic-release cannot parse is one it silently ignores — a batch of those is a release
+that publishes nothing, so `--dry-run` before a real release is worth the thirty seconds.
+
+The whole thing is one job on a Mac, and the order is the safety property:
+
+| step | what runs |
+| --- | --- |
+| `prepare` | [release-prepare.sh](src/installer/packaging/release-prepare.sh) — stamp `VERSION`, run every gate, build the tarball, **rebuild that tarball**, render the formula |
+| `publish` | the GitHub release, with the tarball, its checksum and the formula as assets |
+| `success` | [push-to-tap.sh](src/installer/packaging/push-to-tap.sh) — the formula into the tap |
+
+`prepare` runs before `publish`, so if any gate fails no tag and no release ever come into
+existence. Building the checkout would only prove the repo builds; rebuilding the *unpacked
+tarball* proves what a user downloads builds, and that it stamps a bare `0.2.0` rather than
+the `0.2.0+gSHA` spelling `version.sh` emits inside a clone.
+
+Both scripts run by hand too — that is deliberate, since a release path that only exists
+inside CI is one nobody can test before it fires:
+
+```sh
+npm ci
+npm run release:dry                                  # version + notes, no writes
+./src/installer/packaging/release-prepare.sh 9.9.9   # the real build, into dist-release/
+```
+
+The tap push needs a `TAP_TOKEN` secret — a fine-grained PAT with Contents:write on
+[homebrew-macos-steam](https://github.com/Superd22/homebrew-macos-steam) and nothing else. A
+workflow's built-in `GITHUB_TOKEN` is scoped to the repo it runs in and cannot reach a
+second one. Without it the release still publishes and carries the formula as an asset; the
+step warns rather than failing.
 
 ## Licence
 

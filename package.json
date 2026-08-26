@@ -1,0 +1,19 @@
+{
+  "name": "macos-steam-release",
+  "version": "0.0.0-managed-by-semantic-release",
+  "private": true,
+  "description": "Release tooling only. This project ships C, C++, Swift, shell and Python — there is no JavaScript in src/. semantic-release lives here because it is the tool that decides versions, and nothing else in the repo needs Node.",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "release": "semantic-release",
+    "release:dry": "semantic-release --dry-run --no-ci"
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "^7.0.0",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^11.0.1",
+    "@semantic-release/github": "^12.0.9",
+    "conventional-changelog-conventionalcommits": "^10.4.0",
+    "semantic-release": "^25.0.9"
+  }
+}
