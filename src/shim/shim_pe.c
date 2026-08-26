@@ -713,15 +713,20 @@ static const char * THISCALL ia_GetLaunchQueryParam(struct w_iface *s, const cha
  * ticket itself arrives later via EncryptedAppTicketResponse_t (1466) on the
  * existing pump, whereupon the game calls GetEncryptedAppTicket. Both buffers
  * belong to the game, so they are PE addresses that zero-extend across the
- * seam — no copy-down. Proton: slot 20 pops 12 bytes, slot 21 pops 16. */
+ * seam — no copy-down. Proton: the request pops 12 bytes, the fetch 16.
+ *
+ * The native SLOT travels with each call: it is 20/21 on SteamUser021 and
+ * 21/22 on SteamUser023, and guessing wrong calls AdvertiseGame instead (#90). */
 static uint64_t THISCALL iu_RequestEncryptedAppTicket(struct w_iface *s, void *data, int32_t cb)
 { struct sp_user_reqticket p; p.handle = s->handle; p.data = (uint64_t)(uintptr_t)data;
-  p.cb = cb; p.ret = 0; seam(C_User_RequestEncryptedAppTicket, &p);
+  p.cb = cb; p.ret = 0; p.slot = native_slot(s, "RequestEncryptedAppTicket");
+  seam(C_User_RequestEncryptedAppTicket, &p);
   dbg("shim: RequestEncryptedAppTicket(cb=%d) -> call=%llu", cb, (unsigned long long)p.ret);
   return p.ret; }
 static uint8_t THISCALL iu_GetEncryptedAppTicket(struct w_iface *s, void *ticket, int32_t max, uint32_t *cbticket)
 { struct sp_user_getticket p; p.handle = s->handle; p.ticket = (uint64_t)(uintptr_t)ticket;
   p.cbticket = (uint64_t)(uintptr_t)cbticket; p.max = max; p.ret = 0;
+  p.slot = native_slot(s, "GetEncryptedAppTicket");
   seam(C_User_GetEncryptedAppTicket, &p);
   dbg("shim: GetEncryptedAppTicket(max=%d) -> %d (%u bytes)", max, p.ret, cbticket ? *cbticket : 0u);
   return (uint8_t)p.ret; }

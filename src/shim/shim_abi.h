@@ -289,8 +289,18 @@ struct sp_user_datafolder  { uint64_t handle; uint64_t buf; int32_t len; int32_t
 /* ret is the SteamAPICall_t handle; `data` and `ticket`/`cbticket` are PE
  * addresses the game supplies, so they zero-extend and the native side writes
  * through them directly — the copy-down path is not involved. */
-struct sp_user_reqticket   { uint64_t handle; uint64_t data; uint64_t ret; int32_t cb; };
-struct sp_user_getticket   { uint64_t handle; uint64_t ticket; uint64_t cbticket; int32_t max; int32_t ret; };
+/* Both carry `slot` for the reason the ISteamFriends block above does, and it
+ * was learned the same way — from a title (#90). ISteamUser is not slot-stable:
+ * SteamUser023 inserts GetAuthTicketForWebApi at slot 14 and shifts everything
+ * after it, so RequestEncryptedAppTicket sits at 20 in SteamUser021 and at 21
+ * in SteamUser023. The unix half used to cast to one transcribed class and let
+ * the compiler pick slot 20 for every version — which, for a title on 023,
+ * called AdvertiseGame with a ticket request's arguments and returned its
+ * leftover register as a SteamAPICall_t. AoE IV then waited forever on a handle
+ * that named nothing. ISteamUser has no same-name overload in any version, so
+ * the slot the PE side resolved is the slot the dylib uses. */
+struct sp_user_reqticket   { uint64_t handle; uint64_t data; uint64_t ret; int32_t cb; int32_t slot; };
+struct sp_user_getticket   { uint64_t handle; uint64_t ticket; uint64_t cbticket; int32_t max; int32_t ret; int32_t slot; };
 
 /* ---- ISteamFriends (VERSION017) ---- */
 struct sp_friends_str      { uint64_t handle; uint64_t ret; };                    /* GetPersonaName -> const char* */
