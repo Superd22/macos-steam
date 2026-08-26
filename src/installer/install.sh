@@ -206,7 +206,28 @@ cat <<'LAUNCHER'
 # "off". Then hand off to Valve's own binary, unmodified.
 : "${HOME:?launcher: HOME is unset — cannot locate the payload or Steam}"
 LAUNCHER
-printf 'export DYLD_INSERT_LIBRARIES="$HOME/%s"\n'          "$SHIM_PATH_ENABLER_REL"
+printf 'shim_enabler="$HOME/%s"\n'                          "$SHIM_PATH_ENABLER_REL"
+cat <<'LAUNCHER'
+# DYLD_INSERT_LIBRARIES is a ':'-separated list and we are one entry in it, not
+# the owner of it (#85): prepend ours, keep whatever was already there, and add
+# ourselves only once. Membership is tested on RESOLVED paths — the same dylib
+# spelled relative or reached through a symlink is still the same dylib, and
+# comparing literals is how the list grows without bound across nested launches.
+# Measured caveat: an INHERITED value never reaches here, because /bin/sh drops
+# DYLD_* on the way in. The merge is still the behaviour #42's launcher — a
+# Mach-O, which does inherit it — has to carry over.
+shim_ours=$(/bin/realpath -q "$shim_enabler" || printf '%s' "$shim_enabler")
+shim_rest="${DYLD_INSERT_LIBRARIES-}"
+while [ -n "$shim_rest" ]; do
+    shim_entry="${shim_rest%%:*}"
+    case "$shim_rest" in *:*) shim_rest="${shim_rest#*:}" ;; *) shim_rest="" ;; esac
+    [ "$(/bin/realpath -q "$shim_entry" || printf '%s' "$shim_entry")" = "$shim_ours" ] || continue
+    shim_ours=""   # already listed: leave the value exactly as it was found
+    break
+done
+[ -z "$shim_ours" ] || DYLD_INSERT_LIBRARIES="$shim_enabler${DYLD_INSERT_LIBRARIES:+:$DYLD_INSERT_LIBRARIES}"
+export DYLD_INSERT_LIBRARIES
+LAUNCHER
 printf 'export STEAM_EXTRA_COMPAT_TOOLS_PATHS="$HOME/%s"\n' "$SHIM_PATH_COMPAT_TOOLS_REL"
 printf 'export %s\n' "$SHIM_ENV_OVERLAY"
 printf 'exec "$HOME/%s" "$@"\n'                             "$SHIM_PATH_STEAM_OSX_REL"
