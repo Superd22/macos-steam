@@ -548,6 +548,27 @@ static int32_t THISCALL ic_ConnectToGlobalUser(struct w_iface *s, int32_t pipe)
 static void THISCALL ic_ReleaseUser(struct w_iface *s, int32_t pipe, int32_t user)
 { struct sp_client_releaseu p; p.handle = s->handle; p.pipe = pipe; p.user = user; seam(C_Client_ReleaseUser, &p); }
 
+/* Set_SteamAPI_CCheckCallbackRegisteredInProcess (#90).
+ *
+ * `func` is a PE address the native client would CALL, and the seam carries no
+ * upcall — so it is dropped here deliberately rather than marshalled, and the
+ * unix half registers its own always-1 stub in its place. Left unwired, this
+ * slot answered with the refusal stub, and a client with no checker registered
+ * has no reason to queue a callback for anyone.
+ *
+ * The parameter is still declared even though nothing reads it: on i386 this
+ * vtable is callee-cleanup, so the thunk must pop exactly what the title pushed.
+ * The native slot travels like the ISteamFriends overlay block's does — the
+ * method moved through slots 30, 32, 33 and 34 across the versions that declare
+ * it, and ISteamClient has no same-name overload, so the index the PE side
+ * resolved is the index the dylib's own vtable uses. */
+static void THISCALL ic_SetCheckCallbackRegistered(struct w_iface *s, void *func)
+{ struct sp_client_checkcb p; p.handle = s->handle;
+  p.slot = native_slot(s, "Set_SteamAPI_CCheckCallbackRegisteredInProcess");
+  dbg("shim: Set_SteamAPI_CCheckCallbackRegisteredInProcess(%p) -> unix stub, slot %d",
+      func, (int)p.slot);
+  seam(C_Client_SetCheckCallbackRegistered, &p); }
+
 static void *acquire(struct w_iface *s, int32_t user, int32_t pipe, const char *ver)
 {
     struct sp_client_getgen p; p.handle = s->handle; p.ver = (uint64_t)(uintptr_t)ver;
@@ -1177,6 +1198,8 @@ static void build_vtables(void)
     wire_all("SteamClient017", "GetISteamGenericInterface", (const void *)ic_GetISteamGenericInterface);
     wire_all("SteamClient017", "GetISteamUserStats", (const void *)ic_GetISteamUserStats);
     wire_all("SteamClient017", "GetISteamApps", (const void *)ic_GetISteamApps);
+    wire_all("SteamClient017", "Set_SteamAPI_CCheckCallbackRegisteredInProcess",
+             (const void *)ic_SetCheckCallbackRegistered);
 
     /* ISteamUser */
     wire_all("SteamUser021", "GetHSteamUser", (const void *)iu_GetHSteamUser);
