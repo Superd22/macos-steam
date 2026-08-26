@@ -46,12 +46,22 @@ jobs:
     name: semantic-release
     runs-on: macos-15
     steps:
-      # Full history, and no persisted credentials: semantic-release pushes the
-      # release commit and tag itself, using GITHUB_TOKEN from the environment.
+      # Full history, and an SSH deploy key rather than the workflow's own
+      # token: semantic-release pushes the release commit and the tag itself,
+      # and `main` is a protected ref that only a bypass actor may write to.
+      # GitHub Actions cannot be one of those on a user-owned repo, a deploy
+      # key can, so RELEASE_SSH_KEY is what carries the push -- see the
+      # ruleset's bypass list. `origin` ends up on SSH and semantic-release
+      # takes its push URL from there; GITHUB_TOKEN still does the rest,
+      # because the release itself is an API call and was never blocked.
+      #
+      # `persist-credentials: false` is deliberately absent. With `ssh-key` it
+      # is what configures core.sshCommand, and dropping the credentials at the
+      # end of checkout would leave semantic-release with no way to push.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
+          ssh-key: ${{ secrets.RELEASE_SSH_KEY }}
 
       - uses: actions/setup-node@v4
         with:
