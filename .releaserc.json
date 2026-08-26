@@ -1,0 +1,63 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    ["@semantic-release/commit-analyzer", {
+      "preset": "conventionalcommits",
+      "releaseRules": [
+        { "breaking": true, "release": "major" },
+        { "type": "feat", "release": "minor" },
+        { "type": "fix", "release": "patch" },
+        { "type": "perf", "release": "patch" },
+        { "type": "build", "release": "patch" },
+        { "type": "revert", "release": "patch" },
+        { "type": "docs", "release": false },
+        { "type": "test", "release": false },
+        { "type": "ci", "release": false },
+        { "type": "chore", "release": false }
+      ]
+    }],
+    ["@semantic-release/release-notes-generator", {
+      "preset": "conventionalcommits",
+      "presetConfig": {
+        "types": [
+          { "type": "feat",     "section": "Features" },
+          { "type": "fix",      "section": "Fixes" },
+          { "type": "perf",     "section": "Performance" },
+          { "type": "build",    "section": "Build and packaging" },
+          { "type": "revert",   "section": "Reverts" },
+          { "type": "docs",     "section": "Documentation", "hidden": false },
+          { "type": "refactor", "section": "Internal",      "hidden": false },
+          { "type": "test",     "hidden": true },
+          { "type": "ci",       "hidden": true },
+          { "type": "chore",    "hidden": true }
+        ]
+      }
+    }],
+
+    ["@semantic-release/changelog", {
+      "changelogFile": "CHANGELOG.md",
+      "changelogTitle": "# Changelog\n\nThis project follows [semantic versioning](https://semver.org)."
+    }],
+
+    ["@semantic-release/exec", {
+      "prepareCmd": "./src/installer/packaging/release-prepare.sh ${nextRelease.version}",
+      "successCmd": "./src/installer/packaging/push-to-tap.sh ${nextRelease.version}"
+    }],
+
+    ["@semantic-release/git", {
+      "assets": ["VERSION", "CHANGELOG.md"],
+      "message": "chore(release): ${nextRelease.version}\n\n[skip ci]\n\n${nextRelease.notes}"
+    }],
+
+    ["@semantic-release/github", {
+      "assets": [
+        { "path": "dist-release/*.tar.gz",        "label": "Source tarball" },
+        { "path": "dist-release/*.tar.gz.sha256", "label": "Checksum" },
+        { "path": "dist-release/macos-steam-shim.rb", "label": "Homebrew formula" }
+      ],
+      "successComment": false,
+      "failComment": false
+    }]
+  ]
+}

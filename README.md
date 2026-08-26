@@ -195,7 +195,7 @@ docs/research/              the measured evidence behind each decision
 src/                        reaches a user's machine
   layout/                   the deploy contract — one manifest of every shipped path
   installer/                build.sh (repo -> payload), deploy.sh (payload -> receipt)
-    packaging/              the brew formula: the second adapter over that seam
+    packaging/              the brew formula, and the release scripts CI drives
   launcher/                 the app you click: preflight, exec, settings/diagnose/uninstall
   compat-enabler/           the m_bCompatEnabled injector (Level A)
   compat-tool/              the compat tool + launch script (the Level A <-> Level B seam)
@@ -225,27 +225,54 @@ disagrees with this README, the FINDINGS file is the one that was measured.
 
 ## Releasing
 
-Versions are [semver](https://semver.org), and the release is one manual button:
+Versions are [semver](https://semver.org) and come from
+[semantic-release](https://github.com/semantic-release/semantic-release).
 
-**Actions → release → Run workflow → bump: `patch` | `minor` | `major`**
+**Actions → release → Run workflow.** You choose *when*; the commits since the last tag
+choose *what*. There is no bump input on purpose — a number a human types is a number a
+human can get wrong, and the commits already record which kind of change each one was.
+Tick **dry run** to see the version and notes without publishing anything.
 
-That stamps `VERSION`, writes the [CHANGELOG.md](CHANGELOG.md) entry from the commit
-subjects since the last tag, commits to `main`, tags, and then — in the same run — builds
-the gates, cuts the tarball, and pushes the rendered formula to the tap.
+That means commits must be [Conventional Commits](https://www.conventionalcommits.org):
 
-The bump is a choice rather than something read out of commit messages: this repo writes
-prose subjects, not Conventional Commits, and guessing "feature or fix" from prose is how a
-breaking change ships as a patch. There is an `Exact version` input for pre-releases.
+```
+feat(launcher): merge into DYLD_INSERT_LIBRARIES instead of clobbering it   -> minor
+fix(shim): 32-bit titles could not sign in without both bitnesses           -> patch
+feat(shim)!: drop the curated interface list                                -> major
+docs: ...  test: ...  ci: ...  chore: ...                                   -> no release
+```
 
-`git tag v0.2.0 && git push origin v0.2.0` still works as an escape hatch for a tag you
-stamped by hand. Either way the release refuses to publish if the tag and `VERSION` disagree,
-and refuses if the tarball does not build once unpacked.
+A `!` before the colon, or a `BREAKING CHANGE:` footer, is what makes a major. A subject
+semantic-release cannot parse is one it silently ignores — a batch of those is a release
+that publishes nothing, so `--dry-run` before a real release is worth the thirty seconds.
+
+The whole thing is one job on a Mac, and the order is the safety property:
+
+| step | what runs |
+| --- | --- |
+| `prepare` | [release-prepare.sh](src/installer/packaging/release-prepare.sh) — stamp `VERSION`, run every gate, build the tarball, **rebuild that tarball**, render the formula |
+| `publish` | the GitHub release, with the tarball, its checksum and the formula as assets |
+| `success` | [push-to-tap.sh](src/installer/packaging/push-to-tap.sh) — the formula into the tap |
+
+`prepare` runs before `publish`, so if any gate fails no tag and no release ever come into
+existence. Building the checkout would only prove the repo builds; rebuilding the *unpacked
+tarball* proves what a user downloads builds, and that it stamps a bare `0.2.0` rather than
+the `0.2.0+gSHA` spelling `version.sh` emits inside a clone.
+
+Both scripts run by hand too — that is deliberate, since a release path that only exists
+inside CI is one nobody can test before it fires:
+
+```sh
+npm ci
+npm run release:dry                                  # version + notes, no writes
+./src/installer/packaging/release-prepare.sh 9.9.9   # the real build, into dist-release/
+```
 
 The tap push needs a `TAP_TOKEN` secret — a fine-grained PAT with Contents:write on
-[homebrew-macos-steam](https://github.com/Superd22/homebrew-macos-steam). Without it the
-release still publishes and carries the formula as an asset; the step warns rather than
-failing.
-
+[homebrew-macos-steam](https://github.com/Superd22/homebrew-macos-steam) and nothing else. A
+workflow's built-in `GITHUB_TOKEN` is scoped to the repo it runs in and cannot reach a
+second one. Without it the release still publishes and carries the formula as an asset; the
+step warns rather than failing.
 
 ## Licence
 

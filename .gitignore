@@ -79,3 +79,9 @@ src/installer/dist/
 
 # Compiled launcher (#42).
 src/launcher/dist/
+
+# Release tooling (#42): semantic-release is the only Node in this repo, and
+# none of it ships. node_modules is restored by `npm ci` in CI; dist-release is
+# the tarball/formula staging dir release-prepare.sh builds and uploads.
+node_modules/
+dist-release/
