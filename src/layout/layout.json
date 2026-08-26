@@ -89,7 +89,12 @@
       "predicate": "shim_overlay_enabled",
       "default": "on",
       "off_values": ["0", ""],
-      "what": "whether the Steam overlay is delivered: the unixlib dlopens Valve's renderer, the PE half binds the seam in DllMain and hooks CreateProcess, and the launch script routes through the injector (ADR 0003, ADR 0006)"
+      "veto": {
+        "env": "SteamNoOverlayUI",
+        "on_values": ["1"],
+        "what": "Steam's OWN answer for this launch, set by the client when 'Enable the Steam Overlay while in-game' is off -- globally (Settings -> In Game) or for this title (Properties -> General). Measured, not assumed: absent for a default-on title, '1' the very next launch after the per-game box is unticked, with no Steam restart, so it reports live state rather than the last flush (#92). NOT SteamNoOverlayUIDrawing, which is the renderer's own flag and a different question"
+      },
+      "what": "whether the Steam overlay is delivered: the unixlib dlopens Valve's renderer, the PE half binds the seam in DllMain and hooks CreateProcess, and the launch script routes through the injector (ADR 0003, ADR 0006). Steam's per-title setting vetoes it (ADR 0012)"
     }
   ]
 }

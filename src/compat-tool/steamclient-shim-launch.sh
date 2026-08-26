@@ -214,6 +214,13 @@ export SteamGameId="$APPID"
 # proven across titles. `SHIM_OVERLAY=0` opts out. The renderer checks BOTH of
 # these and bails on SteamNoOverlayUIDrawing, so it must be unset, not just empty.
 #
+# Since #92 the predicate has a second input: Steam's own "Enable the Steam
+# Overlay while in-game", which the client hands us per launch (ADR 0012). That
+# makes "don't inject into THIS title" a per-game decision the user expresses in
+# Steam's UI — the only way to say it before #92 was to turn the overlay off for
+# the whole library. Anti-tamper titles are the motivating case: AoE IV's Aegis
+# rejects the injector's import rewrite and the title cannot start at all.
+#
 # The default flipped here, at the policy layer, but the INTERLOCK below did not:
 # no injector means no compositor, and a title that believes an overlay exists
 # can wait on one forever. So "on by default" is still conditional on being able
@@ -242,7 +249,16 @@ else
     # it means "on", so this branch would have dlopened the renderer into a
     # process with no injector to place it — the exact thing the interlock above
     # exists to prevent. Say 0, do not imply it.
-    if shim_overlay_enabled; then
+    # Which input said no. A user who just unticked Steam's box needs to see
+    # that it took effect, and a support log that says only "overlay off" makes
+    # the three reasons indistinguishable. The reason is ASKED of the fragment
+    # (shim_overlay_vetoed), never re-derived here.
+    if shim_overlay_vetoed; then
+        log "overlay OFF for appid $APPID: Steam's own setting says so ($SHIM_VETO_OVERLAY=1)"
+        log "      turn it back on in Steam: Properties -> General -> Enable the Steam Overlay while in-game"
+    elif ! shim_overlay_enabled; then
+        log "overlay OFF: $SHIM_ENV_OVERLAY=0"
+    else
         log "overlay ON by default but no injector in $SHIM_DIST — staying off"
     fi
     shim_overlay_export 0
