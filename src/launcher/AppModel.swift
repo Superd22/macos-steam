@@ -6,6 +6,11 @@ import SwiftUI
 @MainActor
 final class AppModel: ObservableObject {
     @Published var checks: [Check] = Preflight.run()
+    /// Whether a client is up that we did not switch Steam Play on for. Stored
+    /// rather than asked: answering it costs a `pgrep` and a `ps`, and a view
+    /// body must never spawn a process — it runs on every render, and the
+    /// mutation it invites lands inside a SwiftUI update.
+    @Published var steamNeedsRestart = false
     @Published var findings: [Diagnose.Finding] = []
     @Published var busy: String?
     @Published var launchState: LaunchState = .idle
@@ -25,22 +30,63 @@ final class AppModel: ObservableObject {
             ?? receipt?.version ?? "unknown"
     }
 
+    /// Everything the two panes read, recomputed off the main thread and
+    /// published in one go. Both halves matter: the subprocess work must not
+    /// block a render, and the state change must not land in the middle of one.
     func refresh() {
-        checks = Preflight.run()
+        Task.detached(priority: .userInitiated) {
+            let live = LogWatch.gatePatchedSinceSteamStarted()
+            let running = Shell.isRunning(ShimPath.steamOsx)
+            let checks = Preflight.run(liveProof: live)
+            await MainActor.run {
+                // A Steam already up with Steam Play on has proven the thing the
+                // first run exists to prove. Record it and say so, rather than
+                // asking for a restart to be told what is already true.
+                if live {
+                    Prefs.firstRunCompleted = true
+                    if self.launchState == .idle { self.launchState = .ready(sites: 1) }
+                }
+                self.checks = checks
+                self.steamNeedsRestart = running && !live
+            }
+        }
+    }
+
+    /// Re-check is a few stat calls, so it finishes before the pointer leaves
+    /// the button and nothing on screen moves. The pause and the spinner are
+    /// the acknowledgement: a control that answers invisibly reads as broken.
+    func recheck() {
+        busy = "Checking…"
+        Task {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            self.refresh()
+            self.busy = nil
+        }
+    }
+
+    /// Kick work off *after* the update that asked for it has finished. Calling
+    /// straight from `onAppear` mutates state the current view update is still
+    /// reading, which SwiftUI treats as a cycle and aborts on.
+    func refreshSoon() {
+        Task { @MainActor in self.refresh() }
+    }
+
+    func diagnoseSoon() {
+        Task { @MainActor in
+            guard self.busy == nil else { return }
+            self.runDiagnose()
+        }
     }
 
     /// The first-run launch, and the only launch this app does not exec into.
     /// Staying alive is the whole point: it is what lets the app read
     /// `patched 1 site(s)` itself and tell the user, rather than sending them
     /// to a log file — check 6 of the preflight list.
-    /// True when a client is already up that we did not open the gate for.
-    /// Starting Steam again in that state proves nothing: Valve's single-
-    /// instance handling forwards the second launch to the running client, so
-    /// the injector runs in a process that immediately exits — it writes
-    /// `patched 1 site(s)` for a client nobody is using.
-    var mustQuitSteamFirst: Bool {
-        Shell.isRunning(ShimPath.steamOsx) && !LogWatch.gatePatchedSinceSteamStarted()
-    }
+    /// True when a client is already up that we did not switch Steam Play on
+    /// for. Starting Steam again in that state proves nothing: Valve's
+    /// single-instance handling forwards the second launch to the running
+    /// client, so the injector runs in a process that immediately exits.
+    var mustQuitSteamFirst: Bool { steamNeedsRestart }
 
     func launchAndProve() {
         if mustQuitSteamFirst {
@@ -106,7 +152,12 @@ final class AppModel: ObservableObject {
     func setOverlay(_ on: Bool) {
         overlay = on
         Prefs.overlay = on
-        overlayPendingRestart = Shell.isRunning(ShimPath.steamOsx)
+        // "Is Steam up?" is a subprocess, and this runs from a Toggle's setter
+        // during an update. Answer it after.
+        Task.detached(priority: .userInitiated) {
+            let running = Shell.isRunning(ShimPath.steamOsx)
+            await MainActor.run { self.overlayPendingRestart = running }
+        }
     }
 
     func restartSteam() {

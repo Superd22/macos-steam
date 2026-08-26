@@ -36,8 +36,14 @@ struct Check: Identifiable, Equatable {
 enum Preflight {
     /// The whole list, in the order the checklist shows it. Cheap enough to run
     /// on every launch: six stats and one small file read.
-    static func run() -> [Check] {
-        [system(), crossover(), steam(), bottle(), payload(), selfVerification()]
+    ///
+    /// Deliberately free of subprocesses. `liveProof` — whether a Steam that is
+    /// up right now has Steam Play on — costs a `ps` and a `pgrep`, so the
+    /// caller establishes it off the main thread and passes it in. Asking it
+    /// here would put a process spawn inside a SwiftUI view update, which is
+    /// both slow on every render and how this crashed once already.
+    static func run(liveProof: Bool = false) -> [Check] {
+        [system(), crossover(), steam(), bottle(), payload(), selfVerification(liveProof: liveProof)]
     }
 
     /// The question the happy path asks. A blocked check means the user clicked
@@ -93,6 +99,11 @@ enum Preflight {
     }
 
     // 3 — Valve's own client. We never modify it; we exec it.
+    //
+    // Presence only. Whether the user is signed in was checked here once and
+    // pulled back out: it reads a file Valve owns to answer a question only the
+    // running client can answer, and a signed-out Steam is a state Steam itself
+    // explains far better than we can.
     static func steam() -> Check {
         guard FileManager.default.isExecutableFile(atPath: Launch.steamOsx) else {
             return Check(id: "steam", title: "Steam installed",
@@ -101,22 +112,7 @@ enum Preflight {
                          remedy: .openURL(URL(string: "https://store.steampowered.com/about/")!),
                          remedyTitle: "Get Steam")
         }
-        guard signedIn else {
-            return Check(id: "steam", title: "Sign in to Steam",
-                         verdict: .warning,
-                         detail: "No saved login here. Windows games only download while you are signed in and online.")
-        }
-        return Check(id: "steam", title: "Steam installed and signed in", verdict: .ok, detail: "")
-    }
-
-    private static var signedIn: Bool {
-        // Valve's own record of accounts that have logged in on this machine.
-        // Presence is the claim being made — "you will not be asked to sign in
-        // from scratch" — not that the client is online this second, which
-        // nothing outside the client can honestly answer.
-        let vdf = ShimPath.inHome("Library/Application Support/Steam/config/loginusers.vdf")
-        guard let text = try? String(contentsOfFile: vdf, encoding: .utf8) else { return false }
-        return text.contains("\"AccountName\"")
+        return Check(id: "steam", title: "Steam installed", verdict: .ok, detail: "")
     }
 
     // 4 — a clean win10_64 bottle. "Clean" means no Windows Steam in it: a real
@@ -132,7 +128,7 @@ enum Preflight {
     static func bottle() -> Check {
         let fm = FileManager.default
         guard fm.fileExists(atPath: bottlePath) else {
-            return Check(id: "bottle", title: "No bottle yet",
+            return Check(id: "bottle", title: "No CrossOver bottle yet",
                          verdict: .blocked,
                          detail: "Windows games run inside a CrossOver bottle. This app can make one for you.",
                          remedy: .createBottle,
@@ -142,11 +138,13 @@ enum Preflight {
                                "drive_c/Program Files/Steam/steam.exe"]
             .contains { fm.fileExists(atPath: bottlePath + "/" + $0) }
         if hasWindowsSteam {
-            return Check(id: "bottle", title: "Bottle “\(bottleName)” has a Windows Steam in it",
+            return Check(id: "bottle", title: "The CrossOver bottle has a Windows Steam in it",
                          verdict: .blocked,
                          detail: "There is a Windows copy of Steam in this bottle. Games will talk to that instead of the Steam on your Mac. Delete it, or use a different bottle.")
         }
-        return Check(id: "bottle", title: "Bottle “\(bottleName)” ready", verdict: .ok, detail: "")
+        // The bottle's name is a setting, not news. It appears where someone can
+        // act on it (the uninstall toggle), not in a row whose job is "fine".
+        return Check(id: "bottle", title: "CrossOver bottle configured", verdict: .ok, detail: "")
     }
 
     /// CodeWeavers' own tool, with the flags the README used to have to teach.
@@ -181,7 +179,15 @@ enum Preflight {
 
     // 6 — the one check that cannot be made before a launch. The user never
     // reads a log for `patched 1 site(s)`; the app reads it and says "ready".
-    static func selfVerification() -> Check {
+    static func selfVerification(liveProof: Bool) -> Check {
+        // A client that is up right now with Steam Play switched on is the
+        // strongest possible answer, and it needs no cooperation from the user:
+        // asking someone to quit a working Steam and start it again, to be told
+        // what is already true, is the opposite of confirming it.
+        if liveProof {
+            return Check(id: "verified", title: "Steam Play is switched on",
+                         verdict: .ok, detail: "")
+        }
         // Proven once, and still working as of the last launch. The second half
         // is what makes this a live check rather than a stored opinion, and it
         // is why an update does not have to re-ask interactively.

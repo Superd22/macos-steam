@@ -53,12 +53,19 @@ if arguments.contains(ShimPath.printEnvFlag) {
     exit(0)
 }
 
-let checks = Preflight.run()
 // A first run has nothing to be retrospective about: no launch has happened, so
 // the checklist is how the very first one gets watched. Every launch after that
 // is governed by preflight alone — "did the last launch open the gate" is one
 // of its checks, and a blocked verdict is the whole answer.
+// A client already up with Steam Play on is proof, so a user whose Steam is
+// running does not get a checklist asking them to prove it again — clicking the
+// icon focuses Steam, which is what clicking it always means.
+let liveProof = LogWatch.gatePatchedSinceSteamStarted()
+if !Prefs.firstRunCompleted && liveProof {
+    Prefs.firstRunCompleted = true
+}
 let neverLaunched = !Prefs.firstRunCompleted
+let checks = Preflight.run(liveProof: liveProof)
 
 if !wantsSettings && !optionHeld && !neverLaunched && Preflight.isClear(checks) {
     Launch.exec(passthrough: passthrough, overlay: Prefs.overlay)   // never returns

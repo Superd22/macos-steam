@@ -191,7 +191,7 @@ struct ChecklistView: View {
             }
             footer
         }
-        .onAppear { model.refresh() }
+        .onAppear { model.refreshSoon() }
     }
 
     /// The state of the whole thing, once, in the largest type on screen. A
@@ -233,8 +233,9 @@ struct ChecklistView: View {
                     Text("Hold ⌥ when you open this app for settings.")
                 }
                 Spacer()
-                Button("Re-check") { model.refresh() }
-                    .buttonStyle(.link)
+                Button("Re-check") { model.recheck() }
+                    .controlSize(.small)
+                    .disabled(model.busy != nil)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -244,16 +245,23 @@ struct ChecklistView: View {
         .background(.bar)
     }
 
+    /// A blocked check outranks a good launch: Steam Play can be switched on
+    /// while the bottle is still missing, and "All set" over an orange row is
+    /// the header contradicting the list under it.
     private var overall: Verdict {
+        if model.launchState == .launching { return .pending }
+        if !Preflight.isClear(model.checks) { return .blocked }
         switch model.launchState {
         case .ready: return .ok
-        case .launching: return .pending
         case .launchedButUnproven: return .blocked
-        case .idle: return Preflight.isClear(model.checks) ? .pending : .blocked
+        default: return .pending
         }
     }
 
     private var headline: String {
+        if model.launchState != .launching && !Preflight.isClear(model.checks) {
+            return "A couple of things need sorting before Windows games will work."
+        }
         switch model.launchState {
         case .ready:
             return "All set. You can close this window. It will not come back."
@@ -315,19 +323,7 @@ struct SettingsPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // The three panes are the whole header: a full-width segmented
-            // control under the traffic lights, with no window title competing
-            // with it. There is nothing else at this level to name.
-            Picker("", selection: $tab) {
-                ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.large)
-            .padding(.top, Metrics.titlebar + 8)
-            .padding(.horizontal, Metrics.gutter)
-            .padding(.bottom, 16)
-
+            TabBar(selection: $tab)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     switch tab {
@@ -337,9 +333,50 @@ struct SettingsPane: View {
                     }
                 }
                 .padding(.horizontal, Metrics.gutter)
+                .padding(.top, 18)
                 .padding(.bottom, 22)
             }
         }
+    }
+}
+
+/// The three panes are the header. Full bleed to both edges, sitting directly
+/// under the traffic lights, with nothing above it and no window title
+/// competing — there is nothing else at this level to name.
+///
+/// Hand-built rather than a segmented Picker: an inset pill floats inside a
+/// header, and what was asked for is a header that IS the control. Each tab
+/// takes exactly a third of the width and marks itself with the accent colour.
+struct TabBar: View {
+    @Binding var selection: SettingsPane.Tab
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: Metrics.titlebar)   // room for the traffic lights
+            HStack(spacing: 0) {
+                ForEach(SettingsPane.Tab.allCases) { tab in
+                    Button {
+                        selection = tab
+                    } label: {
+                        VStack(spacing: 7) {
+                            Text(tab.rawValue)
+                                .font(.subheadline)
+                                .fontWeight(selection == tab ? .semibold : .regular)
+                                .foregroundStyle(selection == tab ? Color.accentColor : .secondary)
+                            Rectangle()
+                                .fill(selection == tab ? Color.accentColor : .clear)
+                                .frame(height: 2)
+                        }
+                        .padding(.top, 9)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
@@ -431,11 +468,22 @@ struct DiagnoseTab: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
+        content.onAppear {
+            // Entering the tab asks the question; nobody opens Diagnose to look
+            // at an empty pane and a button. Deferred, because starting the work
+            // inside the update that is drawing this tab is what SwiftUI aborts on.
+            model.diagnoseSoon()
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
-                Button("Run checks") { model.runDiagnose() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
+                // The checks are why someone opened this tab, so they are
+                // already running by the time the tab is drawn. The button is
+                // for the second look, after changing something.
+                Button("Re-run") { model.runDiagnose() }
+                    .controlSize(.small)
                     .disabled(model.busy != nil)
                 if model.busy != nil { ProgressView().controlSize(.small) }
                 Spacer()
@@ -449,7 +497,7 @@ struct DiagnoseTab: View {
             }
 
             if model.findings.isEmpty {
-                Text(model.busy == nil ? "Nothing checked yet." : "Checking…")
+                Text(model.busy == nil ? "Nothing to report." : "Checking…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
