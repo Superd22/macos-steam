@@ -48,6 +48,22 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   restating the path. A module that types one of those literals again is drift, and the
   build says so.
 
+- **Payload** — the directory a deploy lays down: already built, self-describing, and the
+  unit two halves of the install agree on. `build.sh` produces one from the repo and
+  `deploy.sh` consumes one, which is what lets a brew formula or the launcher app deploy
+  without a compiler or a checkout (ADR 0010). It carries its own `deploy.sh`, so an
+  installed machine can verify, roll back and uninstall itself with no repo present.
+
+- **Receipt** — what a deploy recorded: version, every file with its hash, the overlay
+  setting, and the compatibility statement. The answer to "is my install intact and
+  current", which used to be the user reading a log for `patched 1 site(s)` — a line that
+  says the injector ran, not that the files on disk are the files that shipped.
+
+- **Compatibility statement** — the combination a release was actually exercised against
+  (macOS, CrossOver, Steam client, titles). Carried in the payload and copied into the
+  receipt beside what the machine *observes*, so "works here" and "was measured here" stay
+  distinguishable. The FINDINGS discipline, surfaced to a user instead of buried in docs.
+
 - **Switch** — a runtime policy with exactly one owner: an env var, a default, and a
   generated predicate (`shim_overlay_enabled`) that every half of the stack calls instead
   of testing the variable itself. Declared beside the deploy contract in

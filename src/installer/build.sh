@@ -89,6 +89,20 @@ if [ ! -f "$INJECT_DIST_DIR/$SHIM_PATH_INJECT32" ] \
     log "building overlay injector"; "$REPO/src/overlay-inject/build.sh"
 fi
 
+# The launcher app (#42). Optional in exactly one direction: a machine without
+# a Swift toolchain still produces a deployable payload, and deploy.sh writes
+# the shell launcher it always wrote. A machine WITH one always builds it, so a
+# release tarball is never quietly missing the app.
+if command -v swiftc >/dev/null 2>&1; then
+    if stale "$REPO/src/launcher/$SHIM_PATH_DIST/$SHIM_PATH_LAUNCHER_BIN" \
+             $(find "$REPO/src/launcher" -maxdepth 1 -name '*.swift') \
+             "$REPO/src/launcher/build.sh" "$PATHS_H" "$POLICY_H"; then
+        log "building launcher"; "$REPO/src/launcher/build.sh" >/dev/null
+    fi
+else
+    log "no swiftc — payload will carry no launcher app; deploy writes the shell one"
+fi
+
 # --- stage the payload --------------------------------------------------------
 # From here down nothing compiles: this is the shape the tree has on the user's
 # machine, one directory below $HOME's payload root, so deploy.sh can be a copy
@@ -140,8 +154,8 @@ chmod +x "$TOOLDIR/$SHIM_PATH_LAUNCH_SH" "$STAGE/deploy.sh"
 # The launcher, if it has been built. It is a separate module with its own
 # toolchain (Swift), and a payload without it still deploys — deploy.sh falls
 # back to the shell launcher it has always emitted.
-if [ -x "$REPO/src/launcher/dist/$SHIM_PATH_LAUNCHER_BIN" ]; then
-    cp -f "$REPO/src/launcher/dist/$SHIM_PATH_LAUNCHER_BIN" "$STAGE/"
+if [ -x "$REPO/src/launcher/$SHIM_PATH_DIST/$SHIM_PATH_LAUNCHER_BIN" ]; then
+    cp -f "$REPO/src/launcher/$SHIM_PATH_DIST/$SHIM_PATH_LAUNCHER_BIN" "$STAGE/"
 fi
 
 # Version and compatibility statement: the payload states what it is and what it

@@ -275,7 +275,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key><string>$SHIM_PATH_LAUNCHER_BIN</string>
-  <key>CFBundleIdentifier</key><string>com.macos-steam-shim.launcher</string>
+  <key>CFBundleIdentifier</key><string>$SHIM_PATH_BUNDLE_ID</string>
   <key>CFBundleName</key><string>Steam (macOS Play)</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -299,8 +299,38 @@ if [ -f "$PAYLOAD/$SHIM_PATH_LAUNCHER_BIN" ]; then
     # quarantine bit, so Gatekeeper never interrogates it, but a signature makes
     # the bundle stable across rebuilds for LaunchServices.
     cp -f "$PAYLOAD/$SHIM_PATH_LAUNCHER_BIN" "$APP/Contents/MacOS/"
+
+    # The settings pane, as a nested app. The option-click gesture is the fast
+    # way in and the first-run screen mentions it once, but a gesture nobody
+    # told you about is not discoverable — so the same binary also sits in a
+    # bundle of its own, where Spotlight can find it by name. It is a COPY and
+    # not a symlink: Bundle.main resolves through a symlink to the outer bundle,
+    # and the pane recognises itself by its bundle id.
+    HELPER="$APP/Contents/Applications/$SHIM_PATH_SETTINGS_APP"
+    mkdir -p "$HELPER/Contents/MacOS"
+    cp -f "$PAYLOAD/$SHIM_PATH_LAUNCHER_BIN" "$HELPER/Contents/MacOS/"
+    cat > "$HELPER/Contents/Info.plist" <<HELPERPLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key><string>$SHIM_PATH_LAUNCHER_BIN</string>
+  <key>CFBundleIdentifier</key><string>$SHIM_PATH_SETTINGS_ID</string>
+  <key>CFBundleName</key><string>Steam Play Settings</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>LSArchitecturePriority</key>
+  <array><string>arm64</string></array>
+</dict>
+</plist>
+HELPERPLIST
+    chmod +x "$HELPER/Contents/MacOS/$SHIM_PATH_LAUNCHER_BIN"
+    # Inside out: signing the outer bundle seals the nested one, so a nested
+    # bundle signed afterwards invalidates the seal it was sealed into.
+    /usr/bin/codesign -f -s - "$HELPER" >/dev/null 2>&1 || true
     /usr/bin/codesign -f -s - "$APP" >/dev/null 2>&1 || log "ad-hoc signing skipped (no codesign)"
-    log "launcher (compiled) -> $APP"
+    log "launcher (compiled) + settings helper -> $APP"
 else
     # The shell launcher: what shipped before #42, and still the fallback for a
     # payload built without a Swift toolchain.
@@ -387,6 +417,12 @@ chmod +x "$APP/Contents/MacOS/$SHIM_PATH_LAUNCHER_BIN"
             while read -r f; do printf '%s\t%s\n' "$SHIM_PATH_VERSIONS_REL/$VERSION/$f" "$DEST/$f"; done)
         printf '%s\t%s\n' "$SHIM_PATH_LAUNCHER_REL/Contents/Info.plist" "$APP/Contents/Info.plist"
         printf '%s\t%s\n' "$SHIM_PATH_LAUNCHER_REL/Contents/MacOS/$SHIM_PATH_LAUNCHER_BIN" "$APP/Contents/MacOS/$SHIM_PATH_LAUNCHER_BIN"
+        if [ -d "$APP/Contents/Applications/$SHIM_PATH_SETTINGS_APP" ]; then
+            for f in Contents/Info.plist "Contents/MacOS/$SHIM_PATH_LAUNCHER_BIN"; do
+                printf '%s\t%s\n' "$SHIM_PATH_LAUNCHER_REL/Contents/Applications/$SHIM_PATH_SETTINGS_APP/$f" \
+                                    "$APP/Contents/Applications/$SHIM_PATH_SETTINGS_APP/$f"
+            done
+        fi
     } | {
         first=1
         while IFS="$(printf '\t')" read -r rel abs; do

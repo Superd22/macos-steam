@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parity guard for the runtime switches (#33).
 
-One rule, two hand-written emitters — which is one emitter more than a rule can
+One rule, three hand-written emitters — which is two more than a rule can
 have before it drifts, and drift between two dialects of the same predicate is
 the exact defect this module was built to end (`GetEnvironmentVariableA(...,
 NULL, 0) > 0` read an explicit `SHIM_OVERLAY=0` as ON, while the shell test two
@@ -14,6 +14,11 @@ unset, empty, and something that is neither the default nor an off value.
 The C side is compiled for the host, so it is the getenv branch that is
 executed here. The Win32 branch differs only in how it READS the environment,
 and both branches feed the same generated comparisons below.
+
+Swift joined in #42, when the launcher app became a third reader. It is checked
+only when a Swift toolchain is present: every other build.sh calls this one, and
+a machine that can build the C halves but not the launcher must still be able to
+build the C halves. A skip says so out loud rather than passing quietly.
 
     python3 check_policy.py
 """
@@ -33,6 +38,11 @@ PROBE = """
 #include <stdio.h>
 #include "shim_policy.h"
 int main(void) { printf("%d\\n", PRED()); return 0; }
+"""
+
+SWIFT_PROBE = """
+import Foundation
+print(ShimPolicy.PRED() ? 1 : 0)
 """
 
 
@@ -74,23 +84,66 @@ def sh_answers(sw, tmp):
     return out
 
 
+def swift_ident(name):
+    head, *rest = name.lower().split("_")
+    return head + "".join(w.capitalize() for w in rest)
+
+
+def swift_answers(sw, tmp):
+    """Compiled once, run per case — the predicate reads the environment at
+    call time, so the same binary answers every case."""
+    # main.swift and not probe.swift: top-level code is only legal in a file
+    # with that name, which is also why the launcher's entry point is one.
+    src = os.path.join(tmp, "main.swift")
+    exe = os.path.join(tmp, "probe-swift")
+    with open(src, "w") as f:
+        f.write(SWIFT_PROBE.replace("PRED", swift_ident(sw["predicate"])))
+    subprocess.check_call(["swiftc", "-O", "-o", exe, src,
+                           os.path.join(GEN, "ShimPolicy.swift")],
+                          stdout=subprocess.DEVNULL)
+    out = []
+    for v in CASES:
+        env = dict(os.environ)
+        env.pop(sw["env"], None)
+        if v is not None:
+            env[sw["env"]] = v
+        out.append(subprocess.check_output([exe], env=env).decode().strip())
+    return out
+
+
+def have_swift():
+    try:
+        subprocess.check_call(["swiftc", "--version"],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
 def main():
     cc = os.environ.get("CC", "cc")
+    swift = have_swift()
     bad = 0
     for sw in switches():
         with tempfile.TemporaryDirectory() as tmp:
-            c = c_answers(sw, cc, tmp)
-            sh = sh_answers(sw, tmp)
-        for value, a, b in zip(CASES, c, sh):
-            if a != b:
+            answers = {"C": c_answers(sw, cc, tmp), "sh": sh_answers(sw, tmp)}
+            if swift:
+                answers["Swift"] = swift_answers(sw, tmp)
+        dialects = sorted(answers)
+        for i, value in enumerate(CASES):
+            given = {d: answers[d][i] for d in dialects}
+            if len(set(given.values())) > 1:
                 bad += 1
-                print("ERROR: %s disagrees for %s=%s: C says %s, sh says %s"
+                print("ERROR: %s disagrees for %s=%s: %s"
                       % (sw["predicate"], sw["env"],
-                         "(unset)" if value is None else repr(value), a, b),
+                         "(unset)" if value is None else repr(value),
+                         ", ".join("%s says %s" % (d, given[d]) for d in dialects)),
                       file=sys.stderr)
         if not bad:
-            print("layout: %s agrees across C and sh on %d values"
-                  % (sw["predicate"], len(CASES)))
+            print("layout: %s agrees across %s on %d values"
+                  % (sw["predicate"], " and ".join(dialects), len(CASES)))
+            if not swift:
+                print("layout: Swift not checked (no swiftc on this machine)")
     return 1 if bad else 0
 
 
