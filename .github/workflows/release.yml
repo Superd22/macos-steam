@@ -1,15 +1,28 @@
-# Cut a release and update the tap (#42).
+# Cut a release (#42).
 #
-#   git tag v0.1.0 && git push origin v0.1.0
+# Two ways in, one path out:
+#
+#   Actions -> release -> Run workflow -> bump: patch|minor|major
+#       the normal one. Stamps the new version, writes the changelog, commits
+#       to main, tags, and releases — all below, in order.
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#       the escape hatch, for a tag you stamped by hand.
+#
+# Why one workflow and not two: a tag pushed by a workflow using GITHUB_TOKEN
+# does NOT trigger another workflow. GitHub blocks that deliberately, to stop
+# workflows setting each other off in a loop. So a "bump and tag" workflow
+# could never have fired the release one — the release has to be the same run,
+# in a job that `needs` the bump.
 #
 # What ships is a SOURCE tarball, not a binary: there is no Developer ID, and a
 # locally built binary is the only one macOS will run without sending the user
 # to System Settings (ADR 0002). So the release is the input to a build, and
 # the formula is what performs it.
 #
-# The gates run here too, against the tag, before anything is published. A
-# release that was never built is a release that cannot be installed, and the
-# tap would carry it for however long it took someone to notice.
+# The gates run against the tag before anything is published. A release that
+# was never built is a release that cannot be installed, and the tap would
+# carry it for however long it took someone to notice.
 name: release
 
 on:
@@ -17,21 +30,124 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      tag:
-        description: "existing tag to (re-)release"
-        required: true
+      bump:
+        description: "Which part of the version to raise"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      version:
+        description: "Exact version instead (e.g. 1.0.0-rc1). Overrides bump."
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 jobs:
+  # ── stamp ──────────────────────────────────────────────────────────────────
+  # Only on the manual path. Owns the two files that say which version this is
+  # — VERSION and CHANGELOG.md — and the tag that has to agree with them.
+  #
+  # Semver from here on. The bump is a choice rather than something inferred
+  # from commit messages: this repo writes prose subjects, not Conventional
+  # Commits, and guessing "is this a feature or a fix" from prose is how a
+  # breaking change ships as a patch.
+  stamp:
+    name: stamp version and changelog
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: work out the next version
+        id: bump
+        run: |
+          cur="$(tr -d ' \n' < VERSION)"
+          explicit="${{ inputs.version }}"
+          if [ -n "$explicit" ]; then
+            next="${explicit#v}"
+          else
+            # Strip any pre-release suffix before counting: 1.0.0-rc1 patches
+            # to 1.0.1, not to something with the rc still glued on.
+            core="${cur%%-*}"
+            major="${core%%.*}"; rest="${core#*.}"
+            minor="${rest%%.*}"; patch="${rest#*.}"
+            case "${{ inputs.bump }}" in
+              major) next="$((major+1)).0.0" ;;
+              minor) next="${major}.$((minor+1)).0" ;;
+              patch) next="${major}.${minor}.$((patch+1))" ;;
+            esac
+          fi
+          echo "$cur -> $next"
+          case "$next" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::'$next' is not a semver version"; exit 1 ;;
+          esac
+          if git rev-parse "v$next" >/dev/null 2>&1; then
+            echo "::error::tag v$next already exists"; exit 1
+          fi
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "tag=v$next"    >> "$GITHUB_OUTPUT"
+
+      # Commit subjects since the last tag, verbatim. They are written as prose
+      # in this repo and read better than any machine summary of them would.
+      - name: changelog
+        run: |
+          next="${{ steps.bump.outputs.version }}"
+          prev="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          if [ -n "$prev" ]; then range="${prev}..HEAD"; else range="HEAD"; fi
+          echo "collecting $range"
+
+          entries="$(git log --no-merges --reverse --pretty=format:'- %s' $range \
+                     | grep -v '^- Release v' || true)"
+          [ -n "$entries" ] || entries="- No changes recorded."
+
+          [ -f CHANGELOG.md ] || printf '# Changelog\n\nThis project follows [semantic versioning](https://semver.org).\n' > CHANGELOG.md
+
+          new="$(mktemp)"
+          head -n 3 CHANGELOG.md > "$new"
+          {
+            printf '\n## %s — %s\n\n' "$next" "$(date -u +%Y-%m-%d)"
+            printf '%s\n' "$entries"
+            if [ -n "$prev" ]; then
+              printf '\n[Full diff](https://github.com/${{ github.repository }}/compare/%s...v%s)\n' "$prev" "$next"
+            fi
+          } >> "$new"
+          tail -n +4 CHANGELOG.md >> "$new"
+          mv "$new" CHANGELOG.md
+          sed -n '1,40p' CHANGELOG.md
+
+      - name: commit, tag, push
+        run: |
+          next="${{ steps.bump.outputs.version }}"
+          printf '%s\n' "$next" > VERSION
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION CHANGELOG.md
+          git commit -m "Release v${next}"
+          git tag -a "v${next}" -m "v${next}"
+          git push origin main
+          git push origin "v${next}"
+
+  # ── release ────────────────────────────────────────────────────────────────
+  # Runs on both paths: after stamp on the manual one, straight off the tag on
+  # the hand-tagged one. `always()` because a skipped `stamp` is not a failed
+  # one, and the push path must not be blocked by a job that never ran.
   release:
     name: build gates, tarball, tap
+    needs: [stamp]
+    if: always() && needs.stamp.result != 'failure' && needs.stamp.result != 'cancelled'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.stamp.outputs.tag || github.ref_name }}
           fetch-depth: 0
 
       # The tag and the VERSION file are two spellings of one number, and this
@@ -40,7 +156,7 @@ jobs:
       # exact failure version.sh exists to prevent, one level up.
       - name: tag agrees with VERSION
         run: |
-          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          tag="${{ needs.stamp.outputs.tag || github.ref_name }}"
           file="$(tr -d ' \n' < VERSION)"
           echo "tag=$tag VERSION=$file"
           [ "$tag" = "v$file" ] || {
@@ -119,6 +235,16 @@ jobs:
         run: |
           notes="$(mktemp)"
           {
+            # This version's changelog section, if it has one: from the heading
+            # that names it up to the next heading. The manual path writes it;
+            # a hand-tagged release may not have one, and then this is empty.
+            if [ -f CHANGELOG.md ]; then
+              awk -v v="## ${VERSION} " '
+                index($0, v)==1 {on=1; next}
+                on && /^## / {exit}
+                on {print}
+              ' CHANGELOG.md
+            fi
             echo "## Install"
             echo
             echo '```sh'

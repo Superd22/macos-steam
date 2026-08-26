@@ -223,6 +223,30 @@ Every `FINDINGS.md` under these roots is a record of what was measured live, on 
 hardware, with the exact versions, including the negative controls. When something
 disagrees with this README, the FINDINGS file is the one that was measured.
 
+## Releasing
+
+Versions are [semver](https://semver.org), and the release is one manual button:
+
+**Actions → release → Run workflow → bump: `patch` | `minor` | `major`**
+
+That stamps `VERSION`, writes the [CHANGELOG.md](CHANGELOG.md) entry from the commit
+subjects since the last tag, commits to `main`, tags, and then — in the same run — builds
+the gates, cuts the tarball, and pushes the rendered formula to the tap.
+
+The bump is a choice rather than something read out of commit messages: this repo writes
+prose subjects, not Conventional Commits, and guessing "feature or fix" from prose is how a
+breaking change ships as a patch. There is an `Exact version` input for pre-releases.
+
+`git tag v0.2.0 && git push origin v0.2.0` still works as an escape hatch for a tag you
+stamped by hand. Either way the release refuses to publish if the tag and `VERSION` disagree,
+and refuses if the tarball does not build once unpacked.
+
+The tap push needs a `TAP_TOKEN` secret — a fine-grained PAT with Contents:write on
+[homebrew-macos-steam](https://github.com/Superd22/homebrew-macos-steam). Without it the
+release still publishes and carries the formula as an asset; the step warns rather than
+failing.
+
+
 ## Licence
 
 [GNU AGPL-3.0-or-later](LICENSE). You can use, study, modify and redistribute this
