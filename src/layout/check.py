@@ -42,6 +42,14 @@ def guarded():
             out.append((a["name"], a["value"], substring(a["value"])))
     for sw in m.get("switches", []):
         out.append((sw["predicate"] + "()", sw["env"], whole_name(sw["env"])))
+        # A veto input is somebody else's variable, which makes it MORE prone to
+        # being re-read than our own: it is tempting to test Steam's answer at
+        # the one site that cares. Whole-name matching is what keeps this from
+        # flagging SteamNoOverlayUIDrawing, a different flag with a shared prefix.
+        veto = sw.get("veto")
+        if veto:
+            out.append((sw["predicate"] + "() veto",
+                        veto["env"], whole_name(veto["env"])))
     return out
 
 

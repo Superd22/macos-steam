@@ -156,17 +156,30 @@ def emit_policy_h(switches):
                 (sw["default"],
                  ", ".join(repr(v) if v else "empty" for v in sw["off_values"])),
                 " */",
-                '#define SHIM_ENV_%s %s' % (sw["name"], '"%s"' % sw["env"]),
-                "static inline int %s(void)" % sw["predicate"],
+                '#define SHIM_ENV_%s %s' % (sw["name"], '"%s"' % sw["env"])]
+        veto = sw.get("veto")
+        if veto:
+            out += ['#define SHIM_VETO_%s %s' % (sw["name"], '"%s"' % veto["env"])]
+        out += ["static inline int %s(void)" % sw["predicate"],
                 "{",
                 "    char buf[32];",
                 "    const char *v = shim_policy_read_(SHIM_ENV_%s, buf, sizeof buf);" % sw["name"],
-                "    if (!v) return 1;   /* unset */"]
+                "    if (v) {   /* unset is the manifest default, so it falls through */"]
         for val in sw["off_values"]:
             if val == "":
-                out.append("    if (!*v) return 0;")
+                out.append("        if (!*v) return 0;")
             else:
-                out.append('    if (strcmp(v, "%s") == 0) return 0;' % c_escape(val))
+                out.append('        if (strcmp(v, "%s") == 0) return 0;' % c_escape(val))
+        out += ["    }"]
+        if veto:
+            out += ["    {",
+                    "        char vbuf[32];",
+                    "        const char *w = shim_policy_read_(SHIM_VETO_%s, vbuf, sizeof vbuf);" % sw["name"],
+                    "        if (w) {"]
+            for val in veto["on_values"]:
+                out.append('            if (strcmp(w, "%s") == 0) return 0;' % c_escape(val))
+            out += ["        }",
+                    "    }"]
         out += ["    return 1;",
                 "}",
                 ""]
@@ -185,13 +198,35 @@ def emit_policy_sh(switches):
         check_switch(sw)
         pattern = "|".join("''" if v == "" else v for v in sw["off_values"])
         out += ["# %s" % l for l in wrap_what(sw["what"])]
-        out += ["SHIM_ENV_%s='%s'" % (sw["name"], sw["env"]),
-                "%s() {" % sw["predicate"],
+        out += ["SHIM_ENV_%s='%s'" % (sw["name"], sw["env"])]
+        veto = sw.get("veto")
+        if veto:
+            out += ["SHIM_VETO_%s='%s'" % (sw["name"], veto["env"])]
+        out += ["%s() {" % sw["predicate"],
                 '    case "${%s-1}" in' % sw["env"],
                 "        %s) return 1 ;;" % pattern,
-                "        *) return 0 ;;",
-                "    esac",
-                "}",
+                "    esac"]
+        if veto:
+            out += ["    # " + l for l in textwrap.wrap(veto["what"], 70)]
+            out += ['    case "${%s-}" in' % veto["env"],
+                    "        %s) return 1 ;;" % "|".join(veto["on_values"]),
+                    "    esac"]
+        out += ["    return 0",
+                "}"]
+        if veto:
+            # Diagnostics only. The predicate above is the decision; this says
+            # WHICH input made it, so a launch log can tell "the user unticked
+            # Steam's box" apart from "SHIM_OVERLAY=0" apart from "no injector".
+            # Without it the one site that must explain itself would have to
+            # test the veto variable directly, which is the re-derivation the
+            # drift guard exists to prevent.
+            out += ["%s() {" % (sw["predicate"].replace("_enabled", "_vetoed")),
+                    '    case "${%s-}" in' % veto["env"],
+                    "        %s) return 0 ;;" % "|".join(veto["on_values"]),
+                    "    esac",
+                    "    return 1",
+                    "}"]
+        out += [
                 "# State the answer to every child process, never imply it: below this",
                 "# point unset means the manifest default, so omitting the variable",
                 "# cannot express the non-default answer.",
@@ -264,18 +299,28 @@ def emit_policy_swift(switches):
                 "    /// Default when unset: %s. Off values: %s." %
                 (sw["default"],
                  ", ".join(repr(v) if v else "empty" for v in sw["off_values"])),
-                '    static let env%s = "%s"' % (sw["name"].capitalize(), sw["env"]),
-                "",
+                '    static let env%s = "%s"' % (sw["name"].capitalize(), sw["env"])]
+        veto = sw.get("veto")
+        if veto:
+            out += ["    /// " + l for l in wrap_what(veto["what"])]
+            out += ['    static let veto%s = "%s"' % (sw["name"].capitalize(), veto["env"])]
+        out += ["",
                 "    /// Reads the rule, never re-derives it. `env` defaults to the process",
                 "    /// environment; passing one in is what lets the launcher decide what a",
                 "    /// CHILD will see before it spawns it.",
                 "    static func %s(in env: [String: String] = ProcessInfo.processInfo.environment) -> Bool {" % swift_ident(sw["predicate"]),
-                "        guard let v = env[env%s] else { return true }   // unset" % sw["name"].capitalize()]
+                "        if let v = env[env%s] {   // unset is the default, so it falls through" % sw["name"].capitalize()]
         for val in sw["off_values"]:
             if val == "":
-                out.append('        if v.isEmpty { return false }')
+                out.append('            if v.isEmpty { return false }')
             else:
-                out.append('        if v == "%s" { return false }' % swift_escape(val))
+                out.append('            if v == "%s" { return false }' % swift_escape(val))
+        out += ["        }"]
+        if veto:
+            out += ["        if let w = env[veto%s] {" % sw["name"].capitalize()]
+            for val in veto["on_values"]:
+                out.append('            if w == "%s" { return false }' % swift_escape(val))
+            out += ["        }"]
         out += ["        return true",
                 "    }",
                 "",

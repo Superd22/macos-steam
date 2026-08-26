@@ -70,6 +70,13 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   `src/layout/layout.json`. Asking a switch is reading policy; re-deriving it is drift, and
   the build says so (ADR 0006).
 
+- **Veto** — a second input to a switch, owned by somebody else. The overlay switch has one:
+  Steam's `SteamNoOverlayUI`, which the client sets per launch when the user unticks "Enable
+  the Steam Overlay while in-game" globally or for that title. It can only turn the switch
+  off, never on, so `SHIM_OVERLAY=0` stays a kill switch and Steam's answer stays a per-title
+  opt-out. Because the launcher always states a literal `1` or `0`, `SHIM_OVERLAY=1` means
+  "no objection from our side", not "force on" (ADR 0012).
+
 - **Shape** — the unit the shim generates a thunk for: one (interface, method, *signature*),
   not one method and not one version. It is the unit a single C function can serve, because
   everything the seam needs — field widths, i386 arity, the return path — is a function of
@@ -119,3 +126,12 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   its handshake with it, so a panel can actually appear. A renderer can be loaded and never
   arm. `ISteamUtils::IsOverlayEnabled()` answers **armed**, never loaded — a title told
   "yes" pauses and waits for a panel, so answering it from the wrong state is a hang.
+
+- **`SteamNoOverlayUI` vs `SteamNoOverlayUIDrawing`** — two Valve variables one suffix apart
+  that answer different questions, and the likeliest thing to get wrong in this area.
+  `...UIDrawing` is read by the **renderer**: it means "do not draw", and our launch path
+  sets or unsets it to arm the renderer we loaded. `SteamNoOverlayUI` is read by the
+  **client**, and Steam hands it to the compat tool as `1` when the user has the overlay
+  disabled for this launch — it is an *input* telling us what the user chose, not an output
+  we set. Measured live: it appears on the next game launch after the box is unticked, with
+  no Steam restart (ADR 0012). The drift guard matches whole names so the two never collide.
