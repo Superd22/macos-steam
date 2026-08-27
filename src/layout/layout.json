@@ -61,7 +61,18 @@
     { "name": "OVERLAY_DYLIB", "value": "gameoverlayrenderer.dylib", "what": "Valve's overlay renderer (ADR 0003)" },
     { "name": "LOG_LAUNCH",    "value": "shim-launch.log",     "what": "the launch script's log" },
     { "name": "LOG_UNIX",      "value": "shim-unix.log",       "what": "the unix half's log" },
-    { "name": "LOG_ENABLER",   "value": "compat-enabler.log",  "what": "the compat-gate injector's log" }
+    { "name": "LOG_ENABLER",   "value": "compat-enabler.log",  "what": "the compat-gate injector's log" },
+
+    { "name": "LSTEAM_PE64",   "value": "lsteamclient.dll",    "what": "the shim PE built under a SECOND name, for the DRM route (ADR 0014). Valve's signed steamclient64.dll keeps that basename, and two modules cannot share one in a process — so the shim is BUILT as this, never renamed: ntdll derives a builtin's unix half from the PE's internal name, not its filename", "guard": true },
+    { "name": "LSTEAM_UNIX64", "value": "lsteamclient.so",     "what": "its unix half, under the same basename", "guard": true },
+    { "name": "SHADOW_TIER0",  "value": "tier0_s64.dll",       "what": "our shadow of Valve's support lib: the only non-system import of steamclient64.dll we hook, and where the trampolines are installed (ADR 0014)", "guard": true },
+    { "name": "SHADOW_VSTDLIB","value": "vstdlib_s64.dll",     "what": "the other one, inert. Valve's real vstdlib initialises against tier0, so it cannot be left real while tier0 is shadowed", "guard": true },
+    { "name": "VALVE_PE64",    "value": "valve_steamclient64.dll", "what": "Valve's OWN signed client DLL, under a name of ours. Deliberately not its own basename: Wine resolves a builtin by basename off the DLL path, and our shim sits on that path — same basename and OURS would load in its place, silently, and the wrapper would reject the unsigned file it found. Renaming costs nothing, because the wrapper reads whatever file provided CreateInterface and checks the BYTES", "guard": true },
+    { "name": "VSTEAM_DIR_WIN","value": "C:\\vsteam",           "what": "in-bottle dir holding Valve's signed steamclient64.dll and our two shadows, as the PE side sees it. Separate from the shim dir so the DRM route cannot shadow the normal one", "guard": true },
+    { "name": "VSTEAM_SUBDIR", "value": "drive_c/vsteam",      "what": "the same dir relative to the bottle, unix side", "guard": true },
+    { "name": "CLIENT_CACHE",  "value": "valve-client",        "what": "payload subdir holding the Valve DLLs fetched from Valve's public client manifest. Beside the versions, not inside one: it outlives any single deploy and a re-download is expensive", "guard": true },
+    { "name": "CLIENT_MANIFEST_URL", "value": "https://media.steampowered.com/client/steam_client_win32", "what": "Valve's own public, unauthenticated Windows client manifest — the same one steamcmd bootstraps from. Names the packages, their sizes and their SHA-256s", "guard": true },
+    { "name": "CLIENT_PKG",    "value": "bins_win32",          "what": "the package in that manifest carrying steamclient64.dll, tier0_s64.dll and vstdlib_s64.dll", "guard": true }
   ],
 
   "joins": [
@@ -79,7 +90,11 @@
     { "name": "OVERLAY_DYLIB_REL","of": ["STEAM_MACOS_REL", "OVERLAY_DYLIB"], "sep": "posix", "what": "renderer dlopen target, relative to $HOME" },
     { "name": "LOG_LAUNCH_REL",   "of": ["LOG_DIR_REL", "LOG_LAUNCH"], "sep": "posix", "what": "relative to $HOME" },
     { "name": "LOG_UNIX_REL",     "of": ["LOG_DIR_REL", "LOG_UNIX"], "sep": "posix", "what": "relative to $HOME" },
-    { "name": "LOG_ENABLER_REL",  "of": ["LOG_DIR_REL", "LOG_ENABLER"], "sep": "posix", "what": "relative to $HOME" }
+    { "name": "LOG_ENABLER_REL",  "of": ["LOG_DIR_REL", "LOG_ENABLER"], "sep": "posix", "what": "relative to $HOME" },
+
+    { "name": "VALVE_PE64_WIN",   "of": ["VSTEAM_DIR_WIN", "VALVE_PE64"], "sep": "win", "what": "what SteamClientDll64 points at on the DRM route: VALVE'S signed DLL, not ours" },
+    { "name": "LSTEAM_PE64_WIN",  "of": ["SHIM_DIR_WIN", "LSTEAM_PE64"], "sep": "win", "what": "the shim under its second name, which the trampolines load" },
+    { "name": "CLIENT_CACHE_REL", "of": ["PAYLOAD_REL", "CLIENT_CACHE"], "sep": "posix", "what": "the fetched Valve DLLs, relative to $HOME" }
   ],
 
   "switches": [
@@ -95,6 +110,14 @@
         "what": "Steam's OWN answer for this launch, set by the client when 'Enable the Steam Overlay while in-game' is off -- globally (Settings -> In Game) or for this title (Properties -> General). Measured, not assumed: absent for a default-on title, '1' the very next launch after the per-game box is unticked, with no Steam restart, so it reports live state rather than the last flush (#92). NOT SteamNoOverlayUIDrawing, which is the renderer's own flag and a different question"
       },
       "what": "whether the Steam overlay is delivered: the unixlib dlopens Valve's renderer, the PE half binds the seam in DllMain and hooks CreateProcess, and the launch script routes through the injector (ADR 0003, ADR 0006). Steam's per-title setting vetoes it (ADR 0012)"
+    },
+    {
+      "name": "DRM",
+      "env": "SHIM_DRM",
+      "predicate": "shim_drm_enabled",
+      "default": "on",
+      "off_values": ["0", ""],
+      "what": "whether a DRM-wrapped title is launched through Valve's own signed steamclient64.dll with its exports trampolined into our shim (ADR 0014). ON by default, but conditional on delivery the way the overlay is: no fetched Valve DLL means the route is unavailable and the launch falls back to the normal one. Only titles whose EXE carries a .bind section take it at all, so a non-DRM title's path is byte-identical to what it was before this existed"
     }
   ]
 }

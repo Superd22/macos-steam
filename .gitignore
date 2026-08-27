@@ -20,6 +20,7 @@ src/compat-enabler/*
 
 src/shim/dist/
 src/overlay-inject/dist/
+src/drm/dist/
 
 # Generated deploy contract (#32) — src/layout/layout.json is the source.
 src/layout/gen/

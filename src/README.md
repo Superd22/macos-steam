@@ -16,6 +16,7 @@ removing one is a release-surface change and wants a note in the ADRs.
 | `compat-tool/` | the two vdf templates + the launch script (the Level A ↔ Level B seam) |
 | `shim/` | the bridge — PE `steamclient(64).dll` plus the native `.so` (Level B) |
 | `overlay-inject/` | gets Valve's overlay renderer into the game process before the Mac driver loads |
+| `drm/` | the DRM route (ADR 0014) — fetches Valve's own signed client DLL and the two shadows that reach our shim through it |
 
 Nothing here may depend on `instruments/` or `attic/` at build or run time. The one place
 the roots touch is `shim/run.sh`, which drives `instruments/harness` as its acceptance

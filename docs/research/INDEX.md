@@ -33,6 +33,7 @@ until that event happens; stale claims are the ones that survive it unchecked.
 | [`macos-steamplay-chain.md`](macos-steamplay-chain.md) | `current` | Where the chain from *tool registered* to *Steam installs and launches a Windows depot* breaks. |
 | [`macossteamplayresearch.md`](macossteamplayresearch.md) | `historical` | The opening brief, 2026-08-03. Superseded in full by this directory, `docs/adr/` and `CONTEXT.md`. Several of its guesses were wrong. |
 | [`overlay-injection.md`](overlay-injection.md) | `current` | What loads, when, to get Valve's overlay renderer drawing over a Windows title. The evidence behind ADR 0003 and `src/overlay-inject/`. Re-verify on a **CrossOver upgrade** — the deadline is a property of the Wine loader. |
+| [`steam-drm-shared-memory.md`](steam-drm-shared-memory.md) | `current` | Steam **DRM** requires `steamclient64.dll` to carry a **Valve RSA-1024 signature** (`"VLV\0"` at DOS offset `0x40`), verified against keys hard-coded in the title — so DRM-wrapped titles are out of reach by a private key, not by unfinished work. Includes the `Local\SteamStart_SharedMem*` protocol (an error-reporting channel, not a check), the `.bind` disassembly, and every candidate built and eliminated. Why such a title fails *exactly like* a `#45` coverage gap without being one. Re-verify on a **Steam client update** or a **title update**. |
 | [`steam-overlay-feasibility.md`](steam-overlay-feasibility.md) | `superseded` | By `overlay-injection.md`, for its verdict. Still the only source for the **binary-level anatomy** of Valve's macOS overlay (§1–§4) and the Proton/Valve comparison (§6). |
 | [`steamclient-js-api-macos.md`](steamclient-js-api-macos.md) | `current` | Full `window.SteamClient` inventory for the macOS client. Re-verify on a **Steam client update** — it is a snapshot of one build's JS surface. |
 | [`steamdeck-steamplay-integration-model.md`](steamdeck-steamplay-integration-model.md) | `current` | Steam's own per-title model, and why there is no per-title opt-out to mirror. |
@@ -55,7 +56,7 @@ right, not merely unsurprised. Two files carry substantial ones:
 
 | after a… | re-check |
 |---|---|
-| **Steam client update** | `compat-vdf-platform-override.md` (byte offsets, and `src/compat-enabler` patches against them) · `compatibilitytools-d-macos.md` (the bootstrapper can wipe a planted tool) · `app-mappings-self-contained.md` · `steamclient-js-api-macos.md` · `overlay-injection.md` (the renderer dylib is replaced) |
+| **Steam client update** | `steam-drm-shared-memory.md` (the shared-memory object names are Valve's) · `compat-vdf-platform-override.md` (byte offsets, and `src/compat-enabler` patches against them) · `compatibilitytools-d-macos.md` (the bootstrapper can wipe a planted tool) · `app-mappings-self-contained.md` · `steamclient-js-api-macos.md` · `overlay-injection.md` (the renderer dylib is replaced) |
 | **CrossOver upgrade** | `crossover-bridge-surface.md` (already behind) · `clean-bottle-provenance.md` · `overlay-injection.md` |
 | **Proton bump** | `lsteamclient-mechanics.md` · `steamworks-vtable-tables.md` |
 

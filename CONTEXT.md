@@ -1,5 +1,11 @@
 # Context — macOS Steam Play (glossary)
 
+**What this is: Proton for macOS, minus the emulator — that part is deferred to CrossOver.**
+Proton's components map onto ours term for term: `lsteamclient` is the **shim**, `steam_helper`
+is the **presence stub**. What Proton solves by shipping a Wine of its own, we solve with
+somebody else's — and where Proton patches its own loader, we use the search path instead (the
+**DRM route**, ADR 0014). Where a term below has a Proton equivalent, it is named.
+
 The ubiquitous language for this effort. Terms only — no implementation detail, no
 decisions (those live in `docs/adr/`). Update the moment a term is coined or sharpened.
 
@@ -30,8 +36,40 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
 
 - **Native side / native Steam client** — the real macOS Steam.app and its
   `steamclient.dylib`, running outside the bottle as an arm64 process. The bridge connects to
-  it over Valve's own IPC; **no Windows Steam runs**. This "no Windows Steam" property is the
-  whole point of the effort.
+  it over Valve's own IPC; **no Windows Steam client runs**. This "no Windows Steam" property is
+  the whole point of the effort. It is a statement about Valve's *client*, not about every Windows
+  process: a **presence stub** may represent the native client inside the bottle without being one
+  (ADR 0013).
+
+- **Presence stub** — a Windows process in the bottle whose only job is to be *observed*: to hold
+  the process id, window and named objects that a Steam client would own, on behalf of the real
+  macOS one running outside. It carries no Steam logic and answers nothing the native client did
+  not answer — it forwards or reflects, it never decides. Proton's `steam_helper` is the same
+  component under a different name. Distinct from the **shim**, which is *called*; a stub is
+  *looked for*, by callers that never speak Steamworks at all (ADR 0013).
+
+- **DRM route** — how a **DRM-wrapped** title is launched: with **Valve's own signed
+  `steamclient64.dll`** at the path `SteamClientDll64` names, and the **shim** reached through
+  **trampolines** written into that module's exports. Taken only by titles that are wrapped; every
+  other launch is unchanged. Nothing is forged — the file on disk is genuinely Valve's, and the
+  wrapper's question is answered truthfully (ADR 0014).
+
+- **DRM-wrapped** — a title whose EXE carries Steam's DRM stub in a `.bind` section. The stub runs
+  before the title's own code, speaks no Steamworks, and verifies a **Valve signature** over
+  whichever file provided `CreateInterface`. It is in the file on disk, so "is this title wrapped"
+  is answerable from the section table without running anything.
+
+- **Trampoline** — a jump written over an export's entry point, in memory, sending its callers
+  somewhere else. Ours redirect Valve's signed DLL into the shim; its own entry point is overwritten
+  so none of its code runs. Proton does the same thing inside its own ntdll. Distinct from
+  **injection** (ADR 0003): a trampoline is installed in-process at load time by a library the
+  loader was already going to load, with nothing suspended and no remote thread — which is why
+  anti-tamper titles tolerate it.
+
+- **Shadow** — one of the two libraries we substitute for Valve's own support libraries beside the
+  signed DLL, so that our code runs while it loads. One installs the trampolines; the other is
+  inert and exists only because the real one cannot initialise without its partner. Their export
+  lists are generated from Valve's libraries, never hand-written (ADR 0014).
 
 - **Ship-set** — the exact set of modules that reach a user's machine. It is a path, `src/`,
   not a judgement call: a beta cut, a CI target and the release payload all read the same

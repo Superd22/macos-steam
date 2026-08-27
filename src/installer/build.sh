@@ -65,6 +65,7 @@ fi
 
 SHIM_DIST_DIR="$REPO/src/shim/$SHIM_PATH_DIST"
 INJECT_DIST_DIR="$REPO/src/overlay-inject/$SHIM_PATH_DIST"
+DRM_DIST_DIR="$REPO/src/drm/$SHIM_PATH_DIST"
 
 # The shim's sources are no longer only its C and C++: since #78 the thunks are
 # GENERATED, so the generator, its inputs and the checkers that gate it are all
@@ -80,6 +81,17 @@ if [ ! -f "$SHIM_DIST_DIR/$SHIM_PATH_PE32" ] \
             $(find "$REPO/src/shim" -maxdepth 1 -name '*.py') \
             "$PATHS_H" "$POLICY_H"; then
     log "building shim (both bitnesses)"; "$REPO/src/shim/build.sh"
+fi
+
+# The DRM route's two shadows (ADR 0014). Their export lists are generated from
+# Valve's own libraries and committed, so this build stays offline; `--regen` in
+# that module is the step that goes and looks.
+if [ ! -f "$DRM_DIST_DIR/$SHIM_PATH_SHADOW_VSTDLIB" ] \
+   || stale "$DRM_DIST_DIR/$SHIM_PATH_SHADOW_TIER0" \
+            "$REPO/src/drm/shadow_tier0.c" "$REPO/src/drm/shadow_vstdlib.c" \
+            "$REPO/src/drm/gen/tier0.def"  "$REPO/src/drm/gen/vstdlib.def" \
+            "$REPO/src/drm/build.sh" "$PATHS_H"; then
+    log "building DRM shadows"; "$REPO/src/drm/build.sh"
 fi
 
 if [ ! -f "$INJECT_DIST_DIR/$SHIM_PATH_INJECT32" ] \
@@ -149,6 +161,17 @@ cp -f "$SHIM_DIST_DIR/$SHIM_PATH_UNIX32"  "$TOOLDIR/$SHIM_PATH_DIST/"
 # cannot deliver.
 cp -f "$INJECT_DIST_DIR/$SHIM_PATH_INJECT64" "$TOOLDIR/$SHIM_PATH_DIST/"
 cp -f "$INJECT_DIST_DIR/$SHIM_PATH_INJECT32" "$TOOLDIR/$SHIM_PATH_DIST/"
+# The DRM route (ADR 0014): the shim under its second name, and the two shadows
+# that trampoline Valve's signed DLL into it. Valve's DLL itself is NOT shipped —
+# it is fetched from Valve at provision time, per machine. A payload missing
+# these deploys fine and simply leaves DRM-wrapped titles failing as they did
+# before, which is the same interlock the overlay uses.
+cp -f "$SHIM_DIST_DIR/$SHIM_PATH_LSTEAM_PE64"     "$TOOLDIR/$SHIM_PATH_DIST/"
+cp -f "$SHIM_DIST_DIR/$SHIM_PATH_LSTEAM_UNIX64"   "$TOOLDIR/$SHIM_PATH_DIST/"
+cp -f "$DRM_DIST_DIR/$SHIM_PATH_SHADOW_TIER0"     "$TOOLDIR/$SHIM_PATH_DIST/"
+cp -f "$DRM_DIST_DIR/$SHIM_PATH_SHADOW_VSTDLIB"   "$TOOLDIR/$SHIM_PATH_DIST/"
+cp -f "$REPO/src/drm/fetch.sh"                    "$TOOLDIR/"
+cp -f "$REPO/src/drm/check_shadow.py"             "$TOOLDIR/"
 chmod +x "$TOOLDIR/$SHIM_PATH_LAUNCH_SH" "$STAGE/deploy.sh"
 
 # The launcher, if it has been built. It is a separate module with its own
