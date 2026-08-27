@@ -131,6 +131,22 @@ $MINGW32 -shared -O2 -Wall -static -static-libgcc -I../layout/gen \
     -o "$DIST/$SHIM_PATH_PE32" shim_pe.c
 python3 patch_marker.py "$DIST/$SHIM_PATH_PE32"
 
+# The same PE a THIRD time, under a second name, for the DRM route (ADR 0014).
+# On that route Valve's own signed DLL occupies the steamclient64.dll basename
+# and our shim is reached through trampolines written into it -- and two modules
+# cannot share a basename in one process.
+#
+# BUILT, not copied. ntdll finds a builtin's unix half from the PE's INTERNAL
+# name (its export directory Name, which mingw takes from -o), not from the file
+# on disk: a renamed copy sends it hunting for the wrong .so, the seam never
+# binds, and CreateInterface answers from a PE with no unix half -- measured,
+# and silent apart from one line in the PE log.
+$MINGW64 -shared -O2 -Wall -static -static-libgcc -I../layout/gen \
+    -o "$DIST/$SHIM_PATH_LSTEAM_PE64" shim_pe.c
+python3 patch_marker.py "$DIST/$SHIM_PATH_LSTEAM_PE64"
+# The unix half is the same object; only the basename ntdll derives differs.
+cp -f "$DIST/$SHIM_PATH_UNIX64" "$DIST/$SHIM_PATH_LSTEAM_UNIX64"
+
 # --- i386 thiscall is CALLEE-cleanup: every slot must pop the right bytes -----
 $MINGW32 -c -O2 -I../layout/gen -o "$DIST/.shim_pe32.o" shim_pe.c
 python3 verify_abi.py vtables.json shim_pe.c "$DIST/.shim_pe32.o" gen/shim_gen_arity.json
