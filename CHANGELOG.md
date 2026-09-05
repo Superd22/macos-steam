@@ -2,6 +2,12 @@
 
 This project follows [semantic versioning](https://semver.org).
 
+## [0.4.0](https://github.com/Superd22/macos-steam/compare/v0.3.1...v0.4.0) (2026-09-05)
+
+### Features
+
+* **launcher:** state the wildcard mapping so Windows titles are installable here ([17e24b4](https://github.com/Superd22/macos-steam/commit/17e24b494a0411be78edd09be0c4b319480d53a6)), closes [#102](https://github.com/Superd22/macos-steam/issues/102)
+
 ## [0.3.1](https://github.com/Superd22/macos-steam/compare/v0.3.0...v0.3.1) (2026-09-05)
 
 ### Fixes
