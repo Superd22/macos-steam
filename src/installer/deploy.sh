@@ -193,15 +193,36 @@ esac
 [ -n "$PAYLOAD" ] || die "no payload — pass --payload DIR (build it with src/installer/build.sh)"
 [ -f "$PAYLOAD/VERSION" ] || die "$PAYLOAD is not a payload — no VERSION file"
 VERSION="$(tr -d ' \n' < "$PAYLOAD/VERSION")"
+# What we exec is not what Valve's installer puts on disk. Steam.app ships a
+# bootstrapper; the bundle we exec is the one it unpacks under Application
+# Support on its FIRST successful run. So a fresh machine that has installed
+# Steam and never opened it fails this check with Steam sitting right there in
+# /Applications — and "native Steam not found" sends that user off to download
+# what they already have. The two states are one stat call apart and their
+# remedies have nothing in common, so they get two messages.
+steam_app_installed() {
+    [ -d "/$SHIM_PATH_STEAM_APP_REL" ] || [ -d "$HOME/$SHIM_PATH_STEAM_APP_REL" ]
+}
 if [ ! -x "$STEAM_OSX" ]; then
+    if steam_app_installed; then
+        why="Steam is installed but has never finished its first run, so the
+      bundle we exec does not exist yet. Open Steam.app, sign in ONLINE, let
+      it update, then quit it and run this again."
+    else
+        why="The native macOS Steam client is not installed.
+      Get it from https://store.steampowered.com/about/ and sign in ONLINE."
+    fi
     # A real deploy refuses: writing a launcher that execs a steam_osx which is
     # not there is not a partial success, it is a broken install that looks
     # finished. A DRY RUN is the opposite case — it is a report, and "you have
     # no native Steam" is precisely the thing a report should tell you, so it
     # says so and goes on to print the rest of the plan. That is also what makes
     # the deploy contract checkable on a machine that has no Steam, like CI.
-    [ "$DRYRUN" = 1 ] || die "native Steam not found at $STEAM_OSX"
+    [ "$DRYRUN" = 1 ] || die "native Steam not found at
+      $STEAM_OSX
+      $why"
     log "native Steam NOT found at $STEAM_OSX — a real deploy would stop here"
+    log "$why"
 fi
 
 # Overlay (#21, ADR 0006). ON by default. The value is baked into the launcher
