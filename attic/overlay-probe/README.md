@@ -53,6 +53,14 @@ must be unset — the renderer bails on it explicitly.
   **The gate is `NSApplication` instantiation.** Load before it and the renderer
   hooks the five `MTLCommandBuffer` selectors and arms; load after it and attach
   runs, prints its module list, and installs nothing.
+
+  > **Restated 2026-09-05 (#113).** Every row of that table still reproduces; the word
+  > "gate" is what did not survive. The renderer installs those hooks only from a
+  > swizzled `-[NSApplication init]`, so the four zero rows are a trigger that never
+  > fires again rather than a window that has closed — and the installer can be called
+  > by hand afterwards, which is what a DRM-wrapped title now does
+  > (`docs/research/drm-overlay-late-arming.md`, ADR 0003's correction). The
+  > measurements here are unchanged and are still the evidence behind ADR 0003.
 - **The 15 interposes are not needed.** `metalprobe5` does no GOT rebinding at all
   — no `fishhook`, no `__DATA,__interpose` parsing — and the overlay still draws.
   (`metalprobe3` kept the recovery code; it is what proved the interposes were not

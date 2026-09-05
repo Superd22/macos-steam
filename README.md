@@ -137,7 +137,8 @@ This repo supplies both halves:
 - **Steamworks API via a bridge:** a replacement `steamclient64.dll` (and 32-bit `steamclient.dll`)
   inside the CrossOver bottle. It contains no Steam logic: it marshals every call across the Wine unix seam to a native `.so` that hosts Valve's real macOS `steamclient.dylib`,
   in-process. So the game talks to the _native_ Steam client. Achievements unlock on the real server; the overlay is Valve's own `gameoverlayrenderer.dylib`, injected into the game
-  at process creation.
+  at process creation — or, for a DRM-wrapped title that cannot be injected into, loaded by the
+  bridge itself and armed once the game's window is up.
 
 The vocabulary above is defined in [CONTEXT.md](CONTEXT.md); the decisions behind it are in
 [docs/adr/](docs/adr/).
