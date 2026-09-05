@@ -64,7 +64,13 @@ enum ValveClient {
         // timestamp gates is the UNATTENDED retry, so a failure has to count.
         Prefs.lastClientFetch = Date()
         var last = ""
-        let result = Shell.stream(fetcher, []) { line in
+        // Longer than `fetch.sh`'s own `curl --max-time 900`, on purpose: the
+        // script owns the bound on the download (it is the half that knows the
+        // endpoint), and a launcher bound that fired first would kill a fetch
+        // that was still within its own budget. This is the backstop for the
+        // case the script cannot cover — a curl that is neither transferring
+        // nor timing out — and for a future caller that brings no bound (#108).
+        let result = Shell.stream(fetcher, [], idleTimeout: 960) { line in
             // Its own narration only. `drm-fetch:` is a prefix for a log, not
             // for a label under a spinner — and the lines WITHOUT it come from
             // the shadow coverage checker it calls, which reports in full paths
@@ -77,6 +83,11 @@ enum ValveClient {
             progress(text)
         }
         if result.ok { return .ok }
+        if result.timedOut {
+            return .failed("The download stopped responding and was cancelled. Try again — "
+                         + "everything else works without this; only copy-protected games "
+                         + "need it.")
+        }
         return .failed(explain(result.status, last: last))
     }
 

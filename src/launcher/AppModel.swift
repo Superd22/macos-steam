@@ -23,6 +23,10 @@ final class AppModel: ObservableObject {
     /// Valve" and the user would press the same button expecting a different
     /// result. This is what the row says instead, until something changes it.
     @Published var valveClientProblem: String?
+    /// The same idea for bottle creation, and for the same reason: the bottle
+    /// row is a `fileExists`, so a `cxbottle` we had to kill leaves the row
+    /// exactly as it was before the button was pressed (#108).
+    @Published var bottleProblem: String?
 
     enum LaunchState: Equatable {
         case idle
@@ -119,7 +123,7 @@ final class AppModel: ObservableObject {
         if mustQuitSteamFirst {
             busy = "Quitting Steam…"
             Task.detached {
-                Shell.run("/usr/bin/osascript", ["-e", "quit app \"Steam\""])
+                Shell.run("/usr/bin/osascript", ["-e", "quit app \"Steam\""], timeout: 20)
                 for _ in 0..<40 where Shell.isRunning(ShimPath.steamOsx) {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                 }
@@ -189,7 +193,15 @@ final class AppModel: ObservableObject {
     }
 
     func createBottle() {
-        perform("Making the bottle…") { Preflight.createBottle().output }
+        busy = "Making the bottle…"
+        Task.detached {
+            let result = Preflight.createBottle()
+            await MainActor.run {
+                self.busy = nil
+                self.bottleProblem = result.timedOut ? Preflight.bottleTimedOut : nil
+                self.refresh()
+            }
+        }
     }
 
     func runDiagnose() {
@@ -220,7 +232,11 @@ final class AppModel: ObservableObject {
 
     func restartSteam() {
         perform("Restarting Steam…") {
-            Shell.run("/usr/bin/osascript", ["-e", "quit app \"Steam\""])
+            // Bounded well under the default: `quit app` blocks for as long as
+            // the app takes to go, and a Steam showing a modal dialog never
+            // does. The poll below already handles a client that is still up,
+            // so 20 seconds of waiting is the whole value of asking politely.
+            Shell.run("/usr/bin/osascript", ["-e", "quit app \"Steam\""], timeout: 20)
             for _ in 0..<30 where Shell.isRunning(ShimPath.steamOsx) {
                 Thread.sleep(forTimeInterval: 0.5)
             }

@@ -34,6 +34,14 @@ enum Diagnose {
             return Finding(id: "integrity", title: "Steam Play is not installed", verdict: .blocked,
                            detail: "Reinstall to put the files in place.")
         }
+        // A verify that never answered is not a verify that failed: saying
+        // "files have gone missing" would send someone to reinstall over a
+        // stalled script (#108).
+        if result.timedOut {
+            return Finding(id: "integrity", title: "The file check did not finish", verdict: .warning,
+                           detail: "Checking the installed files took too long and was stopped. "
+                                 + "Try Diagnose again; if it keeps happening, reinstall.")
+        }
         return Finding(id: "integrity",
                        title: result.ok ? "Files are intact" : "Some files have changed or gone missing",
                        verdict: result.ok ? .ok : .blocked,
