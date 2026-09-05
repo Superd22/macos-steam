@@ -168,12 +168,21 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
   The thing that actually draws the overlay, by swizzling `CAMetalDrawable` / `MTLCommandBuffer`.
   We do not write one; we load theirs into the Wine process (ADR 0003).
 
-- **Loaded vs armed** — two different states of the overlay renderer, and conflating them is
-  the failure this vocabulary exists to prevent. **Loaded** means the dylib is in the process
-  and its hooks are installed. **Armed** means the native client has additionally completed
-  its handshake with it, so a panel can actually appear. A renderer can be loaded and never
-  arm. `ISteamUtils::IsOverlayEnabled()` answers **armed**, never loaded — a title told
+- **Loaded vs hooked vs armed** — three different states of the overlay renderer, and
+  conflating them is the failure this vocabulary exists to prevent. **Loaded** means the dylib
+  is in the process. **Hooked** means its five Metal hooks are installed, which Valve's code
+  does only from a swizzled `-[NSApplication init]` — so a renderer that arrives after
+  `NSApplication` is loaded and never hooked, the state every DRM-wrapped title was in before
+  #112. **Armed** means the native client has additionally completed its handshake with it, so
+  a panel can actually appear. A renderer can be loaded and never hook, and hooked and never
+  arm. `ISteamUtils::IsOverlayEnabled()` answers **armed**, never the other two — a title told
   "yes" pauses and waits for a panel, so answering it from the wrong state is a hang.
+
+- **Late arming** — calling Valve's Metal-hook installer ourselves, through the ObjC runtime,
+  when the renderer loaded too late for Valve's own `-[NSApplication init]` trigger to fire.
+  It is how a DRM-wrapped title gets an overlay without the injector, which that route cannot
+  have (ADR 0014's 2026-09-05 amendment). Not a substitute for injection: it is what the
+  *unixlib* does when it finds `NSApp` already up, and it declines otherwise.
 
 - **`SteamNoOverlayUI` vs `SteamNoOverlayUIDrawing`** — two Valve variables one suffix apart
   that answer different questions, and the likeliest thing to get wrong in this area.
