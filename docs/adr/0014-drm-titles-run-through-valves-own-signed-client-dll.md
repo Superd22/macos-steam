@@ -134,3 +134,31 @@ wrapped title fails as it does today rather than losing the working 32-bit route
 manifest SHA-256 gates it) and could in principle change the import set (`check_shadow.py`). A title
 update re-applies the wrapper, and the `.bind` layout could change. Both are named in the research
 doc's `re-verify-on`.
+
+## Amendment, 2026-09-05: the question is asked of the *title*, not of the file Steam names (#104)
+
+The decision stands. What did not hold is the assumption inside part 3 — that the file Steam hands
+the compat tool is the file to read the section table of.
+
+Warhammer 40,000: Space Marine II is launched through a 32-bit outer launcher with no `.bind`
+section at all; two of its eight EXEs are wrapped, and the one the game actually runs is four
+directories down. So the route never armed through Steam, and neither did the warning, because both
+asked the same question about the same wrong file. #97's proof launched the wrapped binary directly,
+where `$EXE` *was* the wrapped file — true, and not measured through this path.
+
+Two changes, both in `steamclient-shim-launch.sh`:
+
+- **The arming signal is now "does this title ship a wrapped binary"** — a capped, scoped sweep of
+  the title's install directory (`STEAM_COMPAT_INSTALL_PATH`) for any EXE carrying `.bind`, with the
+  launcher's `ApplicationPath` ini followed first as a *refinement* that nothing depends on. This
+  widens "only wrapped titles take it" from a file to a title: a title shipping a wrapped EXE it
+  does not launch will arm the route and lose its overlay. Over-arming is visible in the log and
+  recoverable; under-arming is a title that cannot start at all.
+- **The bitness gate moved out of the wrapped test to its call site.** "Is this file wrapped" is a
+  fact about bytes; "can our route help it" is a fact about the route. Merged, they made a 32-bit
+  launcher fronting a wrapped 64-bit title indistinguishable from an ordinary unwrapped 32-bit one,
+  and "wrapped, but we cannot help it" unsayable. The 64-bit-only consequence above is unchanged;
+  it is now stated to the user instead of returning silently.
+
+Both are interim. #107 removes the prediction entirely by arming the route once per bottle the way
+Proton does, at which point the sweep is deleted and the split questions survive as diagnostics.
