@@ -110,10 +110,13 @@ reintroduce exactly the failure it was meant to prevent.
 
 **This route and the overlay injector are mutually exclusive, and the launch script enforces it.**
 The injector makes our PE the title's *first static import* (ADR 0003); on this route the shim is
-reached through Valve's DLL instead, and the two cannot both own that slot. So a wrapped title
-launches with the overlay off, and the log says which input said no. This is not merely a
-concession: the injector is what anti-tamper titles reject, and wrapped titles are exactly where
-anti-tamper lives.
+reached through Valve's DLL instead, and the two cannot both own that slot. ~~So a wrapped title
+launches with the overlay off, and the log says which input said no.~~ **Half superseded
+2026-09-05 (#112)** — the exclusivity is real and the interlock on the *injector* stays, but the
+overlay does not go with it: the shim's own unixlib arms Valve's hook installer once the title's
+`NSApplication` is up. See the amendment at the bottom of this ADR. The rest stands, and it is not
+merely a concession: the injector is what anti-tamper titles reject, and wrapped titles are exactly
+where anti-tamper lives.
 
 **`SteamClientDll64` is bottle-global and the choice is now per-title.** Steam's own `run`-verb
 helpers are excluded — they no longer rewrite it, because a helper does not own that choice and
@@ -152,8 +155,9 @@ Two changes, both in `steamclient-shim-launch.sh`:
   the title's install directory (`STEAM_COMPAT_INSTALL_PATH`) for any EXE carrying `.bind`, with the
   launcher's `ApplicationPath` ini followed first as a *refinement* that nothing depends on. This
   widens "only wrapped titles take it" from a file to a title: a title shipping a wrapped EXE it
-  does not launch will arm the route and lose its overlay. Over-arming is visible in the log and
-  recoverable; under-arming is a title that cannot start at all.
+  does not launch will arm the route and ~~lose its overlay~~ take a route it did not need
+  (**2026-09-05**: it keeps its overlay now — see the next amendment). Over-arming is visible in the
+  log and recoverable; under-arming is a title that cannot start at all.
 - **The bitness gate moved out of the wrapped test to its call site.** "Is this file wrapped" is a
   fact about bytes; "can our route help it" is a fact about the route. Merged, they made a 32-bit
   launcher fronting a wrapped 64-bit title indistinguishable from an ordinary unwrapped 32-bit one,

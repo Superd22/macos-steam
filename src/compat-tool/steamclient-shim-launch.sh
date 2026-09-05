@@ -467,10 +467,15 @@ if shim_drm_enabled; then
     drm_locate_wrapped "$TITLEDIR" || true
 fi
 
-# Over-arming has a real cost: this route and the overlay injector are mutually
-# exclusive (ADR 0003, ADR 0014), so a false positive silently costs a working
-# title its overlay. State the finding and how it was reached, every time, so
-# that cost is visible in the log rather than inferred from a missing overlay.
+# Over-arming still has a cost, though a smaller one than when this was written.
+# It USED to be the overlay: the route and the injector are mutually exclusive
+# (ADR 0003, ADR 0014), so a false positive silently cost a working title its
+# overlay. Since #112 a wrapped title gets the overlay by the late path instead,
+# so what a false positive costs now is a title running through Valve's signed
+# DLL that did not need to -- a heavier startup and one more moving part in the
+# way of a launch that worked. State the finding and how it was reached, every
+# time, so that cost stays visible in the log rather than inferred from a
+# behaviour change nobody asked for.
 if [ -n "$DRM_WRAPPED_EXE" ]; then
     log "DRM: this title is wrapped — $DRM_WRAPPED_EXE"
     log "     carries Steam's .bind section; $DRM_WRAPPED_HOW"

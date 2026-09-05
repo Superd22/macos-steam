@@ -1,6 +1,6 @@
 ---
 status: current
-re-verify-on: CrossOver upgrade — the load-order deadline is a property of when `winemac.so` is demand-loaded, and the Wine loader owns that; also on a Steam client update, which replaces `gameoverlayrenderer.dylib`
+re-verify-on: CrossOver upgrade — the load-order deadline is a property of when `winemac.so` is demand-loaded, and the Wine loader owns that; also on a Steam client update, which replaces `gameoverlayrenderer.dylib` and with it the `-[NSApplication init]` swizzle that §2's timing, and the late arming that recovers from missing it, both depend on
 ---
 
 # Getting Valve's overlay renderer into a Windows title — what is measured
@@ -30,8 +30,10 @@ Five things had to be true at once. All five are measured, and all five hold:
 1. **The renderer arms for a process the client has no relationship with.** [V] Not launched by
    Steam, not calling Steamworks — set `SteamOverlayGameId` to a real appid and Shift+Tab draws
    the real overlay. §1.
-2. **It must be loaded before `NSApplication` is instantiated.** [V] That, and nothing else, is
-   the gate. Not dyld's interposition window, not the Metal device, not the layer. §2.
+2. **`NSApplication` instantiation is the whole of the timing** — nothing else is: not dyld's
+   interposition window, not the Metal device, not the layer. [V] §2. Loading before it is what
+   gets the hooks installed; loading after misses Valve's trigger rather than closing a window, so
+   it is recoverable by calling the installer by hand — the 2026-09-05 correction inside §2.
 3. **The 15 dyld interposes are not needed** for the Metal path. [V] §3.
 4. **Inside a Wine process the deadline is winnable**, because `winemac.so` is demand-loaded on
    the first USER call, not at `user32` init. [V] §4.
@@ -98,6 +100,36 @@ Enabling overlay
 **`STEAM_OVERLAY_LOGGING` is what makes any of this observable.** It and
 `STEAM_OVERLAY_LOGGING_FLUSH` are `getenv` calls in the dylib (`0x1e194`, `0x1e17e` in the
 x86_64 slice) gating `/tmp/gameoverlayrenderer.%d.log`. [V] Set it on every overlay run.
+(Those two offsets are one build's. The 2026-09-03 client moved the first to `0x1aef6`;
+`drm-overlay-late-arming.md` re-derives them.)
+
+### Correction, 2026-09-05: the four zero rows are a missed call, not a closed window (#113)
+
+Every row of the table above still reproduces. The *sentence under it* does not, and the
+difference matters because it decides whether a late load is recoverable.
+
+`drm-overlay-late-arming.md` §1 disassembles the renderer: an ObjC category `SteamMetalHook` on
+`NSApplication` supplies `-steammetalhook_init`, the renderer's setup **exchanges it with
+`-[NSApplication init]`**, and the once-guarded installer that writes all five hooks is called
+from inside that method and nowhere else. `ctor` and `main` hook 5/5 because the app's own
+`[NSApplication sharedApplication]` runs `init` after the swizzle is in place. `nsapp`, `device`,
+`layer` and `late` hook nothing because `init` has already run and will not run again.
+
+**Nothing is closed by that.** The installer is reachable through the ObjC runtime by name, and
+calling it with `self = nil` installs 5/5 hooks with `winemac.drv` up and `NSApp` non-nil — the
+state all four zero rows are in:
+
+```
+pid 79384   Hooking=5   winemac present, installer called by hand
+pid 80198   Hooking=0   same conditions, control
+```
+
+So this section's result is better read as: **be early, or make the call yourself.** Being early
+is still preferable and is still what §6's injector delivers — hooks before the first frame, no
+dependency on a Valve internal. Making the call is what a title that cannot have the injector does
+instead (ADR 0014's wrapped titles), and it is shipped: `overlay_arm_late()` in
+`src/shim/shim_unix.cpp`, gated on `NSApp` being non-nil so it never fires on this section's early
+path.
 
 ## 3. The interposes are unnecessary [V]
 
@@ -260,9 +292,15 @@ through the shipped compat tool.
 What remains is not feasibility:
 
 - **Child-process injection is written but untested** — neither test title relaunches itself.
-- **Input parity is still unpriced.** Proton's `GameOverlayActivated_t` key-up repair
-  (`steam-overlay-feasibility.md` §6.2) has no measured macOS equivalent yet, and §3's result
-  says only that the *Metal* path needs no interposes — it says nothing about input.
+- ~~**Input parity is still unpriced.**~~ **Priced 2026-08-25 (#28)**, for the *injected* path
+  only: gamepad is fine and the sole leak is hover, which reproduces under real Windows Steam, so
+  it is parity rather than a regression (ADR 0003's #28 addendum). Unpriced on the **late-armed**
+  path of §2's correction — `instruments/overlay-probe/input-parity-run.sh` needs an operator, and
+  nobody has run it there.
+- **The late-armed path has never been seen drawing.** Its hooks are measured installed and the
+  renderer is measured tracking the drawable; the hotkey and the panel need a human, and its
+  tolerance by a title's anti-tamper is reasoned from "no import rewrite, in-process" rather than
+  measured (`drm-overlay-late-arming.md` §8.3).
 
 ---
 
@@ -332,6 +370,28 @@ PE `steamclient.dll` is loaded, and that happens when the title calls `SteamAPI_
 point the engine has long since brought up its window. No arrangement of the shim moves that
 earlier, because the trigger belongs to the game. The loader has to be independent of the title's
 call order, which is what §6 is.
+
+> **Reclassified 2026-09-05 (#113): not a wrong turn — one call short.**
+>
+> Everything above is accurately measured and the timing diagnosis is exactly right: the unixlib
+> *does* arrive after `NSApplication`. What does not follow is the verdict. By §2's correction, that
+> state is a missed method call rather than a closed window, and the missing call can be made from
+> the same constructor that did the `dlopen` — which is what ships today as `overlay_arm_late()` in
+> `src/shim/shim_unix.cpp` (#112).
+>
+> Measured on the same shape of run this entry recorded, with a rotated `shim-unix.log` — Space
+> Marine II (2183900), which takes the DRM route and therefore has no injector at all:
+>
+> ```
+> pid 2904   SHIM_OVERLAY=1   Hooking=5   winemac present   past the DRM wrapper
+> pid 5220   SHIM_OVERLAY=0   no renderer log at all        past the DRM wrapper
+> ```
+>
+> **It still does not replace §6.** It puts the hooks in later than injection does, it depends on a
+> Valve-internal swizzle that a client update could remove, and it is only reached when `NSApp` is
+> already up. For a title we can inject into, §6 remains the route. This entry is kept in full
+> because the reasoning that closed it is the useful part: "the trigger belongs to the game" was
+> true, and the mistake was concluding that a trigger we do not own is a trigger nobody can pull.
 
 ### "A remote thread in a suspended process runs before the title's imports"
 

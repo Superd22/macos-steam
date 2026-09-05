@@ -27,6 +27,13 @@ Three facts, all measured on this machine, define the whole solution space. They
 There is no retry and no lazy second chance. Every design below is judged on one question: does it
 beat `NSApplication`?
 
+> **Restated 2026-09-05 (#113).** Both rows of that table are exact and still reproduce. The words
+> around them — "arms itself at load", "the deadline", "no second chance" — are not: the renderer
+> installs those hooks from a swizzled `-[NSApplication init]`, so a late load misses a *call*, and
+> the call can be made by hand afterwards. See the correction at the bottom of this ADR. The
+> decision below is unaffected; what changes is that beating `NSApplication` stops being the only
+> way to get hooks installed.
+
 **2. `DYLD_INSERT_LIBRARIES` — the mechanism Valve's own docs prescribe — is unavailable to us.**
 CrossOver's `wineloader` is hardened-runtime signed without
 `com.apple.security.cs.allow-dyld-environment-variables`, so dyld strips the variable. Restoring
@@ -50,7 +57,10 @@ So the question narrows to: what loads a DLL of ours at process init, on every t
 Candidates considered:
 
 - **`AppInit_DLLs`** — Windows' own "load this into every process" registry hook. **Not available**:
-  CrossOver's Wine does not implement it; the string appears nowhere in its tree.
+  CrossOver's Wine does not implement it; the string appears nowhere in its tree. (Upgraded from a
+  static observation to a live negative in 2026-09: upstream ships `LoadAppInitDlls` as a `TRACE`-only
+  stub, and planting the registry values loads nothing —
+  `docs/research/drm-overlay-late-arming.md` §5.)
 - **Import-time sideload** — a DLL in the title's folder shadowing one it imports (`VERSION.dll`,
   `WINMM.dll`). Works, but is per-title, needs export forwarding to the shadowed DLL or the title
   will not start, and is overwritten by Steam file verification. **Not shippable**; useful only as a
@@ -420,3 +430,93 @@ this rule, and one of them — the PE half's `GetEnvironmentVariableA(...,
 NULL, 0) > 0` — read an explicit `SHIM_OVERLAY=0` as ON. The rule now has an
 owner: one generated predicate, `shim_overlay_enabled`, declared in
 `src/layout/layout.json`. The default and the interlock are unchanged.
+
+## Correction, 2026-09-05: the deadline is a missed method call, not a race (#113)
+
+**The decision stands, unchanged.** Injection at process creation is still how an ordinary title
+gets the overlay, still the only mechanism that is per-title and needs nothing bottle-global, and
+every measurement in this ADR still reproduces. What is wrong is the *reason* given for it, and the
+wrong reason made a whole class of solutions look impossible for a month.
+
+### What this ADR says, and what is actually true
+
+The Context frames the problem as a race: `NSApplication` is a deadline, the renderer "arms itself
+exactly once, at load", and a design is judged on whether it *beats* `winemac.so`. Every
+observation behind that framing is real. The mechanism is not.
+
+`docs/research/drm-overlay-late-arming.md` §1 disassembles the renderer. It carries an ObjC
+category `SteamMetalHook` on `NSApplication`, and at setup it **exchanges `-[NSApplication init]`
+with its own `-steammetalhook_init`**. The five Metal hooks are written by a once-guarded installer
+that is called from **exactly one place: inside that swizzled method.** So:
+
+- load before `NSApplication` is instantiated → the app's own `[NSApplication sharedApplication]`
+  runs `init`, the swizzle fires, the hooks go in. The first row of the Context's table.
+- load after → the swizzle is installed correctly and **nothing ever calls it**. Not a lost race:
+  a method call that is never made. The second row.
+
+The two are indistinguishable from outside, which is why the correlation held for every run anyone
+had done — including #107's spike B, which rendered 2,100+ frames after a successful `dlopen` and
+hooked none of them, and read that as conclusive proof of a hard deadline.
+
+**It is recoverable.** The installer is reachable through the ObjC runtime by name, and calling it
+with `self = nil` — in a process where `winemac.drv` and `NSApplication` are already up — installs
+5/5 hooks:
+
+```
+pid 79384   Hooking=5   winemac present, NSApp up, installer called by hand
+pid 80198   Hooking=0   same conditions, control
+```
+
+### Why this does not change the decision
+
+Injection is still the right mechanism for a title we launch ourselves:
+
+- It is **per-title**, which the alternatives in `drm-overlay-late-arming.md` §3 (a display-driver
+  shim, registered bottle-globally) are not — and ADR 0012 gives the *user* a per-title say, so a
+  bottle-global delivery would be the wrong granularity for the switch it has to obey.
+- Getting hooks in **before the title's first frame** is still strictly better than getting them in
+  later, and injection is what does that.
+- Nothing above about `DYLD_INSERT_LIBRARIES`, the demand-loading of `winemac.so`, or the debugger
+  loop is affected. Facts 2 and 3 of the Context stand as written.
+
+What changes is that **being import[0] is one way to make the installer run, not the only way**.
+That distinction is the whole of #112: a DRM-wrapped title cannot have the injector (ADR 0014), and
+now does not need it — the shim's own unixlib calls the installer once `NSApp` is up. See ADR
+0014's 2026-09-05 amendment.
+
+### The guard that keeps this ADR's path untouched
+
+The late arming is gated on `NSApp` being **non-nil**, which is precisely "Valve's trigger has
+already fired and cannot fire again". On the injector path `NSApp` is nil when our constructor runs,
+the arming declines and says so in `shim-unix.log`, and this ADR's ordering is bit-for-bit what it
+was. Measured both ways, with the injector route re-run for the occasion: 5/5 hooks, `winemac`
+absent at attach, unchanged.
+
+One thing named in the 2026-08-25 addendum below did move, and it is worth saying plainly because
+that addendum ends with "the default and the interlock are unchanged". The **interlock** in
+`steamclient-shim-launch.sh` now asks "is there a way to deliver a renderer" rather than "is there
+an injector", because there are two ways. Its purpose is untouched — a title told an overlay exists
+can still wait on one forever, so the env is still never armed without a delivery path — and the
+`USE_DRM = 0` condition on the *injector call site* is untouched too, because that is where the
+exclusivity with ADR 0014 actually lives.
+
+### What is still unproven, and is not claimed here
+
+The late path is **not** a proven equal of this one, and nothing in this correction should be read
+as retiring the injector:
+
+- **Input parity on the late path is unmeasured.** The 2026-08-25 addendum below measured the
+  *early* path only. The renderer's cursor/event swizzles are installed from its own load path
+  rather than from the `init` swizzle, which is why the late path is expected to keep input —
+  reasoned from the disassembly, not measured. `input-parity-run.sh` needs an operator.
+- **Nobody has seen the overlay panel on a wrapped title.** The hooks are installed and the renderer
+  tracks the drawable frame by frame; the hotkey needs a human.
+- **Anti-tamper tolerance of the late path is unmeasured** against a title actually running its
+  anti-cheat.
+
+### Why the wrong version is still above
+
+It is left in place, with a pointer rather than a deletion. The race framing is what the injector
+was designed against, it is why `overlayinject` looks the way it does, and a reader who finds only
+the corrected version cannot tell which parts of the design were load-bearing for a reason that has
+since evaporated. `docs/research/` keeps its wrong turns for the same reason.
