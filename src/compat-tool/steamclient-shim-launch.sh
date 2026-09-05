@@ -546,10 +546,25 @@ export SteamGameId="$APPID"
 # rejects the injector's import rewrite and the title cannot start at all.
 #
 # The default flipped here, at the policy layer, but the INTERLOCK below did not:
-# no injector means no compositor, and a title that believes an overlay exists
-# can wait on one forever. So "on by default" is still conditional on being able
-# to deliver, and the off branch says so out loud rather than defaulting quietly.
-if shim_overlay_enabled && [ "$HAVE_INJECT" = 1 ] && [ "$USE_DRM" = 0 ]; then
+# no way to DELIVER a renderer means no compositor, and a title that believes an
+# overlay exists can wait on one forever. So "on by default" is still conditional
+# on being able to deliver, and the off branch says so out loud rather than
+# defaulting quietly.
+#
+# What changed with #112 is that there are now TWO ways to deliver, so the
+# interlock asks about delivery rather than about the injector:
+#
+#   - not wrapped: the injector, which makes our PE the title's first static
+#     import so the renderer is in before NSApplication (ADR 0003);
+#   - wrapped: no injector -- the two are still exclusive and #107 measured both
+#     ways it fails -- but the DRM route already has our unixlib in the process,
+#     and it arms Valve's Metal-hook installer by hand once NSApplication is up
+#     (overlay_arm_late in shim_unix.cpp, drm-overlay-late-arming.md §2).
+#
+# So a wrapped title no longer loses its overlay, and USE_DRM stops being a
+# reason to say no here. It is still a reason to say no at the *injector* call
+# site at the bottom of this file, which is where the exclusivity actually lives.
+if shim_overlay_enabled && { [ "$USE_DRM" = 1 ] || [ "$HAVE_INJECT" = 1 ]; }; then
     unset SteamNoOverlayUIDrawing
     export SteamOverlayGameId="$APPID"
     # Export, not just read: the unixlib's constructor asks the same predicate
@@ -560,28 +575,30 @@ if shim_overlay_enabled && [ "$HAVE_INJECT" = 1 ] && [ "$USE_DRM" = 0 ]; then
     shim_overlay_export 1
     # The renderer's own log is opt-in, and without it a failure is mute — which
     # is what made #22 misread (a2) as dead. It names the stage reached:
-    # "Hooking ..." lines mean our unixlib's constructor beat NSApplication.
+    # "Hooking ..." lines mean the hooks went in — because the constructor beat
+    # NSApplication on the injector path, or because it armed the installer by
+    # hand on the DRM one.
     export STEAM_OVERLAY_LOGGING=1 STEAM_OVERLAY_LOGGING_FLUSH=1
     log "overlay ENABLED: SteamOverlayGameId=$APPID, SteamNoOverlayUIDrawing unset"
+    if [ "$USE_DRM" = 1 ]; then
+        log "      delivered by the shim's own unixlib, which arms Valve's hook installer"
+        log "      after NSApplication is up (#112) — this route does not inject"
+    fi
     log "      renderer log: /tmp/gameoverlayrenderer.<pid>.log"
 else
     # Off, and off HARD: a title told an overlay exists can wait on one forever,
-    # so never arm the env without an injector to deliver the renderer.
+    # so never arm the env without one of the two delivery paths above.
     #
     # Exporting an explicit 0 is load-bearing now that the manifest's default is
     # ON. Leaving it merely unset used to mean "off" everywhere; since the flip
     # it means "on", so this branch would have dlopened the renderer into a
-    # process with no injector to place it — the exact thing the interlock above
+    # process with nothing to place it — the exact thing the interlock above
     # exists to prevent. Say 0, do not imply it.
     # Which input said no. A user who just unticked Steam's box needs to see
     # that it took effect, and a support log that says only "overlay off" makes
     # the three reasons indistinguishable. The reason is ASKED of the fragment
     # (shim_overlay_vetoed), never re-derived here.
-    if [ "$USE_DRM" = 1 ]; then
-        log "overlay OFF: this title takes the DRM route, which does not inject (ADR 0014)"
-        log "      the injector makes our PE the title's first static import, and this"
-        log "      route reaches the shim through Valve's DLL instead. They are exclusive."
-    elif shim_overlay_vetoed; then
+    if shim_overlay_vetoed; then
         log "overlay OFF for appid $APPID: Steam's own setting says so ($SHIM_VETO_OVERLAY=1)"
         log "      turn it back on in Steam: Properties -> General -> Enable the Steam Overlay while in-game"
     elif ! shim_overlay_enabled; then
