@@ -10,7 +10,7 @@
 # The stated acceptance test is: launched with a pre-existing
 # DYLD_INSERT_LIBRARIES, the launcher hands steam_osx both entries with ours
 # first, and launching twice does not duplicate ours. That is asked here without
-# launching Steam at all, via --print-env, which prints exactly the three
+# launching Steam at all, via --print-env, which prints exactly the four
 # variables the exec would carry.
 set -eu
 cd "$(dirname "$0")"
@@ -73,6 +73,18 @@ case "$stored" in
     0)     expect "stored preference off: honoured over the environment" "$stated" "0" ;;
     *)     expect "stored preference on: honoured over the environment" "$stated" "1" ;;
 esac
+
+# The wildcard mapping is always STATED too, for the same reason the overlay is:
+# there is no macOS UI that could write one, so an absent variable is not "the
+# user chose nothing", it is every Windows-only title reporting itself
+# unavailable on this platform (ADR 0015). The priority is asserted as a number
+# and not just as "present" because it is a threshold in the client — at 249 the
+# entry is stored and silently never consulted, which looks exactly like working.
+echo "launcher: wildcard mapping is stated"
+mapping="$(env DYLD_INSERT_LIBRARIES= "./$BIN" $SHIM_PATH_PRINT_ENV_FLAG \
+           | sed -n 's/^STEAM_COMPAT_TOOL_MAPPINGS=//p')"
+expect "appid 0, at or above the client's threshold, naming our tool" \
+       "$mapping" "0 250 $SHIM_PATH_TOOL_NAME"
 
 [ "$fail" = 0 ] || exit 1
 echo "launcher: launch environment ok"

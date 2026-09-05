@@ -148,7 +148,17 @@ decisions (those live in `docs/adr/`). Update the moment a term is coined or sha
 
 - **Compat gate** — the single latched boolean (`m_bCompatEnabled`) in the macOS client that
   turns the whole Steam Play subsystem on. Off by default on macOS; crossable with a one-byte
-  patch. The subject of Level A.
+  patch. The subject of Level A. It answers *whether* compat runs, never *which tool* — that
+  is the **wildcard mapping**, and neither half is any use without the other.
+
+- **Wildcard mapping** — the standing answer to "which compat tool should a title use when
+  nobody has chosen one for it": Valve's own term, the mapping stored against appid `0`. Until
+  one exists a title has no tool *selected*, so the client answers "not available on this
+  platform" even with the gate open and our tool registered — registering a tool declares it
+  willing, it does not select it. On Linux the user writes it by ticking "Enable Steam Play for
+  all other titles"; that settings page is not drawn on macOS, so nothing ever writes it and we
+  state it ourselves (ADR 0015). Honoured only at priority ≥ 250; below that the client stores
+  the entry and never consults it.
 
 - **Bottle** — a CrossOver Wine prefix. A **clean bottle** is one with no Windows Steam
   installed, required so the shim is tested without the real `steamclient64.dll` winning the

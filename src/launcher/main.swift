@@ -47,7 +47,8 @@ if arguments.contains(ShimPath.diagnoseFlag) {
 }
 if arguments.contains(ShimPath.printEnvFlag) {
     let env = Launch.childEnvironment(overlay: Prefs.overlay)
-    for key in [Launch.dyldInsertLibraries, Launch.extraCompatToolsPaths, ShimPolicy.envOverlay] {
+    for key in [Launch.dyldInsertLibraries, Launch.extraCompatToolsPaths,
+                Launch.compatToolMappings, ShimPolicy.envOverlay] {
         print("\(key)=\(env[key] ?? "")")
     }
     exit(0)

@@ -3,15 +3,37 @@ import Foundation
 /// Handing off to Valve's own `steam_osx`, unmodified — the only thing this app
 /// does on the happy path (#42, ADR 0002 vehicle A).
 ///
-/// Two variables have to reach that process and nothing else does:
-/// `DYLD_INSERT_LIBRARIES` (the compat-gate injector) and
+/// Three variables have to reach that process and nothing else does:
+/// `DYLD_INSERT_LIBRARIES` (the compat-gate injector),
 /// `STEAM_EXTRA_COMPAT_TOOLS_PATHS` (our tool dir, outside every bundle so a
-/// client update cannot touch it). A third, the overlay switch, is stated so a
-/// compat tool started by Steam inherits an answer rather than a default.
+/// client update cannot touch it) and `STEAM_COMPAT_TOOL_MAPPINGS` (the
+/// wildcard mapping — the gate says compat runs, this says which tool it should
+/// reach for, and neither half is any use alone, ADR 0015). A fourth, the
+/// overlay switch, is stated so a compat tool started by Steam inherits an
+/// answer rather than a default.
 enum Launch {
     static var steamOsx: String { ShimPath.inHome(ShimPath.steamOsxRel) }
     static var enabler: String { ShimPath.inHome(ShimPath.enablerRel) }
     static var compatTools: String { ShimPath.inHome(ShimPath.compatToolsRel) }
+
+    /// The wildcard mapping (ADR 0015): one entry, `<appid> <priority> <tool>`,
+    /// naming the tool `compatTools` above delivers. It is the standing answer
+    /// to "which tool should a title use when nobody has chosen one for it",
+    /// and without it the client reports every Windows-only title as unavailable
+    /// on this platform — registering a tool declares it willing, it does not
+    /// select it.
+    static var toolMappings: String {
+        "\(wildcardAppID) \(wildcardPriority) \(ShimPath.toolName)"
+    }
+
+    /// Valve's "every app" sentinel in a compat tool mapping (`k_nAppIdAll`).
+    private static let wildcardAppID = 0
+
+    /// The client honours a wildcard mapping only at 250 or above; below that it
+    /// stores the entry and never consults it. Stated as the threshold itself
+    /// rather than a comfortable number above it, so the next reader can match
+    /// it against the client and see that it is a boundary and not a taste.
+    private static let wildcardPriority = 250
 
     /// The environment `steam_osx` should be started with, derived from the one
     /// we were started with. Pure, so the acceptance test for the merge below
@@ -23,6 +45,7 @@ enum Launch {
         var env = parent
         env[dyldInsertLibraries] = merged(insertions: parent[dyldInsertLibraries], ours: enabler)
         env[extraCompatToolsPaths] = compatTools
+        env[compatToolMappings] = toolMappings
         ShimPolicy.overlayExport(overlay, into: &env)
         return env
     }
@@ -87,6 +110,7 @@ enum Launch {
     // would claim ownership of a spelling we cannot change.
     static let dyldInsertLibraries = "DYLD_INSERT_LIBRARIES"
     static let extraCompatToolsPaths = "STEAM_EXTRA_COMPAT_TOOLS_PATHS"
+    static let compatToolMappings = "STEAM_COMPAT_TOOL_MAPPINGS"
 }
 
 /// `execve` wants a NULL-terminated array of C strings, and Swift will not keep
