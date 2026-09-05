@@ -163,6 +163,10 @@ enum Preflight {
     static var bottleName: String {
         ProcessInfo.processInfo.environment["SHIM_BOTTLE"] ?? ShimPath.bottleDefault
     }
+    /// The id the bottle rows carry, so the pane that showed the "Create it"
+    /// button knows which row a failure belongs in — the same arrangement
+    /// `ValveClient.rowID` has.
+    static let bottleRowID = "bottle"
     static var bottlePath: String {
         ShimPath.inHome(ShimPath.cxBottlesRel) + "/" + bottleName
     }
@@ -170,7 +174,7 @@ enum Preflight {
     static func bottle() -> Check {
         let fm = FileManager.default
         guard fm.fileExists(atPath: bottlePath) else {
-            return Check(id: "bottle", title: "No CrossOver bottle yet",
+            return Check(id: bottleRowID, title: "No CrossOver bottle yet",
                          verdict: .blocked,
                          detail: "Windows games run inside a CrossOver bottle. This app can make one for you.",
                          remedy: .createBottle,
@@ -180,16 +184,28 @@ enum Preflight {
                                "drive_c/Program Files/Steam/steam.exe"]
             .contains { fm.fileExists(atPath: bottlePath + "/" + $0) }
         if hasWindowsSteam {
-            return Check(id: "bottle", title: "The CrossOver bottle has a Windows Steam in it",
+            return Check(id: bottleRowID, title: "The CrossOver bottle has a Windows Steam in it",
                          verdict: .blocked,
                          detail: "There is a Windows copy of Steam in this bottle. Games will talk to that instead of the Steam on your Mac. Delete it, or use a different bottle.")
         }
         // The bottle's name is a setting, not news. It appears where someone can
         // act on it (the uninstall toggle), not in a row whose job is "fine".
-        return Check(id: "bottle", title: "CrossOver bottle configured", verdict: .ok, detail: "")
+        return Check(id: bottleRowID, title: "CrossOver bottle configured", verdict: .ok, detail: "")
     }
 
+    /// What a bottle that never finished says. The row is recomputed from disk
+    /// and there is still no bottle there, so without this the checklist goes
+    /// back to "This app can make one for you" and invites the same button and
+    /// the same five-minute wait (#108).
+    static let bottleTimedOut =
+        "Making the bottle took more than five minutes and was stopped. Open CrossOver "
+        + "once to let it finish setting itself up, then try again."
+
     /// CodeWeavers' own tool, with the flags the README used to have to teach.
+    /// The five minutes is now a bound and not a hope: bottle creation is
+    /// CodeWeavers' code, it touches the network on some paths, and it is
+    /// offered as a button on the checklist — so a stall used to present as an
+    /// app that had stopped responding (#108).
     static func createBottle() -> Shell.Result {
         let cxbottle = crossoverApp + "/Contents/SharedSupport/CrossOver/bin/cxbottle"
         return Shell.run(cxbottle, ["--create", "--bottle", bottleName, "--template", "win10_64"], timeout: 300)

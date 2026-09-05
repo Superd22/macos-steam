@@ -191,12 +191,18 @@ struct RemedyButton: View {
     }
 }
 
-/// What a row says, once the model knows better than the row does. Only the
-/// DRM download has anything to add: its check is a stat, so after a failed
-/// fetch the file is still missing and the row would go back to explaining why
-/// it is needed — while what the user needs to read is why it did not arrive.
+/// What a row says, once the model knows better than the row does. Two rows
+/// have anything to add, and for one reason: their checks are stat calls, so
+/// after a remedy that did not work the file is still missing and the row goes
+/// back to explaining why it is needed — while what the user needs to read is
+/// why it did not arrive (the DRM download) or why it did not finish (the
+/// bottle, #108).
 @MainActor private func rowDetail(_ id: String, _ detail: String, _ model: AppModel) -> String {
-    id == ValveClient.rowID ? (model.valveClientProblem ?? detail) : detail
+    switch id {
+    case ValveClient.rowID: return model.valveClientProblem ?? detail
+    case Preflight.bottleRowID: return model.bottleProblem ?? detail
+    default: return detail
+    }
 }
 
 // MARK: - checklist (first run, or preflight broken)
