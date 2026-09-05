@@ -243,21 +243,50 @@ DRM_UNFETCHED=0
 HAVE_DRM=0
 [ -z "$DRM_MISSING" ] && [ "$DRM_UNFETCHED" = 0 ] && HAVE_DRM=1
 
+# --- is this TITLE wrapped? (#104) --------------------------------------------
 # Steam's DRM wrapper lives in a `.bind` section, and it is in the file on disk
-# rather than unpacked at runtime -- so the section table answers "is this title
-# wrapped" exactly, without running anything. Any failure to read it means NO:
-# taking the normal path for a wrapped title produces one legible error dialog,
-# while taking the DRM path for an unwrapped one changes a launch that works.
-title_is_drm_wrapped() {
-    _exe="$1" _lfanew= _nsec= _szopt= _start= _machine=
+# rather than unpacked at runtime -- so the section table answers exactly,
+# without running anything (ADR 0014). Any failure to read a file means NO for
+# that file: taking the normal path for a wrapped title produces one legible
+# error dialog, while taking the DRM path for an unwrapped one changes a launch
+# that works.
+#
+# What changed in #104 is WHICH FILE is asked. This used to ask about $EXE, the
+# binary Steam hands the compat tool -- and for Space Marine II that is a 32-bit
+# outer launcher with no `.bind` at all, while the wrapped binary sits four
+# directories down. Measured there: two of the title's eight EXEs are wrapped,
+# neither of them the one Steam names. So the route never armed, and neither
+# did the warning that would have explained it, because both asked the same
+# question about the same wrong file.
+#
+# "Is this file wrapped" is a fact about a file. "Does this title ship a wrapped
+# binary" is a fact about the title -- and the route is armed per title.
+
+# Two questions that used to be one function. The second is "can our route help
+# it": the shadows, the second shim name and the trampolines are all 64-bit, so
+# a 32-bit wrapped title would take a route that cannot help it and lose the
+# working 32-bit one. Merged into the wrapped test, that gate made a 32-bit
+# launcher fronting a wrapped 64-bit title indistinguishable from an ordinary
+# unwrapped 32-bit title -- the test returned at the bitness check before it
+# ever read a section table, and "wrapped, but we cannot help it" was not
+# sayable. The gate now lives at the call site, where it can be said out loud.
+PE_MACHINE_AMD64=34404          # IMAGE_FILE_MACHINE_AMD64 (0x8664), decimal
+
+# One pass over the headers answers both, because every od and dd is a process
+# spawn and the sweep below asks this of every EXE the title ships. Sets
+# EXE_MACHINE (COFF machine word) and EXE_WRAPPED (1 = carries `.bind`);
+# non-zero return means the file is not a PE we could read, which is a NO.
+EXE_MACHINE=
+EXE_WRAPPED=0
+exe_read_pe() {
+    _exe="$1" _lfanew= _nsec= _szopt= _start=
+    EXE_MACHINE=
+    EXE_WRAPPED=0
     [ -f "$_exe" ] || return 1
     _lfanew=$(od -An -tu4 -j 60 -N 4 "$_exe" 2>/dev/null | tr -d ' ') || return 1
     [ -n "$_lfanew" ] && [ "$_lfanew" -gt 0 ] 2>/dev/null || return 1
-    # 64-bit only. The shadows, the second shim name and the trampolines are all
-    # 64-bit, so a 32-bit wrapped title would take a route that cannot help it
-    # and lose the working 32-bit one. 0x8664 = IMAGE_FILE_MACHINE_AMD64.
-    _machine=$(od -An -tu2 -j $((_lfanew + 4)) -N 2 "$_exe" 2>/dev/null | tr -d ' ')
-    [ "$_machine" = "34404" ] || return 1
+    EXE_MACHINE=$(od -An -tu2 -j $((_lfanew + 4)) -N 2 "$_exe" 2>/dev/null | tr -d ' ') || return 1
+    [ -n "$EXE_MACHINE" ] || return 1
     _nsec=$(od -An -tu2 -j $((_lfanew + 6)) -N 2 "$_exe" 2>/dev/null | tr -d ' ')
     _szopt=$(od -An -tu2 -j $((_lfanew + 20)) -N 2 "$_exe" 2>/dev/null | tr -d ' ')
     [ -n "$_nsec" ] && [ -n "$_szopt" ] && [ "$_nsec" -gt 0 ] 2>/dev/null || return 1
@@ -267,16 +296,145 @@ title_is_drm_wrapped() {
     # and under a UTF-8 locale macOS grep rejects it as invalid multibyte and
     # matches nothing. Without this the route silently never engages -- and the
     # warning below never fires either, because it asks the same question.
-    dd if="$_exe" bs=1 skip="$_start" count=$((_nsec * 40)) 2>/dev/null \
-        | LC_ALL=C tr -d '\000' | LC_ALL=C grep -q '\.bind'
+    if dd if="$_exe" bs=1 skip="$_start" count=$((_nsec * 40)) 2>/dev/null \
+        | LC_ALL=C tr -d '\000' | LC_ALL=C grep -q '\.bind'; then
+        EXE_WRAPPED=1
+    fi
+    return 0
 }
 
-USE_DRM=0
-if [ "$HAVE_DRM" = 1 ] && shim_drm_enabled && title_is_drm_wrapped "$EXE"; then
-    USE_DRM=1
-elif [ "$HAVE_DRM" = 0 ] && shim_drm_enabled && title_is_drm_wrapped "$EXE"; then
-    log "WARNING: this title is DRM-wrapped and the DRM route is unavailable, so it"
-    log "         will fail with 'Application load error 3:0000065432'."
+# The launcher chain: a REFINEMENT, never the mechanism.
+# A launcher that declares its target does it in a <basename>.ini beside itself
+# with ApplicationPath=. That is a FORMAT rule rather than a per-title one:
+# ADR 0003:206-208 recorded the identical shape on an unrelated title
+# (SpaceMarineBootstrapper.exe -> SpaceMarine.exe, ApplicationPath=,
+# WaitForExit=0) before this issue existed. Following it names the exact binary,
+# which cuts false positives and lets the log say something specific.
+#
+# NOTHING may depend on it. When it does not resolve -- an unknown launcher, an
+# ini the user has edited, a chain that goes through an anti-cheat stub instead
+# -- the sweep below still gives the right answer, so an unfamiliar launcher
+# costs precision, not function. Exercised both ways on Space Marine II: with
+# its ini pointing at the wrapped binary the chain names it exactly, and with
+# the ini pointing at the anti-cheat stub instead the sweep still arms.
+#
+# Hops are capped: an ini naming itself, or a pair naming each other, is a loop,
+# and this runs before the user has seen anything at all.
+DRM_CHAIN_HOPS=4
+drm_chain_next() {
+    _from="$1" _ini= _val=
+    _ini="${_from%.*}.ini"
+    [ -f "$_ini" ] || return 1
+    # key=value, CRLF, no section header. Neither the case of the key nor the
+    # spacing around the = is guaranteed by anything, so do not assume either.
+    # LC_ALL=C for the same reason as above: an ini beside a game EXE is not
+    # promised to be valid UTF-8, and a sed that rejects it matches nothing.
+    _val=$(LC_ALL=C sed -n 's/^[Aa]pplication[Pp]ath[[:space:]]*=[[:space:]]*//p' "$_ini" 2>/dev/null \
+            | head -n 1 | tr -d '\r' | LC_ALL=C sed 's/[[:space:]]*$//')
+    [ -n "$_val" ] || return 1
+    # Windows separators, and relative to the ini's own directory.
+    _val=$(printf '%s' "$_val" | tr '\\' '/')
+    case "$_val" in
+        /*) : ;;
+        *)  _val="$(dirname "$_from")/$_val" ;;
+    esac
+    [ -f "$_val" ] || return 1
+    printf '%s' "$_val"
+}
+
+# The sweep, which is the arming signal.
+# Launcher-agnostic (any matryoshka depth, any convention, including shapes
+# nobody has seen) and packer-agnostic: it asks about Steam's own published
+# format, the same fact ADR 0014 already stakes the route on.
+#
+# Capped on BOTH count and depth, because each EXE costs a few process spawns in
+# POSIX shell and a title shipping hundreds of them would make this expensive.
+# Measured on Space Marine II: 8 EXEs, ~320 bytes of section table each, 150 ms
+# wall for find plus all eight -- and ~2.7 ms per EXE on a 300-file fixture, so
+# the count cap is about 0.7 s of worst case, once, before a launch that is
+# already starting a Wine. When a cap bites we SAY SO at the call site rather
+# than silently answering "no" -- an unfinished sweep is uncertainty, and the
+# branch that tells the user we cannot help must be reachable from there too.
+DRM_SWEEP_MAX_FILES=256
+DRM_SWEEP_MAX_DEPTH=8
+DRM_SWEEP_CAPPED=0
+
+# Sets DRM_WRAPPED_EXE / DRM_WRAPPED_MACHINE / DRM_WRAPPED_HOW when the title
+# ships a wrapped binary, and DRM_SWEEP_CAPPED when it ran out of budget before
+# it could answer. Globals rather than stdout: a command substitution is a
+# subshell, and the "I could not finish" flag has to survive.
+DRM_WRAPPED_EXE=
+DRM_WRAPPED_MACHINE=
+DRM_WRAPPED_HOW=
+drm_locate_wrapped() {
+    _root="$1" _cand= _prev= _hop=0 _n=0 _list= _f=
+    DRM_WRAPPED_EXE=
+    DRM_WRAPPED_MACHINE=
+    DRM_WRAPPED_HOW=
+    DRM_SWEEP_CAPPED=0
+
+    # First the binary Steam named, then whatever it declares. Both are exact,
+    # both are two files' worth of work, and between them they answer for every
+    # title shape we understand -- the sweep is what covers the rest.
+    _cand="$EXE"
+    while [ -n "$_cand" ]; do
+        if exe_read_pe "$_cand" && [ "$EXE_WRAPPED" = 1 ]; then
+            DRM_WRAPPED_EXE="$_cand"
+            DRM_WRAPPED_MACHINE="$EXE_MACHINE"
+            if [ "$_hop" = 0 ]; then
+                DRM_WRAPPED_HOW="the binary Steam handed us"
+            else
+                DRM_WRAPPED_HOW="named by $(basename "${_prev%.*}.ini") (ApplicationPath=)"
+            fi
+            return 0
+        fi
+        [ "$_hop" -lt "$DRM_CHAIN_HOPS" ] || break
+        _prev="$_cand"
+        _cand=$(drm_chain_next "$_cand") || _cand=
+        _hop=$((_hop + 1))
+    done
+
+    # Then every EXE the title ships, scoped to its INSTALL dir -- not to
+    # wherever $EXE happens to live, which for a launcher one directory down is
+    # a subtree that does not contain the game.
+    _list=$(find "$_root" -maxdepth "$DRM_SWEEP_MAX_DEPTH" -type f -iname '*.exe' 2>/dev/null) || true
+    if [ -n "$_list" ]; then
+        while IFS= read -r _f; do
+            [ -n "$_f" ] || continue
+            if [ "$_n" -ge "$DRM_SWEEP_MAX_FILES" ]; then
+                DRM_SWEEP_CAPPED=1
+                break
+            fi
+            _n=$((_n + 1))
+            [ "$_f" = "$EXE" ] && continue
+            if exe_read_pe "$_f" && [ "$EXE_WRAPPED" = 1 ]; then
+                DRM_WRAPPED_EXE="$_f"
+                DRM_WRAPPED_MACHINE="$EXE_MACHINE"
+                DRM_WRAPPED_HOW="found by sweeping the title's EXEs ($_n read)"
+                return 0
+            fi
+        done <<EOF
+$_list
+EOF
+    fi
+
+    # A "no" from a sweep that stopped at the depth cap is not a no. Directories
+    # sitting exactly AT the cap mean there are files below it we never read, so
+    # ask -- one extra find, only on the path where the answer was negative.
+    if [ "$DRM_SWEEP_CAPPED" = 0 ] \
+       && [ -n "$(find "$_root" -mindepth "$DRM_SWEEP_MAX_DEPTH" -maxdepth "$DRM_SWEEP_MAX_DEPTH" \
+                       -type d 2>/dev/null | head -n 1)" ]; then
+        DRM_SWEEP_CAPPED=1
+    fi
+    return 1
+}
+
+# What a user should do about a route that cannot run. Said from TWO places now
+# (#104): the title we know is wrapped, and the title we could not finish
+# checking. It used to be reachable only from the first, which meant a title we
+# failed to recognise got no diagnostic at all -- the user saw Valve's dialog
+# and a launch log that mentioned DRM nowhere. That was the worse half of #104.
+drm_route_unavailable() {
     if [ "$DRM_UNFETCHED" = 1 ]; then
         # Beside us in the deployed payload; in the dev tree it is its module's.
         _fetch="$HERE/$SHIM_PATH_FETCH_SH"
@@ -286,6 +444,61 @@ elif [ "$HAVE_DRM" = 0 ] && shim_drm_enabled && title_is_drm_wrapped "$EXE"; the
     fi
     [ -n "$DRM_MISSING" ] && \
         log "         missing from the payload:$DRM_MISSING — reinstall"
+    # Explicit, and load-bearing under `set -e`: this is called as the last
+    # command of an if-branch, and set -e is NOT ignored there the way it is in
+    # the condition. Falling out of the function on that failing `[` would take
+    # the whole launch down at the point where we were only trying to explain
+    # ourselves -- the diagnostic killing the launch it was diagnosing.
+    return 0
+}
+
+# The scope for the sweep: the TITLE's install directory, which is Valve's to
+# tell us -- STEAM_COMPAT_INSTALL_PATH, from the same contract that carries the
+# app id -- rather than the directory $EXE happens to sit in. They are the same
+# place for a title Steam launches from its root, and they are not for one it
+# does not; assuming the second is a milder version of the bug this fixes.
+TITLEDIR="${STEAM_COMPAT_INSTALL_PATH:-}"
+if [ -z "$TITLEDIR" ] || [ ! -d "$TITLEDIR" ]; then
+    TITLEDIR="$(dirname "$EXE")"
+fi
+
+USE_DRM=0
+if shim_drm_enabled; then
+    drm_locate_wrapped "$TITLEDIR" || true
+fi
+
+# Over-arming has a real cost: this route and the overlay injector are mutually
+# exclusive (ADR 0003, ADR 0014), so a false positive silently costs a working
+# title its overlay. State the finding and how it was reached, every time, so
+# that cost is visible in the log rather than inferred from a missing overlay.
+if [ -n "$DRM_WRAPPED_EXE" ]; then
+    log "DRM: this title is wrapped — $DRM_WRAPPED_EXE"
+    log "     carries Steam's .bind section; $DRM_WRAPPED_HOW"
+fi
+
+if [ -n "$DRM_WRAPPED_EXE" ] && [ "$DRM_WRAPPED_MACHINE" != "$PE_MACHINE_AMD64" ]; then
+    # Sayable at all only because the bitness gate moved out of the predicate.
+    log "WARNING: this title is DRM-wrapped, but the wrapped binary is machine"
+    log "         0x$(printf '%04x' "$DRM_WRAPPED_MACHINE") and the DRM route is 64-bit only (ADR 0014), so it"
+    log "         will fail with 'Application load error 3:0000065432'."
+elif [ -n "$DRM_WRAPPED_EXE" ] && [ "$HAVE_DRM" = 1 ]; then
+    USE_DRM=1
+elif [ -n "$DRM_WRAPPED_EXE" ]; then
+    log "WARNING: this title is DRM-wrapped and the DRM route is unavailable, so it"
+    log "         will fail with 'Application load error 3:0000065432'."
+    drm_route_unavailable
+elif [ "$DRM_SWEEP_CAPPED" = 1 ]; then
+    log "NOTE: could not finish checking whether this title is DRM-wrapped — the"
+    log "      sweep of $TITLEDIR stopped at its cap"
+    log "      ($DRM_SWEEP_MAX_FILES EXEs, $DRM_SWEEP_MAX_DEPTH directories deep). Treat 'not wrapped' as unknown here."
+    if [ "$HAVE_DRM" = 1 ]; then
+        log "      If it fails with 'Application load error 3:0000065432' it IS wrapped and"
+        log "      the sweep missed it — that is worth reporting (#104)."
+    else
+        log "      If it fails with 'Application load error 3:0000065432' it IS wrapped, and"
+        log "      the DRM route is unavailable:"
+        drm_route_unavailable
+    fi
 fi
 
 if [ "$USE_DRM" = 1 ]; then
