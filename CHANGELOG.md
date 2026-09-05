@@ -2,6 +2,27 @@
 
 This project follows [semantic versioning](https://semver.org).
 
+## [0.3.1](https://github.com/Superd22/macos-steam/compare/v0.3.0...v0.3.1) (2026-09-05)
+
+### Fixes
+
+* **launcher:** "install Steam first" told a user with Steam installed to go get Steam ([f8f7b8b](https://github.com/Superd22/macos-steam/commit/f8f7b8b3393d19145cc802af491b053d540f0d03))
+
+  If Steam is installed but has never been opened, the installer and
+  the launcher now say so and tell you to open Steam once — instead of reporting
+  that Steam is not installed and offering to download it again.
+* **launcher:** CrossOver in /Applications read as CrossOver not installed ([3e4a4ce](https://github.com/Superd22/macos-steam/commit/3e4a4ce69c627435ede196decef46023249b9abd))
+
+  CrossOver installed in /Applications — where its own installer puts
+  it — is now found. It was only ever looked for in ~/Applications, so the app
+  could tell you to install CrossOver no matter how many times you already had.
+* **packaging:** brew never deployed anything — drop the post_install that could not work ([ff53088](https://github.com/Superd22/macos-steam/commit/ff530882365ba59a0ab600fc048259f22900ffff)), closes [Formula#run_post_install](https://github.com/Superd22/Formula/issues/run_post_install)
+
+  `brew install macos-steam-shim` now tells you to run
+  `macos-steam-shim` once to finish the install, and means it. The automatic
+  deploy it used to attempt could never succeed — brew runs install steps in a
+  sandbox with a throwaway home directory, and the payload has to go in yours.
+
 ## [0.3.0](https://github.com/Superd22/macos-steam/compare/v0.2.0...v0.3.0) (2026-09-05)
 
 ### Title compatibility
