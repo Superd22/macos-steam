@@ -35,6 +35,26 @@ cd "$B/drive_c" && env -u SteamNoOverlayUIDrawing \
 It answers yes: 5/5 hooks, and `ValveGetScreenSize( 640, 480 )` / `ValveGetOutputBounds` show the
 renderer tracking the **D3D window's** drawable. Detail in `docs/research/overlay-injection.md` §5.
 
+### `SHIM_LATE_PULL=1` — the same probe in a DRM-wrapped title's timing (#112)
+
+The run above is the *early* question. `SHIM_LATE_PULL=1` defers the shim `LoadLibrary` until after
+the window and the D3D device exist, which puts the probe in the state a wrapped title's process is
+in when our unixlib arrives on the DRM route: `winemac` up, `NSApplication` already init'd, so
+Valve's `-[NSApplication init]` swizzle can never fire again. It is the cheap fixture for the late
+arming — no title, no DRM bottle-arming, one `grep`:
+
+```
+                                    winemac at attach   Hooking
+SHIM_LATE_PULL=1, unixlib at main            present         0     <- what shipped before #112
+SHIM_LATE_PULL=1, unixlib with arming        present         5
+SHIM_LATE_PULL=1, SHIM_OVERLAY=0             (no renderer log at all)
+(unset), unixlib with arming                  absent         5     <- early path, unregressed
+```
+
+Measured 2026-09-05, CrossOver 26.3.0.39832. The third row is the control that matters and the
+fourth is the one that must never move: the arming is gated on `NSApp` being non-nil, so on the
+injector path it declines and says so (`overlay: NSApp not up yet` in `shim-unix.log`).
+
 **Two traps this probe fell into first, both relevant to #25's injector:** a console exe loses the
 race before `main` (the console attach reaches USER, which demand-loads `winemac.so`), and a static
 `d3d11` import runs its `DllMain` before `main`. Hence no console and a hand-`LoadLibrary`d d3d11.

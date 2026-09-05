@@ -43,6 +43,17 @@ static void plog(const char *fmt, ...)
 typedef void *(__cdecl *CreateInterfaceFn)(const char *, int *);
 
 /* Step 1: get the renderer into the process before we touch USER. */
+/* SHIM_LATE_PULL=1 defers this until after the window and the D3D device exist,
+ * which is the ONLY interesting timing for #112: it puts the probe in the exact
+ * state a DRM-wrapped title's process is in when our unixlib arrives -- winemac
+ * up, NSApplication already init'd, so Valve's own -[NSApplication init] swizzle
+ * can never fire again. Without the knob the probe answers the early question
+ * (#26) and says nothing about the late one. */
+static int late_pull(void)
+{
+    return GetEnvironmentVariableA("SHIM_LATE_PULL", NULL, 0) > 0;
+}
+
 static void pull_in_renderer(void)
 {
     const char *dll = "C:\\shim\\steamclient64.dll";
@@ -77,7 +88,10 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show)
 {
     (void)inst; (void)prev; (void)cmd; (void)show;
-    pull_in_renderer();                    /* BEFORE the first USER call */
+    if (!late_pull())
+        pull_in_renderer();                /* BEFORE the first USER call */
+    else
+        printf("SHIM_LATE_PULL=1 — deferring the renderer until after the device\n");
 
     WNDCLASSA wc = {0};
     wc.lpfnWndProc = wndproc;
@@ -125,6 +139,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show)
     sc->lpVtbl->GetBuffer(sc, 0, &IID_ID3D11Texture2D, (void **)&back);
     ID3D11RenderTargetView *rtv = NULL;
     dev->lpVtbl->CreateRenderTargetView(dev, (ID3D11Resource *)back, NULL, &rtv);
+    if (late_pull())
+        pull_in_renderer();                /* AFTER NSApplication: the #112 case */
     printf("rendering — press Shift+Tab\n");
     fflush(stdout);
 
