@@ -28,7 +28,7 @@ mkdir -p "$DIST" gen
 CACHE="$HOME/$SHIM_PATH_CLIENT_CACHE_REL"
 
 if [ "${1:-}" = "--regen" ]; then
-    [ -f "$CACHE/$SHIM_PATH_SHADOW_TIER0" ] || ./fetch.sh
+    [ -f "$CACHE/$SHIM_PATH_SHADOW_TIER0" ] || "./$SHIM_PATH_FETCH_SH"
     echo "--- regenerating shadow export lists from Valve's libraries ---"
     python3 gen_shadow.py "$CACHE/$SHIM_PATH_SHADOW_TIER0" \
         gen/tier0_stubs.c gen/tier0.def t0s
@@ -52,7 +52,7 @@ if [ -f "$CACHE/$SHIM_PATH_PE64" ]; then
         "$SHIM_PATH_SHADOW_TIER0"   gen/tier0.def \
         "$SHIM_PATH_SHADOW_VSTDLIB" gen/vstdlib.def
 else
-    echo "drm: no fetched $SHIM_PATH_PE64 to check the shadows against (run ./fetch.sh)"
+    echo "drm: no fetched $SHIM_PATH_PE64 to check the shadows against (run ./$SHIM_PATH_FETCH_SH)"
 fi
 
 $MINGW64 -shared -O2 -Wall -static -static-libgcc -I../layout/gen \

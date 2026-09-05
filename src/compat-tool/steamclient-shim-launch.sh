@@ -238,7 +238,7 @@ for _f in "$SHIM_DIST/$SHIM_PATH_LSTEAM_PE64" "$SHIM_DIST/$SHIM_PATH_LSTEAM_UNIX
     [ -f "$_f" ] || DRM_MISSING="$DRM_MISSING $(basename "$_f")"
 done
 DRM_UNFETCHED=0
-[ -f "$HOME/$SHIM_PATH_CLIENT_CACHE_REL/$SHIM_PATH_PE64" ] || DRM_UNFETCHED=1
+[ -f "$HOME/$SHIM_PATH_CLIENT_DLL_REL" ] || DRM_UNFETCHED=1
 
 HAVE_DRM=0
 [ -z "$DRM_MISSING" ] && [ "$DRM_UNFETCHED" = 0 ] && HAVE_DRM=1
@@ -279,8 +279,8 @@ elif [ "$HAVE_DRM" = 0 ] && shim_drm_enabled && title_is_drm_wrapped "$EXE"; the
     log "         will fail with 'Application load error 3:0000065432'."
     if [ "$DRM_UNFETCHED" = 1 ]; then
         # Beside us in the deployed payload; in the dev tree it is its module's.
-        _fetch="$HERE/fetch.sh"
-        [ -f "$_fetch" ] || _fetch="$HERE/../drm/fetch.sh"
+        _fetch="$HERE/$SHIM_PATH_FETCH_SH"
+        [ -f "$_fetch" ] || _fetch="$HERE/../drm/$SHIM_PATH_FETCH_SH"
         log "         Valve's signed client DLL has not been fetched."
         log "         Run: $_fetch    (downloads ~60 MB from Valve, once)"
     fi
@@ -297,7 +297,7 @@ if [ "$USE_DRM" = 1 ]; then
     # ours would load in its place, silently, and the wrapper would reject the
     # unsigned file it found. The wrapper never looks at the name -- it resolves
     # whatever provided CreateInterface and reads that file.
-    _src="$HOME/$SHIM_PATH_CLIENT_CACHE_REL/$SHIM_PATH_PE64"
+    _src="$HOME/$SHIM_PATH_CLIENT_DLL_REL"
     _dst="$VSTEAMDIR/$SHIM_PATH_VALVE_PE64"
     # Not cp onto the destination: it truncates and rewrites in place, and a
     # concurrently-running wrapped title has that inode mapped. Copy beside it
