@@ -162,3 +162,50 @@ Two changes, both in `steamclient-shim-launch.sh`:
 
 Both are interim. #107 removes the prediction entirely by arming the route once per bottle the way
 Proton does, at which point the sweep is deleted and the split questions survive as diagnostics.
+
+## Amendment, 2026-09-05: a wrapped title keeps its overlay after all (#112)
+
+The decision stands. The consequence that does not is this one:
+
+> So a wrapped title launches with the overlay off, and the log says which input said no.
+
+**That exclusivity is the *injector's*, not the overlay's.** It was stated as a property of this
+route because every arrangement measured on #107 confirmed it, and the reason offered — the route
+reaches the shim after `user32`/`winemac` are up, so Valve's renderer is always late — is a real
+observation attached to a wrong mechanism. `docs/research/drm-overlay-late-arming.md` (#111) read
+the renderer's own code: it installs its five Metal hooks **only from a swizzled
+`-[NSApplication init]`**, behind a once-guard. Arriving after `NSApplication` has been init'd does
+not lose a race — it misses a method call, and a method call can be made by hand.
+
+**So it is made by hand.** The DRM route already has our unixlib in the process, and it already
+`dlopen`s the renderer; `overlay_arm_late()` in `shim_unix.cpp` now looks
+`-[NSApplication init]` / `-[NSApplication steammetalhook_init]` up through the ObjC runtime, takes
+whichever IMP `dladdr` places inside `gameoverlayrenderer.dylib`, and calls it with `self = nil`.
+By name rather than by offset, because the address moves with every Steam client and the selectors
+have not. It runs **only** when `NSApp` is already non-nil — i.e. exactly when Valve's own trigger
+can no longer fire — so the injector path is bit-for-bit unchanged.
+
+Measured 2026-09-05 on Space Marine II (2183900), launched as the maintainer launches it here (the
+wrapped `… - Retail.exe` directly through `wineloader`, bypassing `start_protected_game.exe`),
+CrossOver 26.3.0.39832, macOS 26.4, on a rotated `shim-unix.log`:
+
+| run | `SHIM_OVERLAY` | `Hooking` | past the wrapper |
+|---|---|---|---|
+| pid 2904 | 1 | **5** (`winemac` present) | yes — `SteamClient020`, `GetAppID() -> 2183900`, `GetCurrentGameLanguage()`, SteamInput, the callback pump |
+| pid 5220 | 0 | **no renderer log at all** | yes — same title-level traffic |
+
+and in the bottle on `d3dprobe` driven into the same late-load state, the A/B that isolates the
+call itself: this unixlib **5**, the `main` unixlib **0**, `winemac` present in both.
+
+**What is unchanged.** The route and the *injector* still do not work together — #107's spikes D and
+F both end in `Application load error 3:0000065432` — so the `USE_DRM = 0` interlock on the injector
+call site stays exactly where it is. What moved is the *overlay env* interlock, which used to ask
+"is there an injector" and now asks "is there a way to deliver a renderer", of which there are two.
+Steam's per-title veto (ADR 0012) and the one-predicate rule (ADR 0006) are untouched: a wrapped
+title whose user unticked the box still gets `SHIM_OVERLAY=0` and no `dlopen`, which is the
+`Hooking`-less run above.
+
+**What is still not measured.** Anti-tamper tolerance: the run above bypasses EasyAntiCheat, as
+every SM2 measurement in this repo does. Input parity on the late path — `input-parity-run.sh`
+needs a human at the keyboard, and so does the hotkey itself, so "the hooks are installed and the
+renderer is tracking the drawable every frame" is what was shown, not "the overlay drew".
