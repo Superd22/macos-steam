@@ -23,6 +23,10 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
+/* The C half of the ObjC runtime, for the late overlay arming below (#112).
+ * This file stays C++ on purpose — nothing here messages an object, it only
+ * looks a method up by name and calls its IMP, which is plain C. */
+#include <objc/runtime.h>
 #include <climits>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -120,9 +124,9 @@ static bool ensure_dylib()
     return n_CreateInterface != nullptr;
 }
 
-/* ---- overlay: load Valve's renderer while we are still early enough (#21) --
+/* ---- overlay: load Valve's renderer, and arm it if we were late (#21, #112) -
  *
- * (a2). The renderer must be in the process before winemac.so instantiates
+ * (a2). The renderer wants to be in the process before winemac.so instantiates
  * NSApplication — measured in attic/overlay-probe/, Addendum 2 §B2: load before
  * NSApp and it installs its five MTLCommandBuffer hooks and arms; load after and
  * it hooks nothing. A dylib constructor here is the earliest point we own: dyld
@@ -130,7 +134,18 @@ static bool ensure_dylib()
  * betting happens before the display driver comes up.
  *
  * Deliberately not gated on anything else: no Steamworks call has been made yet,
- * and must not be, or we are already too late.
+ * and must not be, or we lose the early path.
+ *
+ * "Load after and it hooks nothing" is true but is NOT a race, and reading it as
+ * one cost #107 a whole investigation (see #113 for the doc correction). What
+ * the renderer actually does, from the disassembly in
+ * docs/research/drm-overlay-late-arming.md §1: it swizzles -[NSApplication init]
+ * with its own -steammetalhook_init, and installs the five Metal hooks ONLY from
+ * inside that method, behind a once-guard. Arrive after NSApplication has
+ * already been init'd and the swizzle is in place but nothing will ever call it.
+ * Nothing is lost — a method call is merely missing, and we can make it
+ * ourselves. That is overlay_arm_late() below, and it is what gives a
+ * DRM-wrapped title an overlay (ADR 0014 + ADR 0003 leave it no injector).
  */
 static void *g_overlay;
 /* The renderer's own answers to the overlay predicates (#23). Four exports, of
@@ -145,6 +160,86 @@ static std::string renderer_path()
     const char *home = getenv("HOME");
     if (!home) { struct passwd *pw = getpwuid(getuid()); home = pw ? pw->pw_dir : "/tmp"; }
     return std::string(home) + "/" SHIM_PATH_OVERLAY_DYLIB_REL;
+}
+
+/* Has -[NSApplication init] already run in this process?
+ *
+ * This is the whole gate on arming by hand, and it is asked of AppKit rather
+ * than of our own route: NSApp is set during -[NSApplication init], so non-nil
+ * means Valve's swizzle can never fire again and the hooks are ours to install;
+ * nil means the app has not come up yet and Valve's own trigger will do it, so
+ * we must keep our hands off. Reading the exported symbol is the only way to ask
+ * without ANSWERING it — [NSApplication sharedApplication] would create the
+ * instance we are testing for.
+ *
+ * Nil is also what a process with no AppKit at all reports (Steam's own run-verb
+ * helpers, a console exe), which is the right answer there too: nothing to hook.
+ */
+static bool nsapp_already_up(void)
+{
+    void **nsapp = (void **)dlsym(RTLD_DEFAULT, "NSApp");
+    return nsapp && *nsapp;
+}
+
+/* Call the Metal-hook installer ourselves, by name, through the ObjC runtime.
+ *
+ * Measured (drm-overlay-late-arming.md §2): with winemac.drv up and NSApp
+ * non-nil — the state every DRM-route process is in — this installs 5/5 hooks
+ * and the overlay arms on the hotkey, where the same run without the call gets
+ * 0. No import rewrite, no suspended process, no remote thread: the three things
+ * ADR 0014 says anti-tamper rejects, none of which this does.
+ *
+ * By NAME, not by offset: the IMP address moves with every Steam client build
+ * (Valve replaced this dylib mid-project), the two selectors have not. Which of
+ * the two carries the renderer's code depends on whether the swizzle has already
+ * exchanged them, so ask dladdr which IMP lives inside the renderer image rather
+ * than assuming an order.
+ *
+ * self=nil is deliberate: the method allocs its own locks, calls the guarded
+ * installer, then tail-messages the ORIGINAL init on self — and a message to nil
+ * is a no-op, so we get the installer without constructing a second NSApplication.
+ * The guard makes a second call free, so this costs nothing if Valve's own
+ * trigger has already fired.
+ *
+ * Fails safe at every step, by construction: a future client that drops the
+ * swizzle leaves no IMP inside the renderer, we say so in the log, and the title
+ * launches with no overlay exactly as it does today. The one thing this must
+ * never be is a reason a game does not start.
+ */
+static void overlay_arm_late(void)
+{
+    Class app = objc_lookUpClass("NSApplication");
+    if (!app) {
+        ulog("overlay: no NSApplication class — nothing to arm (no AppKit in this process)");
+        return;
+    }
+    if (!nsapp_already_up()) {
+        ulog("overlay: NSApp not up yet — leaving the arming to Valve's own "
+             "-[NSApplication init] swizzle (the early/injector path)");
+        return;
+    }
+    /* Post-swizzle the renderer's code answers to `init`; pre-swizzle it answers
+     * to its own name. One of the two, never both. */
+    static const char *const names[] = { "init", "steammetalhook_init" };
+    for (const char *name : names) {
+        SEL sel = sel_registerName(name);
+        Method m = class_getInstanceMethod(app, sel);
+        if (!m) continue;
+        IMP imp = method_getImplementation(m);
+        Dl_info info;
+        if (!imp || !dladdr((void *)imp, &info) || !info.dli_fname) continue;
+        if (!strstr(info.dli_fname, SHIM_PATH_OVERLAY_DYLIB)) continue;
+        ulog("overlay: NSApp already up — calling -[NSApplication %s] IMP %p "
+             "(in %s) with self=nil to run Valve's Metal-hook installer (#112)",
+             name, (void *)imp, info.dli_fname);
+        ((void *(*)(void *, SEL))imp)(nullptr, sel);
+        ulog("overlay: installer returned — 'Hooking ...' lines in "
+             "/tmp/gameoverlayrenderer.%d.log say whether it took", (int)getpid());
+        return;
+    }
+    ulog("overlay: NSApp already up but no -[NSApplication init]/steammetalhook_init "
+         "IMP inside " SHIM_PATH_OVERLAY_DYLIB " — this client does not have the "
+         "swizzle we arm through, so no overlay here (#112); the title is unaffected");
 }
 
 __attribute__((constructor)) static void overlay_load(void)
@@ -174,9 +269,12 @@ __attribute__((constructor)) static void overlay_load(void)
         ulog("overlay: predicates IsOverlayEnabled=%p BOverlayNeedsPresent=%p "
              "SetNotificationPosition=%p (#23)", (void*)n_IsOverlayEnabled,
              (void*)n_BOverlayNeedsPresent, (void*)n_SetNotificationPosition);
+        /* After the dlopen, never instead of it: there is no installer to call
+         * until the renderer is in the process. */
+        overlay_arm_late();
     }
     ulog("overlay: set STEAM_OVERLAY_LOGGING=1 and read /tmp/gameoverlayrenderer.%d.log — "
-         "'Hooking ...' means we were early enough, its absence means we were not", (int)getpid());
+         "'Hooking ...' means the hooks went in, early or by the late arming above", (int)getpid());
 }
 
 /* ---- flat exports ------------------------------------------------------- */

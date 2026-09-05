@@ -111,9 +111,13 @@ PY
 python3 check_abi_layout.py
 
 # --- unix half (one x86_64 build, deployed under both PE basenames) -----------
+# -lobjc: the late overlay arming (#112) looks -[NSApplication init] up through
+# the ObjC runtime's C API. libobjc is not re-exported by libSystem, so it has to
+# be named -- but nothing here needs AppKit or Foundation linked, because we only
+# call an IMP, never message an object.
 clang++ -std=c++17 -arch x86_64 -dynamiclib -O2 -Wall -Wextra \
     -I../layout/gen \
-    -o "$DIST/$SHIM_PATH_UNIX64" shim_unix.cpp \
+    -o "$DIST/$SHIM_PATH_UNIX64" shim_unix.cpp -lobjc \
     -Wl,-install_name,"@rpath/$SHIM_PATH_UNIX64"
 cp -f "$DIST/$SHIM_PATH_UNIX64" "$DIST/$SHIM_PATH_UNIX32"
 
