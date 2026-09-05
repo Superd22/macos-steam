@@ -69,6 +69,18 @@ let neverLaunched = !Prefs.firstRunCompleted
 let checks = Preflight.run(liveProof: liveProof)
 
 if !wantsSettings && !optionHeld && !neverLaunched && Preflight.isClear(checks) {
+    // Before Steam starts, arm the DRM route if it is not armed (#105, call
+    // site 3). On every launch but the first this is the stat preflight has
+    // just done and nothing happens: the cache is filled once and sits beside
+    // the versions, so it survives every deploy after it.
+    //
+    // Started and left to run, never waited for. The click means "start
+    // Steam", and a 60 MB download in front of that is this app doing the one
+    // thing its prime rule forbids. The fetcher outlives the exec below —
+    // launchd adopts it — and the two rows in the windows report where it got
+    // to, next time a window opens. Throttled, because nobody is watching:
+    // see Prefs.lastClientFetch.
+    if ValveClient.mayFetchUnattended { ValveClient.fetchDetached() }
     Launch.exec(passthrough: passthrough, overlay: Prefs.overlay)   // never returns
 }
 

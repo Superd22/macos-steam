@@ -13,10 +13,17 @@ enum Diagnose {
         let title: String
         let verdict: Verdict
         let detail: String
+        /// A finding used to be a sentence and nothing more, because every row
+        /// here was something the user then went and did elsewhere. The DRM
+        /// download is the first thing this app can do itself (#105), and
+        /// reusing the checklist's `Remedy` is what keeps the two panes from
+        /// growing two different buttons for one job.
+        var remedy: Remedy = .none
+        var remedyTitle: String = ""
     }
 
     static func run() -> [Finding] {
-        [integrity(), strayWindowsSteam(), plainSteam(), overlayState(), compatibility()]
+        [integrity(), strayWindowsSteam(), plainSteam(), overlayState(), valveClient(), compatibility()]
     }
 
     /// Is what is on disk what was shipped? The deploy module answers, because
@@ -91,6 +98,41 @@ enum Diagnose {
                        // panel opens is Steam's business and a user finds out by
                        // pressing Shift+Tab, not by reading about a handshake.
                        detail: loaded ? "" : "Try starting the game again.")
+    }
+
+    /// Valve's signed client DLL, and the one row in either pane that offers to
+    /// go and get something (ADR 0014, #105).
+    ///
+    /// It is here, and not only on the checklist, because it goes stale: a
+    /// Steam client update replaces that DLL, and a machine that fetched
+    /// happily in June is holding what the June client wanted. `fetch.sh`
+    /// settles it — it re-reads Valve's manifest and compares the published
+    /// SHA-256, which is what makes re-running it cheap when nothing has
+    /// changed — but the settling costs a round trip, so the app does not spend
+    /// a user's bandwidth on its own initiative. It offers the button instead,
+    /// in the window someone opens when a game has stopped starting.
+    ///
+    /// Which is why the ok row keeps its button rather than latching green: a
+    /// row that says "fine" and offers nothing is a dead end for exactly the
+    /// user this row exists for.
+    static func valveClient() -> Finding {
+        guard ShimPolicy.shimDrmEnabled() else {
+            return Finding(id: ValveClient.rowID, title: "Copy protection support is switched off",
+                           verdict: .ok,
+                           detail: "This Mac is set to launch copy-protected games the normal way, "
+                                 + "so nothing needs downloading from Valve.")
+        }
+        guard ValveClient.isCached else {
+            return Finding(id: ValveClient.rowID, title: "Copy-protected games cannot start yet",
+                           verdict: .warning,
+                           detail: ValveClient.why,
+                           remedy: .fetchValveClient, remedyTitle: "Download it")
+        }
+        return Finding(id: ValveClient.rowID, title: "Valve's client file is here",
+                       verdict: .ok,
+                       detail: "If a copy-protected game stopped starting after a Steam update, "
+                             + "get it again — it is quick when nothing has changed.",
+                       remedy: .fetchValveClient, remedyTitle: "Get it again")
     }
 
     /// What this build was measured against, beside what this Mac is. Both come

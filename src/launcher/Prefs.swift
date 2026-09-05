@@ -41,7 +41,23 @@ enum Prefs {
         set { store.set(newValue, forKey: firstRunKey) }
     }
 
+    /// When the unattended fetch of Valve's client DLL last ran (#105).
+    ///
+    /// Stored for one reason: the pre-launch call site starts that download
+    /// with nobody watching, and a machine with no network would otherwise
+    /// spawn a doomed curl on every single Steam launch, forever, saying
+    /// nothing. A day between silent attempts is enough to arm a machine that
+    /// comes back online without turning a network outage into a background
+    /// job that never stops. A user pressing the button in either pane is
+    /// asking explicitly and is never throttled by this.
+    static var lastClientFetch: Date? {
+        get { store.object(forKey: clientFetchKey) as? Date }
+        set { store.set(newValue, forKey: clientFetchKey) }
+    }
+
+    private static let clientFetchKey = "lastClientFetch"
+
     static func forget() {
-        for key in [overlayKey, firstRunKey] { store.removeObject(forKey: key) }
+        for key in [overlayKey, firstRunKey, clientFetchKey] { store.removeObject(forKey: key) }
     }
 }

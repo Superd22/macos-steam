@@ -25,6 +25,12 @@ enum Remedy: Equatable {
     /// that the app is already there.
     case openApp(String)
     case createBottle
+    /// Run the DRM module's downloader, with its progress on screen (#105).
+    /// The other cases hand the job to somebody else and are done in a frame;
+    /// this one is ours, takes a minute, and can fail for a reason the user has
+    /// to be told — which is why it is a case here rather than an `openURL` at
+    /// a page explaining how to run a shell script.
+    case fetchValveClient
     case reinstall
     case none
 }
@@ -40,7 +46,7 @@ struct Check: Identifiable, Equatable {
 
 enum Preflight {
     /// The whole list, in the order the checklist shows it. Cheap enough to run
-    /// on every launch: six stats and one small file read.
+    /// on every launch: seven stats and one small file read.
     ///
     /// Deliberately free of subprocesses. `liveProof` — whether a Steam that is
     /// up right now has Steam Play on — costs a `ps` and a `pgrep`, so the
@@ -48,7 +54,14 @@ enum Preflight {
     /// here would put a process spawn inside a SwiftUI view update, which is
     /// both slow on every render and how this crashed once already.
     static func run(liveProof: Bool = false) -> [Check] {
-        [system(), crossover(), steam(), bottle(), payload(), selfVerification(liveProof: liveProof)]
+        var list = [system(), crossover(), steam(), bottle(), payload()]
+        // Only when the route it serves is switched on. With SHIM_DRM=0 the
+        // launch script will not take that route however well armed it is, so a
+        // row about a missing download would be asking for 60 MB to satisfy a
+        // check that nothing reads.
+        if ShimPolicy.shimDrmEnabled() { list.append(valveClient()) }
+        list.append(selfVerification(liveProof: liveProof))
+        return list
     }
 
     /// The question the happy path asks. A blocked check means the user clicked
@@ -206,7 +219,30 @@ enum Preflight {
         return Check(id: "payload", title: "Steam Play files ready", verdict: .ok, detail: "")
     }
 
-    // 6 — the one check that cannot be made before a launch. The user never
+    // 6 — Valve's own signed client DLL, the only thing in this list that is
+    // not on the machine because we put it there (ADR 0014, #105). One stat, as
+    // cheap as the five above it; the download itself hangs off the remedy,
+    // which is what keeps this file free of the network.
+    //
+    // A warning and never blocked: the rest of the library runs without it, and
+    // stopping a user whose games all work in order to demand 60 MB for the
+    // ones they may not own would be this app inventing a problem. It is the
+    // same interlock the payload already states for a missing shadow — deploys
+    // fine, and leaves DRM-wrapped titles failing as they did before.
+    static func valveClient() -> Check {
+        guard ValveClient.isCached else {
+            return Check(id: ValveClient.rowID,
+                         title: "Copy-protected games need one file from Valve",
+                         verdict: .warning,
+                         detail: ValveClient.why,
+                         remedy: .fetchValveClient,
+                         remedyTitle: "Download it")
+        }
+        return Check(id: ValveClient.rowID, title: "Valve's client file is here",
+                     verdict: .ok, detail: "")
+    }
+
+    // 7 — the one check that cannot be made before a launch. The user never
     // reads a log for `patched 1 site(s)`; the app reads it and says "ready".
     static func selfVerification(liveProof: Bool) -> Check {
         // A client that is up right now with Steam Play switched on is the
