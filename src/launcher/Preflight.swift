@@ -87,10 +87,16 @@ enum Preflight {
         return value == 1
     }
 
+    /// Where CrossOver actually is. Resolved rather than assumed: this used to
+    /// be ~/Applications only, so it reported "not installed" to anyone who had
+    /// dragged CrossOver into /Applications — which is what its own DMG tells
+    /// you to do — and no amount of re-checking could ever clear it.
+    static var crossoverApp: String { ShimPath.installedApp(ShimPath.cxAppRel) }
+
     // 2 — CrossOver. The Windows title runs in its bottle; without it there is
     // no Level B at all.
     static func crossover() -> Check {
-        let app = ShimPath.inHome(ShimPath.cxAppRel)
+        let app = crossoverApp
         guard FileManager.default.fileExists(atPath: app) else {
             return Check(id: "crossover", title: "CrossOver installed",
                          verdict: .blocked,
@@ -118,16 +124,15 @@ enum Preflight {
             // Steam.app sitting right there — and "Install Steam first" over a
             // Get Steam button sends that user to re-download what they have,
             // which will not fix it however many times they do it.
-            let fm = FileManager.default
-            if fm.fileExists(atPath: "/" + ShimPath.steamAppRel)
-                || fm.fileExists(atPath: ShimPath.inHome(ShimPath.steamAppRel)) {
+            let steamApp = ShimPath.installedApp(ShimPath.steamAppRel)
+            if FileManager.default.fileExists(atPath: steamApp) {
                 return Check(id: "steam", title: "Steam has never been opened",
                              verdict: .blocked,
                              detail: "Steam is installed but has not finished its first run, "
                                    + "so the client this app starts does not exist yet. Open "
                                    + "Steam, sign in while online, let it update, then quit it "
                                    + "and come back here.",
-                             remedy: .openApp("/" + ShimPath.steamAppRel),
+                             remedy: .openApp(steamApp),
                              remedyTitle: "Open Steam")
             }
             return Check(id: "steam", title: "Steam installed",
@@ -173,7 +178,7 @@ enum Preflight {
 
     /// CodeWeavers' own tool, with the flags the README used to have to teach.
     static func createBottle() -> Shell.Result {
-        let cxbottle = ShimPath.inHome(ShimPath.cxAppRel) + "/Contents/SharedSupport/CrossOver/bin/cxbottle"
+        let cxbottle = crossoverApp + "/Contents/SharedSupport/CrossOver/bin/cxbottle"
         return Shell.run(cxbottle, ["--create", "--bottle", bottleName, "--template", "win10_64"], timeout: 300)
     }
 

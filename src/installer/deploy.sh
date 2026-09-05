@@ -99,7 +99,7 @@ sha256_of() { /usr/bin/shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1; }
 # different claims, and the gap between them is the first thing worth seeing.
 observed_macos()     { /usr/bin/sw_vers -productVersion 2>/dev/null || echo unknown; }
 observed_crossover() {
-    /usr/bin/defaults read "$HOME/$SHIM_PATH_CX_APP_REL/Contents/Info.plist" \
+    /usr/bin/defaults read "$(shim_installed_app "$SHIM_PATH_CX_APP_REL")/Contents/Info.plist" \
         CFBundleShortVersionString 2>/dev/null || echo absent
 }
 observed_steam() {
@@ -200,9 +200,7 @@ VERSION="$(tr -d ' \n' < "$PAYLOAD/VERSION")"
 # /Applications — and "native Steam not found" sends that user off to download
 # what they already have. The two states are one stat call apart and their
 # remedies have nothing in common, so they get two messages.
-steam_app_installed() {
-    [ -d "/$SHIM_PATH_STEAM_APP_REL" ] || [ -d "$HOME/$SHIM_PATH_STEAM_APP_REL" ]
-}
+steam_app_installed() { [ -d "$(shim_installed_app "$SHIM_PATH_STEAM_APP_REL")" ]; }
 if [ ! -x "$STEAM_OSX" ]; then
     if steam_app_installed; then
         why="Steam is installed but has never finished its first run, so the

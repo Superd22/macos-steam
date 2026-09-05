@@ -17,20 +17,15 @@ This app is an attempt to brings the steamdeck's [Steam Play](https://store.stea
 ```sh
 brew tap Superd22/macos-steam
 brew install macos-steam-shim
-macos-steam-shim              # the deploy step — brew cannot do this one for you
+macos-steam-shim # one time install command
 ```
-
-The third line is not optional and not a repair step. `brew install` builds the
-payload; putting it in your home directory is a separate command because a
-formula's install steps are sandboxed away from `$HOME`, which is the only place
-this payload can live.
 
 ### From a clone
 
 #### Requirements
 
 - Apple Silicon Mac, macOS 14+ (developed on macOS 26, M3 Pro).
-- **CrossOver** installed at `~/Applications/CrossOver.app` (25.1.1 and 26.2 both exercised).
+- **CrossOver** in either `/Applications` or `~/Applications` (25.1.1 and 26.2 both exercised).
   CrossOver is required. The launch goes through its front door, so its D3DMetal/GPTK wiring comes along.
 - The **native macOS Steam client** — installed, **opened at least once**, and signed
   in **online**. Steam.app is a bootstrapper; the client this project execs is the one
