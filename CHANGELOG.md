@@ -2,6 +2,19 @@
 
 This project follows [semantic versioning](https://semver.org).
 
+## [0.3.0](https://github.com/Superd22/macos-steam/compare/v0.2.0...v0.3.0) (2026-09-05)
+
+### Title compatibility
+
+* **drm:** run wrapped titles through Valve's own signed client DLL ([27b183d](https://github.com/Superd22/macos-steam/commit/27b183d36f15da98120368dd7400d8c95d7676bc)), closes [#98](https://github.com/Superd22/macos-steam/issues/98)
+
+  DRM-wrapped titles now run — the ones that failed with
+  "Application load error 3:0000065432", such as Warhammer 40,000: Space Marine
+  II. Run fetch.sh once from the compat tool's directory: it downloads Valve's
+  own signed client DLL from Valve (~60 MB), and needs redoing after a Steam
+  client update. The Steam overlay stays off for these titles; the rest of your
+  library is unaffected.
+
 ## [0.2.0](https://github.com/Superd22/macos-steam/compare/v0.1.0...v0.2.0) (2026-08-26)
 
 ### Fixes
