@@ -19,6 +19,11 @@ enum Verdict: Equatable {
 
 enum Remedy: Equatable {
     case openURL(URL)
+    /// Launch a bundle already on disk, by path. Distinct from `openURL` on a
+    /// file URL, which would do the same thing while reading as "go and get
+    /// this": the only check that offers it is the one whose whole point is
+    /// that the app is already there.
+    case openApp(String)
     case createBottle
     case reinstall
     case none
@@ -106,6 +111,25 @@ enum Preflight {
     // explains far better than we can.
     static func steam() -> Check {
         guard FileManager.default.isExecutableFile(atPath: Launch.steamOsx) else {
+            // Two states, not one. Valve's installer puts Steam.app down; the
+            // bundle we exec is the one Steam's bootstrapper unpacks under
+            // Application Support on its first successful run. So a machine
+            // that has installed Steam and never opened it lands here with
+            // Steam.app sitting right there — and "Install Steam first" over a
+            // Get Steam button sends that user to re-download what they have,
+            // which will not fix it however many times they do it.
+            let fm = FileManager.default
+            if fm.fileExists(atPath: "/" + ShimPath.steamAppRel)
+                || fm.fileExists(atPath: ShimPath.inHome(ShimPath.steamAppRel)) {
+                return Check(id: "steam", title: "Steam has never been opened",
+                             verdict: .blocked,
+                             detail: "Steam is installed but has not finished its first run, "
+                                   + "so the client this app starts does not exist yet. Open "
+                                   + "Steam, sign in while online, let it update, then quit it "
+                                   + "and come back here.",
+                             remedy: .openApp("/" + ShimPath.steamAppRel),
+                             remedyTitle: "Open Steam")
+            }
             return Check(id: "steam", title: "Steam installed",
                          verdict: .blocked,
                          detail: "This app starts your normal Steam. Install Steam first.",

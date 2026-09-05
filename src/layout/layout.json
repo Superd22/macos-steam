@@ -46,6 +46,7 @@
     { "name": "STEAM_MACOS_REL", "value": "Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS", "what": "native Steam's MacOS dir, relative to $HOME", "guard": true },
     { "name": "CX_BOTTLES_REL","value": "Library/Application Support/CrossOver/Bottles", "what": "CrossOver's bottle root, relative to $HOME", "guard": true },
     { "name": "CX_APP_REL",    "value": "Applications/CrossOver.app", "what": "CrossOver.app, relative to $HOME" },
+    { "name": "STEAM_APP_REL", "value": "Applications/Steam.app", "what": "Valve's installer-placed bundle, relative to $HOME or to /. NOT where we exec Steam from — STEAM_MACOS_REL is. This one exists only to tell 'Steam is not installed' apart from 'Steam is installed and has never been run', which are one stat call and two entirely different remedies" },
     { "name": "LAUNCHER_REL",  "value": "Applications/Steam (macOS Play).app", "what": "our launcher .app, relative to $HOME", "guard": true },
     { "name": "LAUNCHER_BIN",  "value": "launcher",            "what": "the .app's CFBundleExecutable — the name deploy.sh writes and the bundle names back" },
     { "name": "SETTINGS_APP",  "value": "Steam Play Settings.app", "what": "nested helper app inside the launcher bundle: same binary, settings flag, so Spotlight finds the pane without the option-click trick" },

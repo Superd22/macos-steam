@@ -303,6 +303,10 @@ struct ChecklistView: View {
     private func remedy(for check: Check) -> some View {
         switch check.remedy {
         case .openURL(let url): Link(check.remedyTitle, destination: url)
+        case .openApp(let path):
+            Button(check.remedyTitle) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            }
         case .createBottle: Button(check.remedyTitle) { model.createBottle() }.disabled(model.busy != nil)
         case .reinstall: Button(check.remedyTitle) { Help.showReinstall() }
         case .none: EmptyView()
