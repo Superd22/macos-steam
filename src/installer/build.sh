@@ -170,7 +170,7 @@ cp -f "$SHIM_DIST_DIR/$SHIM_PATH_LSTEAM_PE64"     "$TOOLDIR/$SHIM_PATH_DIST/"
 cp -f "$SHIM_DIST_DIR/$SHIM_PATH_LSTEAM_UNIX64"   "$TOOLDIR/$SHIM_PATH_DIST/"
 cp -f "$DRM_DIST_DIR/$SHIM_PATH_SHADOW_TIER0"     "$TOOLDIR/$SHIM_PATH_DIST/"
 cp -f "$DRM_DIST_DIR/$SHIM_PATH_SHADOW_VSTDLIB"   "$TOOLDIR/$SHIM_PATH_DIST/"
-cp -f "$REPO/src/drm/fetch.sh"                    "$TOOLDIR/"
+cp -f "$REPO/src/drm/$SHIM_PATH_FETCH_SH"         "$TOOLDIR/"
 cp -f "$REPO/src/drm/check_shadow.py"             "$TOOLDIR/"
 chmod +x "$TOOLDIR/$SHIM_PATH_LAUNCH_SH" "$STAGE/deploy.sh"
 

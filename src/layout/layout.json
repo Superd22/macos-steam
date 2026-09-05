@@ -73,7 +73,8 @@
     { "name": "VSTEAM_SUBDIR", "value": "drive_c/vsteam",      "what": "the same dir relative to the bottle, unix side", "guard": true },
     { "name": "CLIENT_CACHE",  "value": "valve-client",        "what": "payload subdir holding the Valve DLLs fetched from Valve's public client manifest. Beside the versions, not inside one: it outlives any single deploy and a re-download is expensive", "guard": true },
     { "name": "CLIENT_MANIFEST_URL", "value": "https://media.steampowered.com/client/steam_client_win32", "what": "Valve's own public, unauthenticated Windows client manifest — the same one steamcmd bootstraps from. Names the packages, their sizes and their SHA-256s", "guard": true },
-    { "name": "CLIENT_PKG",    "value": "bins_win32",          "what": "the package in that manifest carrying steamclient64.dll, tier0_s64.dll and vstdlib_s64.dll", "guard": true }
+    { "name": "CLIENT_PKG",    "value": "bins_win32",          "what": "the package in that manifest carrying steamclient64.dll, tier0_s64.dll and vstdlib_s64.dll", "guard": true },
+    { "name": "FETCH_SH",      "value": "fetch.sh",            "what": "the downloader that fills that cache, deployed beside the launch script. A contract name because the app runs it: the launcher, Diagnose and the pre-launch check all invoke this one file rather than each knowing how to talk to Valve's manifest (#105)", "guard": true }
   ],
 
   "joins": [
@@ -95,7 +96,9 @@
 
     { "name": "VALVE_PE64_WIN",   "of": ["VSTEAM_DIR_WIN", "VALVE_PE64"], "sep": "win", "what": "what SteamClientDll64 points at on the DRM route: VALVE'S signed DLL, not ours" },
     { "name": "LSTEAM_PE64_WIN",  "of": ["SHIM_DIR_WIN", "LSTEAM_PE64"], "sep": "win", "what": "the shim under its second name, which the trampolines load" },
-    { "name": "CLIENT_CACHE_REL", "of": ["PAYLOAD_REL", "CLIENT_CACHE"], "sep": "posix", "what": "the fetched Valve DLLs, relative to $HOME" }
+    { "name": "CLIENT_CACHE_REL", "of": ["PAYLOAD_REL", "CLIENT_CACHE"], "sep": "posix", "what": "the fetched Valve DLLs, relative to $HOME" },
+    { "name": "CLIENT_DLL_REL",   "of": ["CLIENT_CACHE_REL", "PE64"], "sep": "posix", "what": "Valve's signed client DLL in that cache, relative to $HOME. The one file of the DRM route that we do not ship and cannot: 'has the fetch run on this machine' is a stat of exactly this path, and it is asked from the launch script, the preflight list and Diagnose" },
+    { "name": "FETCH_SH_REL",     "of": ["TOOL_DIR_REL", "FETCH_SH"], "sep": "posix", "what": "the deployed downloader, relative to $HOME — what the launcher app execs when the cache is empty" }
   ],
 
   "switches": [
