@@ -64,6 +64,25 @@ def emit_h(order):
     return "\n".join(out) + "\n"
 
 
+# --- an .app somebody else installed ------------------------------------------
+# Distinct from every other path here, which we deploy and therefore place. A
+# user's .app can sit in EITHER Applications dir — /Applications from a DMG
+# drag, ~/Applications from a per-user install — and neither is the odd one out.
+# Guessing one and calling the other absent is a bug this repo has now shipped
+# twice, so the search order is written once and generated into both dialects.
+#
+# $HOME first, because a per-user copy is the more specific answer when both
+# exist. With neither, the $HOME spelling comes back so an error message can
+# name a path instead of an empty string.
+_APP_RESOLVER_WHY = [
+    "# An .app the USER installed, resolved rather than assumed: it can be in",
+    "# ~/Applications or /Applications and both are normal. First existing wins,",
+    "# $HOME first. With neither, the $HOME spelling comes back, so a caller",
+    "# reporting 'not found' still has a path to name.",
+]
+APP_RESOLVER_DOC_SH = _APP_RESOLVER_WHY
+
+
 def emit_sh(order):
     out = ["# Generated from src/layout/layout.json by gen.py — do not edit.",
            "# The deploy contract (#32). Dot-source it; every name is a plain",
@@ -76,6 +95,14 @@ def emit_sh(order):
         out.append("# %s" % what)
         out.append("%s%s='%s'" % (PREFIX, name, value))
         out.append("")
+    out += APP_RESOLVER_DOC_SH + [
+        "shim_installed_app() {",
+        '    if [ -d "$HOME/$1" ]; then printf \'%s\' "$HOME/$1"',
+        '    elif [ -d "/$1" ]; then printf \'%s\' "/$1"',
+        '    else printf \'%s\' "$HOME/$1"',
+        "    fi",
+        "}",
+        ""]
     return "\n".join(out)
 
 
@@ -277,6 +304,13 @@ def emit_paths_swift(order):
             "    /// so joining one is the caller's job and this is the only way to do it.",
             "    static func inHome(_ rel: String) -> String {",
             "        (NSHomeDirectory() as NSString).appendingPathComponent(rel)",
+            "    }",
+            ""] + ["    /// " + l[2:] for l in _APP_RESOLVER_WHY] + [
+            "    static func installedApp(_ rel: String) -> String {",
+            "        let home = inHome(rel)",
+            "        if FileManager.default.fileExists(atPath: home) { return home }",
+            "        if FileManager.default.fileExists(atPath: \"/\" + rel) { return \"/\" + rel }",
+            "        return home",
             "    }",
             "}"]
     return "\n".join(out) + "\n"

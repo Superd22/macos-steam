@@ -114,7 +114,7 @@ EXE="${1:-}"
 log "verb=$VERB exe=$EXE args=$*"
 
 # --- locate CrossOver + the shim ---------------------------------------------
-CX_APP="${CX_APP:-$HOME/$SHIM_PATH_CX_APP_REL}"
+CX_APP="${CX_APP:-$(shim_installed_app "$SHIM_PATH_CX_APP_REL")}"
 CXROOT="$CX_APP/Contents/SharedSupport/CrossOver"
 # Overlay (#24) needs an entitled wineloader, and CX_ROOT is derived by bin/wine
 # from its OWN path (bin/wine:69) — env CX_ROOT is overwritten, not read. So the

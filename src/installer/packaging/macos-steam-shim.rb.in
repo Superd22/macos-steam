@@ -105,7 +105,7 @@ class MacosSteamShim < Formula
       from your home directory, which is where all of the above has to live.)
 
       You also need, and this formula cannot install them for you:
-        - CrossOver at ~/Applications/CrossOver.app
+        - CrossOver, in /Applications or ~/Applications
         - the native macOS Steam client, OPENED at least once and signed in
           ONLINE. A Steam that has been installed but never launched has not
           unpacked the client yet, and the deploy above will tell you so.
