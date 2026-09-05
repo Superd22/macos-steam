@@ -651,10 +651,33 @@ if [ "$HAVE32" = 1 ]; then
 fi
 
 # --- run the title's .exe through CrossOver's front door ----------------------
-# CWD must be the game dir (#19): the engine mounts pack files relative to it.
-# For "run" (a short-lived helper Steam spins off) we do the same wiring; only
-# "waitforexitandrun" is the title.
-cd "$(dirname "$EXE")"
+# CWD matters: the engine mounts pack files relative to it (#19). What #19 got
+# wrong was WHOSE cwd. It concluded "the game dir" from titles whose .exe sits
+# beside their data, where `dirname $EXE` and the directory Steam already put us
+# in are the same place -- so overriding one with the other was invisible.
+#
+# Steam reads the title's launch config and chdirs before it ever calls us.
+# Measured on Space Marine II (#116), which keeps its data two levels below the
+# .exe Steam names:
+#
+#   argv = waitforexitandrun, .../Space Marine 2/Warhammer 40000 Space Marine 2.exe
+#   PWD  = .../Space Marine 2/client_pc/root/bin/pc      <- Steam got it right
+#
+# `cd "$(dirname "$EXE")"` walked out of that into the game root, and the title
+# died before its first frame -- unable to find its data, and then unable to find
+# its own crash_reporter.exe, which is the "Failed to spawn crash reporter
+# process. Code = 2" the user sees. So: the title launch keeps the cwd Steam
+# established. Trusting Valve's answer here is the same posture as ADR 0012 on
+# the overlay setting -- the client owns what it already decided.
+#
+# A "run" helper (iscriptevaluator and friends, spun off through this same tool)
+# is NOT the title: Steam hands it a path relative to its own directory, so it
+# still needs the dirname. Only the title launch defers.
+if [ "$VERB" = waitforexitandrun ] && [ -d "$PWD" ]; then
+    log "cwd: Steam's [$PWD]"
+else
+    cd "$(dirname "$EXE")"
+fi
 # The injector is a PE and calls CreateProcess, which cannot open a UNIX path —
 # and Steam hands us one for its own helpers (iscriptevaluator.exe), which died
 # with "CreateProcess failed 2" when the first version of this routed them too.
