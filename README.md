@@ -17,7 +17,13 @@ This app is an attempt to brings the steamdeck's [Steam Play](https://store.stea
 ```sh
 brew tap Superd22/macos-steam
 brew install macos-steam-shim
+macos-steam-shim              # the deploy step — brew cannot do this one for you
 ```
+
+The third line is not optional and not a repair step. `brew install` builds the
+payload; putting it in your home directory is a separate command because a
+formula's install steps are sandboxed away from `$HOME`, which is the only place
+this payload can live.
 
 ### From a clone
 
@@ -26,7 +32,10 @@ brew install macos-steam-shim
 - Apple Silicon Mac, macOS 14+ (developed on macOS 26, M3 Pro).
 - **CrossOver** installed at `~/Applications/CrossOver.app` (25.1.1 and 26.2 both exercised).
   CrossOver is required. The launch goes through its front door, so its D3DMetal/GPTK wiring comes along.
-- The **native macOS Steam client**, installed, and signed in **online**.
+- The **native macOS Steam client** — installed, **opened at least once**, and signed
+  in **online**. Steam.app is a bootstrapper; the client this project execs is the one
+  Steam unpacks under `~/Library/Application Support/Steam/` on its first successful
+  run, so a Steam that has been downloaded but never launched is not yet enough.
 - Xcode command line tools (`xcode-select --install`) — Homebrew requires them anyway.
   The cross-compiler comes from the formula, so there is nothing else to install by hand.
   The contributor path, and the one to use if you want the sources in front of you:

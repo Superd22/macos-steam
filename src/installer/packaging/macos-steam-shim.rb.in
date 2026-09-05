@@ -70,31 +70,45 @@ class MacosSteamShim < Formula
     SH
   end
 
-  # The deploy half, run for the user so the terminal appears exactly once.
+  # There is no post_install, and there cannot be one.
   #
-  # Homebrew's sandbox governs what this may write, and the payload's home is
-  # under $HOME, not the prefix — so this is allowed to fail without failing
-  # the install. The formula's job was to BUILD; if the sandbox refuses the
-  # write, the caveats below name the one command that finishes the job, and
-  # the user is one paste from done rather than staring at a failed install.
-  def post_install
-    system libexec/"deploy.sh"
-  rescue
-    opoo "Could not deploy automatically — run `macos-steam-shim` to finish."
-  end
+  # This formula used to run deploy.sh here so the user never had to type a
+  # command. It never once worked, on any machine — and it failed in a way that
+  # read like bad luck rather than a bug, because it warned and moved on:
+  #
+  #   [deploy] native Steam not found at
+  #            /private/tmp/macos-steam-shim-postinstall-.../Library/...
+  #   Warning: Could not deploy automatically — run `macos-steam-shim` to finish.
+  #
+  # Look at the path. Homebrew gives post_install an ISOLATED $HOME — a fresh
+  # `Dir.mktmpdir("#{name}-postinstall-")` (Formula#run_post_install) — and every
+  # path deploy.sh builds hangs off $HOME. So it looked for Steam inside a temp
+  # dir made seconds earlier, and would have deployed the payload there too.
+  # Then the sandbox around the whole step allows writes to the cellar, the
+  # prefix, the logs and Xcode, and nowhere else: even handed the real $HOME it
+  # would be denied. Both facts are deliberate on Homebrew's part. A formula does
+  # not install into a user's home directory, and this payload lives nowhere else.
+  #
+  # So the deploy is the user's step, and the caveats say so as a step rather
+  # than as a fallback for a failure that was never conditional.
 
   def caveats
     <<~EOS
-      Deployed:
+      brew built it; one command installs it. Run this now:
+        macos-steam-shim
+
+      That deploys:
         the payload  ~/@PAYLOAD_REL@/
         the launcher ~/@LAUNCHER_REL@
 
-      If the install could not write those, run this once to finish:
-        macos-steam-shim
+      (brew cannot do it for you: a formula's install steps are sandboxed away
+      from your home directory, which is where all of the above has to live.)
 
       You also need, and this formula cannot install them for you:
         - CrossOver at ~/Applications/CrossOver.app
-        - the native macOS Steam client, installed and signed in ONLINE
+        - the native macOS Steam client, OPENED at least once and signed in
+          ONLINE. A Steam that has been installed but never launched has not
+          unpacked the client yet, and the deploy above will tell you so.
 
       Quit Steam, then open "Steam (macOS Play)" instead of Steam.app from now
       on. Windows-only titles gain a Play button; the first launch of the app
