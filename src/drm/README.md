@@ -21,3 +21,8 @@ The measurement behind it: `docs/research/steam-drm-shared-memory.md`.
 
 `SHIM_DRM=0` turns the route off. Without the fetch it is unavailable and the launch says so.
 Only titles that are actually wrapped take it.
+
+A user never types that first line: the launcher runs this same script for them, before a launch,
+on the first run and from Diagnose (#105). It is the same file either way — this module owns
+Valve's endpoint, the published SHA-256 and the shadow coverage check, and the app owns only the
+question of when to ask.

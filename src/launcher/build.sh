@@ -32,8 +32,8 @@ swiftc -O -swift-version 5 \
     -o "$OUT/$SHIM_PATH_LAUNCHER_BIN" \
     ../layout/gen/ShimPaths.swift \
     ../layout/gen/ShimPolicy.swift \
-    Shell.swift Prefs.swift Receipt.swift LogWatch.swift Preflight.swift \
-    Diagnose.swift Launch.swift AppModel.swift UI.swift \
+    Shell.swift Prefs.swift Receipt.swift LogWatch.swift ValveClient.swift \
+    Preflight.swift Diagnose.swift Launch.swift AppModel.swift UI.swift \
     main.swift
 
 # Ad-hoc, like the injector dylib beside it. There is no Developer ID yet; when

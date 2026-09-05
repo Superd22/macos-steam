@@ -16,6 +16,13 @@ final class AppModel: ObservableObject {
     @Published var launchState: LaunchState = .idle
     @Published var overlay: Bool = Prefs.overlay
     @Published var overlayPendingRestart = false
+    /// Why the last fetch of Valve's client DLL did not work (#105). Kept on
+    /// the model rather than in the row, because the row is recomputed from
+    /// disk — after a failed download the file is still absent, so the check
+    /// would go back to the generic "copy-protected games need a file from
+    /// Valve" and the user would press the same button expecting a different
+    /// result. This is what the row says instead, until something changes it.
+    @Published var valveClientProblem: String?
 
     enum LaunchState: Equatable {
         case idle
@@ -88,7 +95,27 @@ final class AppModel: ObservableObject {
     /// client, so the injector runs in a process that immediately exits.
     var mustQuitSteamFirst: Bool { steamNeedsRestart }
 
+    /// The first-run launch is also where the DRM route gets armed (#105, call
+    /// site 1). A machine that has run this app once should be able to start a
+    /// copy-protected game, and this is the only moment where a user is
+    /// present, has just asked for something, and can be told what is
+    /// happening — the pre-launch site cannot say a word, and Diagnose is
+    /// somewhere most people never open.
+    ///
+    /// It never stops the launch. Offline, the fetcher gives up on the manifest
+    /// in under a minute and Steam starts anyway, which is the correct outcome:
+    /// everything that is not copy-protected works without any of this.
     func launchAndProve() {
+        if ValveClient.mayFetchUnattended {
+            Task.detached {
+                await self.fetchValveClient(then: { self.launchAfterFetch() })
+            }
+            return
+        }
+        launchAfterFetch()
+    }
+
+    private func launchAfterFetch() {
         if mustQuitSteamFirst {
             busy = "Quitting Steam…"
             Task.detached {
@@ -127,6 +154,37 @@ final class AppModel: ObservableObject {
                 self.launchState = .launchedButUnproven(
                     "Steam started, but Steam Play did not switch on. Diagnose has more.")
             }
+        }
+    }
+
+    /// The download, with the fetcher's own narration as the busy label (#105).
+    /// Every call site ends up here: the checklist's button, Diagnose's button,
+    /// and the first run. Detached, because it blocks for as long as 60 MB
+    /// takes; `then` runs on the main actor once it is over, whatever the
+    /// outcome, which is what lets the first run carry on into the launch
+    /// rather than stopping at a failed download.
+    nonisolated func fetchValveClient(then next: (@MainActor () -> Void)? = nil) async {
+        await MainActor.run {
+            self.busy = "Getting Valve's client file…"
+            self.valveClientProblem = nil
+        }
+        let outcome = ValveClient.fetch { line in
+            Task { @MainActor in
+                // Only while this is still the thing on screen: a line arriving
+                // after the user cancelled into something else must not
+                // repaint somebody else's label.
+                if self.busy != nil { self.busy = line }
+            }
+        }
+        await MainActor.run {
+            self.busy = nil
+            if case .failed(let why) = outcome { self.valveClientProblem = why }
+            self.refresh()
+            // Diagnose's list is a snapshot, so the row that offered the button
+            // is stale the moment the button worked — but only re-run it if the
+            // pane is actually showing findings.
+            if !self.findings.isEmpty { self.runDiagnose() }
+            next?()
         }
     }
 

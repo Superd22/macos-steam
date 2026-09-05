@@ -168,6 +168,37 @@ struct Hairline: View {
     var body: some View { Divider().opacity(0.5).padding(.leading, 44) }
 }
 
+/// A row's remedy, wherever the row is shown. Shared between the two panes
+/// because a remedy is a property of the check, not of the pane: the DRM
+/// download appears on the checklist and in Diagnose, and one button drawn
+/// twice is how the two would end up disagreeing about what it does (#105).
+struct RemedyButton: View {
+    let remedy: Remedy
+    let title: String
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        switch remedy {
+        case .openURL(let url): Link(title, destination: url)
+        case .openApp(let path):
+            Button(title) { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
+        case .createBottle: Button(title) { model.createBottle() }.disabled(model.busy != nil)
+        case .fetchValveClient:
+            Button(title) { Task { await model.fetchValveClient() } }.disabled(model.busy != nil)
+        case .reinstall: Button(title) { Help.showReinstall() }
+        case .none: EmptyView()
+        }
+    }
+}
+
+/// What a row says, once the model knows better than the row does. Only the
+/// DRM download has anything to add: its check is a stat, so after a failed
+/// fetch the file is still missing and the row would go back to explaining why
+/// it is needed — while what the user needs to read is why it did not arrive.
+@MainActor private func rowDetail(_ id: String, _ detail: String, _ model: AppModel) -> String {
+    id == ValveClient.rowID ? (model.valveClientProblem ?? detail) : detail
+}
+
 // MARK: - checklist (first run, or preflight broken)
 
 struct ChecklistView: View {
@@ -180,8 +211,9 @@ struct ChecklistView: View {
                 Card {
                     ForEach(Array(model.checks.enumerated()), id: \.element.id) { index, check in
                         let shown = displayed(check)
-                        StatusRow(verdict: shown.verdict, title: shown.title, detail: shown.detail) {
-                            remedy(for: check)
+                        StatusRow(verdict: shown.verdict, title: shown.title,
+                                  detail: rowDetail(shown.id, shown.detail, model)) {
+                            RemedyButton(remedy: check.remedy, title: check.remedyTitle, model: model)
                         }
                         if index < model.checks.count - 1 { Hairline() }
                     }
@@ -296,20 +328,6 @@ struct ChecklistView: View {
             return Check(id: check.id, title: "Steam Play did not switch on", verdict: .blocked, detail: why)
         case .idle:
             return check
-        }
-    }
-
-    @ViewBuilder
-    private func remedy(for check: Check) -> some View {
-        switch check.remedy {
-        case .openURL(let url): Link(check.remedyTitle, destination: url)
-        case .openApp(let path):
-            Button(check.remedyTitle) {
-                NSWorkspace.shared.open(URL(fileURLWithPath: path))
-            }
-        case .createBottle: Button(check.remedyTitle) { model.createBottle() }.disabled(model.busy != nil)
-        case .reinstall: Button(check.remedyTitle) { Help.showReinstall() }
-        case .none: EmptyView()
         }
     }
 }
@@ -507,7 +525,10 @@ struct DiagnoseTab: View {
             } else {
                 Card {
                     ForEach(Array(model.findings.enumerated()), id: \.element.id) { index, f in
-                        StatusRow(verdict: f.verdict, title: f.title, detail: f.detail) { EmptyView() }
+                        StatusRow(verdict: f.verdict, title: f.title,
+                                  detail: rowDetail(f.id, f.detail, model)) {
+                            RemedyButton(remedy: f.remedy, title: f.remedyTitle, model: model)
+                        }
                         if index < model.findings.count - 1 { Hairline() }
                     }
                 }

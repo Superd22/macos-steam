@@ -22,12 +22,31 @@ before.
 |---|---|
 | `main.swift` | mode dispatch, and the exec that ends the process |
 | `Launch.swift` | the child environment: the DYLD merge (#85), the tool path, the stated overlay |
-| `Preflight.swift` | the six checks, as verdicts a user can act on |
+| `Preflight.swift` | the seven checks, as verdicts a user can act on |
 | `LogWatch.swift` | reads `patched 1 site(s)` so the user never has to |
 | `Diagnose.swift` | the README's troubleshooting table, executed |
+| `ValveClient.swift` | runs `src/drm/fetch.sh`, from the three places that arm the DRM route (#105) |
 | `Receipt.swift` / `Prefs.swift` | what is deployed (ADR 0010), and what the user chose |
 | `AppModel.swift` / `UI.swift` | the two panes |
 | `check_launch_env.sh` | #85's acceptance test, run by `build.sh` on every build |
+
+## The one thing here that touches the network
+
+The DRM route needs Valve's own signed client DLL, which we may not ship (ADR
+0014). Nothing ever went and got it, so the route was dead on every fresh
+machine (#105). `ValveClient.swift` is the trigger, and it runs the DRM
+module's `fetch.sh` rather than learning to talk to Valve's manifest itself:
+
+| where | when | who watches |
+|---|---|---|
+| `main.swift`, before the exec | the cache is empty | nobody — started and orphaned, so the click still means "start Steam" |
+| the checklist's first-run launch | the cache is empty | the user, in the busy line, and the launch happens either way |
+| Diagnose | the button is pressed, including on a green row | the user — this is the re-fetch after a Steam client update |
+
+`Preflight` stays stat-only: it asks whether the cached file exists, never
+whether it is current. Deciding *that* costs a round trip to Valve, so the app
+never spends a user's bandwidth on its own initiative — which is why the green
+row in Diagnose keeps its button instead of latching.
 
 ## Why it is compiled, and why locally
 
